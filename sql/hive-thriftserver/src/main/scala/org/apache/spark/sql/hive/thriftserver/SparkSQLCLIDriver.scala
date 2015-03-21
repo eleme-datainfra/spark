@@ -27,25 +27,24 @@ import jline.{ConsoleReader, History}
 import org.apache.commons.lang.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.hive.cli.{CliDriver, CliSessionState, OptionsProcessor}
-import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils}
+import org.apache.hadoop.hive.common.LogUtils.LogInitializationException
+import org.apache.hadoop.hive.common.{HiveInterruptCallback, HiveInterruptUtils, LogUtils}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.processors.{SetProcessor, CommandProcessor}
+import org.apache.hadoop.hive.ql.processors.{SetProcessor, CommandProcessor, CommandProcessorFactory}
 import org.apache.hadoop.hive.ql.session.SessionState
-import org.apache.hadoop.util.ShutdownHookManager
+import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.thrift.transport.TSocket
 
 import org.apache.spark.Logging
 import org.apache.spark.sql.hive.HiveShim
 
 private[hive] object SparkSQLCLIDriver {
-  val SHUTDOWN_HOOK_PRIORITY: Int = 30
   private var prompt = "spark-sql"
   private var continuedPrompt = "".padTo(prompt.length, ' ')
-  private var transport: TSocket = _
+  private var transport:TSocket = _
 
   installSignalHandler()
 
@@ -93,26 +92,22 @@ private[hive] object SparkSQLCLIDriver {
 
     // Set all properties specified via command line.
     val conf: HiveConf = sessionState.getConf
-    sessionState.cmdProperties.entrySet().foreach {
-      item: java.util.Map.Entry[Object, Object] =>
-        conf.set(item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
-        sessionState.getOverriddenConfigurations.put(
-          item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
+    sessionState.cmdProperties.entrySet().foreach { item: java.util.Map.Entry[Object, Object] =>
+      conf.set(item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
+      sessionState.getOverriddenConfigurations.put(
+        item.getKey.asInstanceOf[String], item.getValue.asInstanceOf[String])
     }
 
     SessionState.start(sessionState)
 
-    // Clean up after we exit. Use higher priority than FileSystem.
-    assert(SHUTDOWN_HOOK_PRIORITY > FileSystem.SHUTDOWN_HOOK_PRIORITY)
-    ShutdownHookManager.get().addShutdownHook(
-      new Runnable {
+    // Clean up after we exit
+    Runtime.getRuntime.addShutdownHook(
+      new Thread() {
         override def run() {
           SparkSQLEnv.stop()
         }
-      },
-      SHUTDOWN_HOOK_PRIORITY
+      }
     )
-
 
     // "-h" option has been passed, so connect to Hive thrift server.
     if (sessionState.getHost != null) {
@@ -180,12 +175,12 @@ private[hive] object SparkSQLCLIDriver {
         reader.setHistory(new History(new File(historyFile)))
       } else {
         System.err.println("WARNING: Directory for Hive history file: " + historyDirectory +
-          " does not exist.   History will not be available during this session.")
+                           " does not exist.   History will not be available during this session.")
       }
     } catch {
       case e: Exception =>
         System.err.println("WARNING: Encountered an error while trying to initialize Hive's " +
-          "history file.  History will not be available during this session.")
+                           "history file.  History will not be available during this session.")
         System.err.println(e.getMessage)
     }
 
@@ -273,13 +268,13 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
 
           driver.init()
           val out = sessionState.out
-          val start: Long = System.currentTimeMillis()
+          val start:Long = System.currentTimeMillis()
           if (sessionState.getIsVerbose) {
             out.println(cmd)
           }
           val rc = driver.run(cmd)
           val end = System.currentTimeMillis()
-          val timeTaken: Double = (end - start) / 1000.0
+          val timeTaken:Double = (end - start) / 1000.0
 
           ret = rc.getResponseCode
           if (ret != 0) {
@@ -292,24 +287,22 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
 
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
             // Print the column names.
-            Option(driver.getSchema.getFieldSchemas).map {
-              fields =>
-                out.println(fields.map(_.getName).mkString("\t"))
+            Option(driver.getSchema.getFieldSchemas).map { fields =>
+              out.println(fields.map(_.getName).mkString("\t"))
             }
           }
 
           var counter = 0
           try {
             while (!out.checkError() && driver.getResults(res)) {
-              res.foreach {
-                l =>
-                  counter += 1
-                  out.println(l)
+              res.foreach{ l =>
+                counter += 1
+                out.println(l)
               }
               res.clear()
             }
           } catch {
-            case e: IOException =>
+            case e:IOException =>
               console.printError(
                 s"""Failed with exception ${e.getClass.getName}: ${e.getMessage}
                    |${org.apache.hadoop.util.StringUtils.stringifyException(e)}
@@ -326,7 +319,7 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
           if (counter != 0) {
             responseMsg += s", Fetched $counter row(s)"
           }
-          console.printInfo(responseMsg, null)
+          console.printInfo(responseMsg , null)
           // Destroy the driver to release all the locks.
           driver.destroy()
         } else {

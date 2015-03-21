@@ -28,15 +28,12 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.hive.thriftserver.ReflectionUtils._
 import org.apache.spark.scheduler.{SparkListenerApplicationEnd, SparkListener}
-import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.util.ShutdownHookManager
 
 /**
  * The main entry point for the Spark SQL port of HiveServer2.  Starts up a `SparkSQLContext` and a
  * `HiveThriftServer2` thrift server.
  */
 object HiveThriftServer2 extends Logging {
-  val SHUTDOWN_HOOK_PRIORITY: Int = 30
   var LOG = LogFactory.getLog(classOf[HiveServer2])
 
   /**
@@ -60,14 +57,12 @@ object HiveThriftServer2 extends Logging {
     logInfo("Starting SparkContext")
     SparkSQLEnv.init()
 
-    // Clean up after we exit. Use higher priority than FileSystem.
-    assert(SHUTDOWN_HOOK_PRIORITY > FileSystem.SHUTDOWN_HOOK_PRIORITY)
-    ShutdownHookManager.get().addShutdownHook(
-      new Runnable {
+    Runtime.getRuntime.addShutdownHook(
+      new Thread() {
         override def run() {
           SparkSQLEnv.stop()
         }
-      }, SHUTDOWN_HOOK_PRIORITY
+      }
     )
 
     try {
