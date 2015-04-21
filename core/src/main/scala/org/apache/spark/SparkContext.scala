@@ -1479,8 +1479,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int],
       allowLocal: Boolean
       ): Array[U] = {
-    val results = ArrayBuffer[U]()
-    runJob[T, U](rdd, func, partitions, allowLocal, (index: Int, res: U) => results.append(res))
+    val results = scala.collection.mutable.ListBuffer[U]()
+    runJob[T, U](rdd, func, partitions, allowLocal, (index: Int, res: U) => results.insert(index, res))
     results.toArray
   }
 
