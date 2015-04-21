@@ -46,7 +46,7 @@ object DefaultOptimizer extends Optimizer {
     Batch("Decimal Optimizations", FixedPoint(100),
       DecimalAggregates) ::
     Batch("Filter Pushdown", FixedPoint(100),
-      // UnionPushdown,
+      UnionPushdown,
       CombineFilters,
       PushPredicateThroughProject,
       PushPredicateThroughJoin,

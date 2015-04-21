@@ -36,6 +36,13 @@
   </properties>
 
   <dependencies>
+      <dependency>
+          <groupId>com.xiaoju.udf</groupId>
+          <artifactId>com.xiaoju.udf</artifactId>
+          <version>1.0.0</version>
+          <scope>system</scope>
+          <systemPath>D:/IdeaWorkSpace/spark-latest/spark/sql/hive/src/test/resources/udf.jar</systemPath>
+      </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.binary.version}</artifactId>

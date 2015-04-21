@@ -146,15 +146,6 @@ class DAGScheduler(
     }
   }
 
-  private def initializeEventProcessActor() {
-    // blocking the thread until supervisor is started, which ensures eventProcessActor is
-    // not null before any job is submitted
-    implicit val timeout = Timeout(30 seconds)
-    val initEventActorReply =
-      dagSchedulerActorSupervisor ? Props(new DAGSchedulerEventProcessActor(this))
-    eventProcessActor = Await.result(initEventActorReply, timeout.duration).
-      asInstanceOf[ActorRef]
-  }
   private val messageScheduler =
     Executors.newScheduledThreadPool(1, Utils.namedThreadFactory("dag-scheduler-message"))
 
