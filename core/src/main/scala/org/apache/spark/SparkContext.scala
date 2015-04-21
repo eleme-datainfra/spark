@@ -29,7 +29,7 @@ import java.util.UUID.randomUUID
 import scala.collection.{Map, Set}
 import scala.collection.JavaConversions._
 import scala.collection.generic.Growable
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.reflect.{ClassTag, classTag}
 
 import akka.actor.Props
@@ -1479,9 +1479,9 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int],
       allowLocal: Boolean
       ): Array[U] = {
-    val results = new Array[U](partitions.size)
-    runJob[T, U](rdd, func, partitions, allowLocal, (index, res) => results(index) = res)
-    results
+    val results = ArrayBuffer[U]()
+    runJob[T, U](rdd, func, partitions, allowLocal, (index: Int, res: U) => results.append(res))
+    results.toArray
   }
 
   /**
