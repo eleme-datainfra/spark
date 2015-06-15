@@ -127,13 +127,6 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
 
         <div class="row-fluid">
           <div class="span12">
-            <h4> Workers </h4>
-            {workerTable}
-          </div>
-        </div>
-
-        <div class="row-fluid">
-          <div class="span12">
             <h4> Running Applications </h4>
             {activeAppsTable}
           </div>
@@ -169,6 +162,13 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
               </div>
             }
           }
+        </div>
+
+        <div class="row-fluid">
+          <div class="span12">
+            <h4> Workers </h4>
+            {workerTable}
+          </div>
         </div>;
 
     UIUtils.basicSparkPage(content, "Spark Master at " + state.uri)
