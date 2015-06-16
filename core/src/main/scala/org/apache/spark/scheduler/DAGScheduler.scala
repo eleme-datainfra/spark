@@ -546,14 +546,14 @@ class DAGScheduler(
       callSite: CallSite,
       allowLocal: Boolean,
       resultHandler: (Int, U) => Unit,
-      properties: Properties): Array[U] = {
+      properties: Properties) {
     val start = System.nanoTime
     val waiter = submitJob(rdd, func, partitions, callSite, allowLocal, resultHandler, properties)
     waiter.awaitResult() match {
       case JobSucceeded =>
         logInfo("Job %d finished: %s, took %f s".format
           (waiter.jobId, callSite.shortForm, (System.nanoTime - start) / 1e9))
-        waiter.results.asInstanceOf[Array[U]]
+        // waiter.results.asInstanceOf[Array[U]]
       case JobFailed(exception: Exception) =>
         logInfo("Job %d failed: %s, took %f s".format
           (waiter.jobId, callSite.shortForm, (System.nanoTime - start) / 1e9))
@@ -980,7 +980,7 @@ class DAGScheduler(
         runningStages -= stage
         return
     }
-    val user = properties.getProperty("user")
+    val user = if(properties == null) "" else properties.getProperty("user")
     val tasks: Seq[Task[_]] = stage match {
       case stage: ShuffleMapStage =>
         partitionsToCompute.map { id =>

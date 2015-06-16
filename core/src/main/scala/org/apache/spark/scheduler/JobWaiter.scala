@@ -30,7 +30,7 @@ private[spark] class JobWaiter[T](
 
   private var finishedTasks = 0
 
-  var results: Array[Any] = new Array[Any](totalTasks)
+  // var results: Array[U] = new Array[U](totalTasks)
 
   // Is the job as a whole finished (succeeded or failed)?
   @volatile
