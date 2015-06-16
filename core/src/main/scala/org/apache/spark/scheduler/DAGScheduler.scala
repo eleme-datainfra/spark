@@ -91,6 +91,7 @@ class DAGScheduler(
   private[scheduler] val stageIdToStage = new HashMap[Int, Stage]
   private[scheduler] val shuffleToMapStage = new HashMap[Int, ShuffleMapStage]
   private[scheduler] val jobIdToActiveJob = new HashMap[Int, ActiveJob]
+  private[scheduler] val stageIdToChildStage = new HashMap[Int, Stage]
 
   // Stages we need to run whose parents aren't done
   private[scheduler] val waitingStages = new HashSet[Stage]
@@ -132,6 +133,23 @@ class DAGScheduler(
 
   /** If enabled, FetchFailed will not cause stage retry, in order to surface the problem. */
   private val disallowStageRetryForTest = sc.getConf.getBoolean("spark.test.noStageRetry", false)
+
+  private var isAutoPartition = sc.getConf.getBoolean("spark.reduce.autoPartition", false)
+  private var minNumPartitions = sc.getConf.getInt("spark.reduce.partition.min", 2)
+  private var maxNumPartitions = sc.getConf.getInt("spark.reduce.partition.max", 2)
+  private var bytesPerPartition = sc.getConf.getInt("spark.reduce.per.partition.bytes",
+    256 * 1024 * 1024)
+  private var isAutoPartitionForTest = false
+
+  def setAutoPartitionForTest(isAutoPartitionForTest: Boolean, maxNumPartitions: Int,
+                              bytesPerPartition: Int){
+    this.isAutoPartitionForTest = isAutoPartitionForTest
+    this.isAutoPartition = isAutoPartitionForTest
+    if (isAutoPartitionForTest) {
+      this.maxNumPartitions = maxNumPartitions
+      this.bytesPerPartition = bytesPerPartition
+    }
+  }
 
   private val messageScheduler =
     ThreadUtils.newDaemonSingleThreadScheduledExecutor("dag-scheduler-message")
@@ -512,7 +530,7 @@ class DAGScheduler(
 
     assert(partitions.size > 0)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
-    val waiter = new JobWaiter(this, jobId, partitions.size, resultHandler)
+    val waiter = new JobWaiter[U](this, jobId, partitions.size, resultHandler)
     val user = UserGroupInformation.getCurrentUser.getUserName
     properties.setProperty("user", user)
     eventProcessLoop.post(JobSubmitted(
@@ -528,13 +546,14 @@ class DAGScheduler(
       callSite: CallSite,
       allowLocal: Boolean,
       resultHandler: (Int, U) => Unit,
-      properties: Properties): Unit = {
+      properties: Properties): Array[U] = {
     val start = System.nanoTime
     val waiter = submitJob(rdd, func, partitions, callSite, allowLocal, resultHandler, properties)
     waiter.awaitResult() match {
       case JobSucceeded =>
         logInfo("Job %d finished: %s, took %f s".format
           (waiter.jobId, callSite.shortForm, (System.nanoTime - start) / 1e9))
+        waiter.results.asInstanceOf[Array[U]]
       case JobFailed(exception: Exception) =>
         logInfo("Job %d failed: %s, took %f s".format
           (waiter.jobId, callSite.shortForm, (System.nanoTime - start) / 1e9))
@@ -821,6 +840,9 @@ class DAGScheduler(
           submitMissingTasks(stage, jobId.get)
         } else {
           for (parent <- missing) {
+            if(isAutoPartition){
+              stageIdToChildStage(parent.id) = stage
+            }
             submitStage(parent)
           }
           waitingStages += stage
@@ -831,12 +853,79 @@ class DAGScheduler(
     }
   }
 
+  private def estimateStageInputSize(stage: Stage): Long = {
+    var inputSize:Long = 0L
+    if (stage.parents.isEmpty) {// when first level stage, compute rdd.inputSize
+      inputSize += stage.rdd.getInputSize
+    } else {
+      for (parentStage <- stage.parents) {
+        if(parentStage.isInstanceOf[ShuffleMapStage]) {
+          var parentShuffleMapStage = parentStage.asInstanceOf[ShuffleMapStage]
+          if(parentShuffleMapStage.isAvailable){
+            inputSize += parentShuffleMapStage.getOutputSize
+          } else {
+            inputSize += estimateStageInputSize(parentShuffleMapStage)
+          }
+        }
+      }
+    }
+    logInfo("estimate " + stage + " 's inputSize=" + Utils.bytesToString(inputSize))
+    inputSize
+  }
+
+  private def estimateNumPartitionsOfStage(childStage: Stage): Int = {
+    var inputSize:Long = 0L
+    // sum inputSize of childStage's parents stage
+    for (parentStage <- childStage.parents) {
+      // stage's inputSize is sum outputSize of his parents stage
+      inputSize += estimateStageInputSize(parentStage)
+    }
+    val estimateNumPartitions = ((inputSize + bytesPerPartition - 1) / bytesPerPartition).toInt
+    val numPartitions:Int = Math.min(Math.max(estimateNumPartitions, minNumPartitions),
+      maxNumPartitions)
+    logInfo("estimate " + childStage + " 's inputSize=" + Utils.bytesToString(inputSize) +
+      ",bytesPerPartition=" + Utils.bytesToString(bytesPerPartition) + ",numPartitions=" +
+      numPartitions)
+    numPartitions
+  }
+
+  private def updateNumPartitionsOfStage(stage: Stage, numPartitions: Int) {
+    logInfo("update " + stage + " 's  numPartitions=" + numPartitions)
+    for (parentStage <- stage.parents) {
+      if(parentStage.isInstanceOf[ShuffleMapStage]) {
+        var parentShuffleMapStage = parentStage.asInstanceOf[ShuffleMapStage]
+        logInfo("update " + parentShuffleMapStage + " 's shuffleDep's numPartitions=" + numPartitions)
+        val partitioner:Partitioner = parentShuffleMapStage.shuffleDep.partitioner
+        if (!isAutoPartitionForTest) {
+          partitioner.setNumPartitions(numPartitions)
+        }
+      }
+    }
+
+    stage.resetNumPartitions(numPartitions)
+    logInfo("update " + stage + " 's  numPartitions=" + numPartitions + " finished.")
+  }
+
   /** Called when stage's parents are available and we can now do its task. */
   private def submitMissingTasks(stage: Stage, jobId: Int) {
     logDebug("submitMissingTasks(" + stage + ")")
     // Get our pending tasks and remember them in our pendingTasks entry
     stage.pendingTasks.clear()
 
+    if(isAutoPartition){
+      if (stageIdToChildStage.contains(stage.id)) {
+        val childStage = stageIdToChildStage.get(stage.id)
+        if (!childStage.get.isResetNumPartitions) {
+          updateNumPartitionsOfStage(childStage.get, estimateNumPartitionsOfStage(childStage.get))
+        } else {
+          logInfo(stage + "'s child " + childStage + " have been estimated, partitionNumber=" +
+            childStage.get.numPartitions)
+        }
+        stageIdToChildStage.remove(stage.id)
+      } else {
+        logInfo(stage + " has no child stage ")
+      }
+    }
 
     // First figure out the indexes of partition ids to compute.
     val partitionsToCompute: Seq[Int] = {

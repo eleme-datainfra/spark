@@ -24,11 +24,13 @@ package org.apache.spark.scheduler
 private[spark] class JobWaiter[T](
     dagScheduler: DAGScheduler,
     val jobId: Int,
-    totalTasks: Int,
-    resultHandler: (Int, T) => Unit)
+    var totalTasks: Int,
+    var resultHandler: (Int, T) => Unit)
   extends JobListener {
 
   private var finishedTasks = 0
+
+  var results: Array[Any] = new Array[Any](totalTasks)
 
   // Is the job as a whole finished (succeeded or failed)?
   @volatile

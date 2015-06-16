@@ -20,7 +20,7 @@ package org.apache.spark.scheduler
 import org.apache.spark.ShuffleDependency
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.BlockManagerId
-import org.apache.spark.util.CallSite
+import org.apache.spark.util.{Utils, CallSite}
 
 /**
  * The ShuffleMapStage represents the intermediate stages in a job.
@@ -28,12 +28,12 @@ import org.apache.spark.util.CallSite
 private[spark] class ShuffleMapStage(
     id: Int,
     rdd: RDD[_],
-    numTasks: Int,
+    partitions: Int,
     parents: List[Stage],
     jobId: Int,
     callSite: CallSite,
     val shuffleDep: ShuffleDependency[_, _, _])
-  extends Stage(id, rdd, numTasks, parents, jobId, callSite) {
+  extends Stage(id, rdd, partitions, parents, jobId, callSite) {
 
   override def toString: String = "ShuffleMapStage " + id
 
@@ -41,7 +41,9 @@ private[spark] class ShuffleMapStage(
 
   def isAvailable: Boolean = numAvailableOutputs == numPartitions
 
-  val outputLocs = Array.fill[List[MapStatus]](numPartitions)(Nil)
+  var outputLocs = Array.fill[List[MapStatus]](numPartitions)(Nil)
+
+  var outputSize:Long = -1L
 
   def addOutputLoc(partition: Int, status: MapStatus): Unit = {
     val prevList = outputLocs(partition)
@@ -81,4 +83,36 @@ private[spark] class ShuffleMapStage(
         this, execId, numAvailableOutputs, numPartitions, isAvailable))
     }
   }
+
+  def getOutputSize(): Long = {
+    if (outputSize < 0) {
+      updateOutputSize
+    }
+    outputSize
+  }
+
+  def updateOutputSize() {
+    outputSize = 0
+    for (partition <- 0 until numPartitions) {
+      val prevList = outputLocs(partition)
+      prevList.foreach { mapStatus =>
+        outputSize += mapStatus.getUncompressedSize
+      }
+    }
+    logInfo("%s 's numPartition:%d outputSize is %s".format(this, numPartitions,
+      Utils.bytesToString(outputSize)))
+  }
+
+  override def resetNumPartitions(partitions: Int) {
+    if (!isResetNumPartitions) {
+      numPartitions = rdd.resetPartitions(partitions).size
+      logInfo("after " + rdd + " reset " + numPartitions +
+        " partitions, actual paritionNumber is " + numPartitions)
+      numTasks = numPartitions
+      latestInfo = StageInfo.fromStage(this)
+      outputLocs = Array.fill[List[MapStatus]](numPartitions)(Nil)
+      isResetNumPartitions = true
+    }
+  }
+
 }

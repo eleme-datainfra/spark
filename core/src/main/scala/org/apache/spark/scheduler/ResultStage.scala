@@ -26,15 +26,28 @@ import org.apache.spark.util.CallSite
 private[spark] class ResultStage(
     id: Int,
     rdd: RDD[_],
-    numTasks: Int,
+    partitions: Int,
     parents: List[Stage],
     jobId: Int,
     callSite: CallSite)
-  extends Stage(id, rdd, numTasks, parents, jobId, callSite) {
+  extends Stage(id, rdd, partitions, parents, jobId, callSite) {
 
   // The active job for this result stage. Will be empty if the job has already finished
   // (e.g., because the job was cancelled).
   var resultOfJob: Option[ActiveJob] = None
+
+  override def resetNumPartitions(partitions: Int) {
+    if (!isResetNumPartitions) {
+      numPartitions = rdd.resetPartitions(partitions).size
+      logInfo("after " + rdd + " reset " + numPartitions +
+        " partitions, actual paritionNumber is " + numPartitions)
+      numTasks = numPartitions
+      latestInfo = StageInfo.fromStage(this)
+      val job = resultOfJob.get
+      job.resetPartition(numPartitions)
+      isResetNumPartitions = true
+    }
+  }
 
   override def toString: String = "ResultStage " + id
 }

@@ -1719,7 +1719,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       func: (TaskContext, Iterator[T]) => U,
       partitions: Seq[Int],
       allowLocal: Boolean,
-      resultHandler: (Int, U) => Unit) {
+      resultHandler: (Int, U) => Unit): Array[U] = {
     if (stopped.get()) {
       throw new IllegalStateException("SparkContext has been shutdown")
     }
@@ -1729,10 +1729,11 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
-    dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, allowLocal,
+    val results = dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, allowLocal,
       resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
     rdd.doCheckpoint()
+    results
   }
 
   /**
@@ -1748,7 +1749,6 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       ): Array[U] = {
     val results = new Array[U](partitions.size)
     runJob[T, U](rdd, func, partitions, allowLocal, (index, res) => results(index) = res)
-    results
   }
 
   /**
