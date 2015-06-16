@@ -891,7 +891,7 @@ class DAGScheduler(
         runningStages -= stage
         return
     }
-    val user = properties.getProperty("user")
+    val user = if(properties == null) "" else properties.getProperty("user")
     val tasks: Seq[Task[_]] = stage match {
       case stage: ShuffleMapStage =>
         partitionsToCompute.map { id =>
