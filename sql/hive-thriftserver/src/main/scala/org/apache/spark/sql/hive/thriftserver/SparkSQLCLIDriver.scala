@@ -123,8 +123,7 @@ private[hive] object SparkSQLCLIDriver {
         val randomNumber = Random.nextInt(servers.length)
         server = servers(randomNumber)
       }
-      val Array(host, port) = server.split(":")
-      sessionState.setHost(host)
+      sessionState.setHost(server.trim)
     }
 
     // "-h" option has been passed, so connect to Hive thrift server.
