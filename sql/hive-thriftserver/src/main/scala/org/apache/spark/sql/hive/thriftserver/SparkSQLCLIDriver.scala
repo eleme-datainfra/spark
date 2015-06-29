@@ -123,7 +123,7 @@ private[hive] object SparkSQLCLIDriver {
         val randomNumber = Random.nextInt(servers.length)
         server = servers(randomNumber)
       }
-      val (host, port) = server.split(":")
+      val Array(host, port) = server.split(":")
       sessionState.setHost(host)
     }
 
