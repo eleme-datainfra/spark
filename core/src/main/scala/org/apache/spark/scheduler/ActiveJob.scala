@@ -44,10 +44,7 @@ private[spark] class ActiveJob(
     finished = Array.fill[Boolean](numPartitions)(false)
     if(listener.isInstanceOf[JobWaiter[_]]){
       val waiter:JobWaiter[_] = listener.asInstanceOf[JobWaiter[_]]
-      // val results = new Array[_](numPartitions)
-      // waiter.resultHandler = (index, res) => results(index) = res
       waiter.totalTasks = numPartitions
-      // waiter.results = results
     }
   }
 }

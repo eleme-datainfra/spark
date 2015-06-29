@@ -1748,7 +1748,6 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int],
       allowLocal: Boolean
       ): Array[U] = {
-    // val results = new Array[U](partitions.size)
     val results = new mutable.HashMap[Int, U]()
     val resultHandler: (Int, U) => Unit = (index: Int, res: U) => results += (index -> res)
     runJob[T, U](rdd, func, partitions, allowLocal, resultHandler)

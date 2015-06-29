@@ -21,7 +21,7 @@ import org.apache.spark.Logging
 import org.apache.spark.util.{Clock, SystemClock}
 
 private[streaming]
-class RecurringTimer(clock: Clock, period: Long, callback: (Long) => Unit, name: String)
+class RecurringTimer(clock: Clock, period: Long, delayTime: Long, callback: (Long) => Unit, name: String)
   extends Logging {
 
   private val thread = new Thread("RecurringTimer - " + name) {
@@ -39,7 +39,7 @@ class RecurringTimer(clock: Clock, period: Long, callback: (Long) => Unit, name:
    * current system time.
    */
   def getStartTime(): Long = {
-    (math.floor(clock.getTimeMillis().toDouble / period) + 1).toLong * period
+    (math.floor(clock.getTimeMillis().toDouble / period) + 1).toLong * period + delayTime
   }
 
   /**
@@ -50,7 +50,7 @@ class RecurringTimer(clock: Clock, period: Long, callback: (Long) => Unit, name:
    */
   def getRestartTime(originalStartTime: Long): Long = {
     val gap = clock.getTimeMillis() - originalStartTime
-    (math.floor(gap.toDouble / period).toLong + 1) * period + originalStartTime
+    (math.floor(gap.toDouble / period).toLong + 1) * period + originalStartTime + delayTime
   }
 
   /**

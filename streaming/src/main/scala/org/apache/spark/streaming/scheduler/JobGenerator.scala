@@ -42,6 +42,7 @@ class JobGenerator(jobScheduler: JobScheduler) extends Logging {
   private val ssc = jobScheduler.ssc
   private val conf = ssc.conf
   private val graph = ssc.graph
+  private val delayTime = conf.getTimeAsMs("spark.streaming.delayTime", "0ms")
 
   val clock = {
     val clockClass = ssc.sc.conf.get(
@@ -55,7 +56,7 @@ class JobGenerator(jobScheduler: JobScheduler) extends Logging {
     }
   }
 
-  private val timer = new RecurringTimer(clock, ssc.graph.batchDuration.milliseconds,
+  private val timer = new RecurringTimer(clock, ssc.graph.batchDuration.milliseconds, delayTime,
     longTime => eventLoop.post(GenerateJobs(new Time(longTime))), "JobGenerator")
 
   // This is marked lazy so that this is initialized after checkpoint duration has been set
