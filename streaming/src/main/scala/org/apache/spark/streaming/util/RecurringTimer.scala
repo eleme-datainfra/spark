@@ -117,7 +117,7 @@ object RecurringTimer {
       println("" + currentTime + ": " + (currentTime - lastRecurTime))
       lastRecurTime = currentTime
     }
-    val timer = new  RecurringTimer(new SystemClock(), period, onRecur, "Test")
+    val timer = new  RecurringTimer(new SystemClock(), period, 0L, onRecur, "Test")
     timer.start()
     Thread.sleep(30 * 1000)
     timer.stop(true)
