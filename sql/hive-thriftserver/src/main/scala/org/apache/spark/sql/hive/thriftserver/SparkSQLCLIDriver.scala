@@ -40,7 +40,6 @@ import org.apache.spark.Logging
 import org.apache.spark.sql.hive.{HiveContext, HiveShim}
 import org.apache.spark.util.Utils
 
-import scala.util.Random
 
 private[hive] object SparkSQLCLIDriver {
   private var prompt = "spark-sql"
@@ -112,19 +111,6 @@ private[hive] object SparkSQLCLIDriver {
 
     // Clean up after we exit
     Utils.addShutdownHook { () => SparkSQLEnv.stop() }
-
-    val thriftServers = conf.get("spark.thriftserver.hosts")
-    var server = ""
-    if(thriftServers != null) {
-      val servers = thriftServers.split(",")
-      if(servers.length == 1) {
-        server = servers(0)
-      } else {
-        val randomNumber = Random.nextInt(servers.length)
-        server = servers(randomNumber)
-      }
-      sessionState.setHost(server.trim)
-    }
 
     // "-h" option has been passed, so connect to Hive thrift server.
     if (sessionState.getHost != null) {
