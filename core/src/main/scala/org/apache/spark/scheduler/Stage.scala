@@ -49,13 +49,14 @@ import org.apache.spark.util.CallSite
 private[spark] abstract class Stage(
     val id: Int,
     val rdd: RDD[_],
-    val numTasks: Int,
+    var numTasks: Int,
     val parents: List[Stage],
     val jobId: Int,
     val callSite: CallSite)
   extends Logging {
 
-  val numPartitions = rdd.partitions.size
+  var numPartitions = rdd.partitions.size
+  var isResetNumPartitions:Boolean = false
 
   /** Set of jobs that this stage belongs to. */
   val jobIds = new HashSet[Int]
@@ -78,6 +79,9 @@ private[spark] abstract class Stage(
   }
 
   def attemptId: Int = nextAttemptId
+
+  def resetNumPartitions(partitions: Int): Unit = {
+  }
 
   override final def hashCode(): Int = id
   override final def equals(other: Any): Boolean = other match {

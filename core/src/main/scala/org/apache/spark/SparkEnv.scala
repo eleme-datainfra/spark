@@ -51,28 +51,28 @@ import org.apache.spark.util.{RpcUtils, Utils}
  * SparkEnv. It can be accessed by SparkEnv.get (e.g. after creating a SparkContext).
  *
  * NOTE: This is not intended for external use. This is exposed for Shark and may be made private
- *       in a future release.
+ * in a future release.
  */
 @DeveloperApi
-class SparkEnv (
-    val executorId: String,
-    private[spark] val rpcEnv: RpcEnv,
-    val serializer: Serializer,
-    val closureSerializer: Serializer,
-    val cacheManager: CacheManager,
-    val mapOutputTracker: MapOutputTracker,
-    val shuffleManager: ShuffleManager,
-    val broadcastManager: BroadcastManager,
-    val blockTransferService: BlockTransferService,
-    val blockManager: BlockManager,
-    val securityManager: SecurityManager,
-    val httpFileServer: HttpFileServer,
-    val sparkFilesDir: String,
-    val metricsSystem: MetricsSystem,
-    val shuffleMemoryManager: ShuffleMemoryManager,
-    val executorMemoryManager: ExecutorMemoryManager,
-    val outputCommitCoordinator: OutputCommitCoordinator,
-    val conf: SparkConf) extends Logging {
+class SparkEnv(
+                val executorId: String,
+                private[spark] val rpcEnv: RpcEnv,
+                val serializer: Serializer,
+                val closureSerializer: Serializer,
+                val cacheManager: CacheManager,
+                val mapOutputTracker: MapOutputTracker,
+                val shuffleManager: ShuffleManager,
+                val broadcastManager: BroadcastManager,
+                val blockTransferService: BlockTransferService,
+                val blockManager: BlockManager,
+                val securityManager: SecurityManager,
+                val httpFileServer: HttpFileServer,
+                val sparkFilesDir: String,
+                val metricsSystem: MetricsSystem,
+                val shuffleMemoryManager: ShuffleMemoryManager,
+                val executorMemoryManager: ExecutorMemoryManager,
+                val outputCommitCoordinator: OutputCommitCoordinator,
+                val conf: SparkConf) extends Logging {
 
   // TODO Remove actorSystem
   val actorSystem = rpcEnv.asInstanceOf[AkkaRpcEnv].actorSystem
@@ -88,7 +88,7 @@ class SparkEnv (
 
   private[spark] def stop() {
     isStopped = true
-    pythonWorkers.foreach { case(key, worker) => worker.stop() }
+    pythonWorkers.foreach { case (key, worker) => worker.stop() }
     Option(httpFileServer).foreach(_.stop())
     mapOutputTracker.stop()
     shuffleManager.stop()
@@ -177,10 +177,10 @@ object SparkEnv extends Logging {
    * Create a SparkEnv for the driver.
    */
   private[spark] def createDriverEnv(
-      conf: SparkConf,
-      isLocal: Boolean,
-      listenerBus: LiveListenerBus,
-      mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
+                                      conf: SparkConf,
+                                      isLocal: Boolean,
+                                      listenerBus: LiveListenerBus,
+                                      mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
     assert(conf.contains("spark.driver.host"), "spark.driver.host is not set on the driver!")
     assert(conf.contains("spark.driver.port"), "spark.driver.port is not set on the driver!")
     val hostname = conf.get("spark.driver.host")
@@ -202,12 +202,12 @@ object SparkEnv extends Logging {
    * In coarse-grained mode, the executor provides an actor system that is already instantiated.
    */
   private[spark] def createExecutorEnv(
-      conf: SparkConf,
-      executorId: String,
-      hostname: String,
-      port: Int,
-      numCores: Int,
-      isLocal: Boolean): SparkEnv = {
+                                        conf: SparkConf,
+                                        executorId: String,
+                                        hostname: String,
+                                        port: Int,
+                                        numCores: Int,
+                                        isLocal: Boolean): SparkEnv = {
     val env = create(
       conf,
       executorId,
@@ -225,15 +225,15 @@ object SparkEnv extends Logging {
    * Helper method to create a SparkEnv for a driver or an executor.
    */
   private def create(
-      conf: SparkConf,
-      executorId: String,
-      hostname: String,
-      port: Int,
-      isDriver: Boolean,
-      isLocal: Boolean,
-      listenerBus: LiveListenerBus = null,
-      numUsableCores: Int = 0,
-      mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
+                      conf: SparkConf,
+                      executorId: String,
+                      hostname: String,
+                      port: Int,
+                      isDriver: Boolean,
+                      isLocal: Boolean,
+                      listenerBus: LiveListenerBus = null,
+                      numUsableCores: Int = 0,
+                      mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
 
     // Listener bus is only used on the driver
     if (isDriver) {
@@ -288,8 +288,8 @@ object SparkEnv extends Logging {
       "spark.closure.serializer", "org.apache.spark.serializer.JavaSerializer")
 
     def registerOrLookupEndpoint(
-        name: String, endpointCreator: => RpcEndpoint):
-      RpcEndpointRef = {
+                                  name: String, endpointCreator: => RpcEndpoint):
+    RpcEndpointRef = {
       if (isDriver) {
         logInfo("Registering " + name)
         rpcEnv.setupEndpoint(name, endpointCreator)
@@ -431,10 +431,10 @@ object SparkEnv extends Logging {
    */
   private[spark]
   def environmentDetails(
-      conf: SparkConf,
-      schedulingMode: String,
-      addedJars: Seq[String],
-      addedFiles: Seq[String]): Map[String, Seq[(String, String)]] = {
+                          conf: SparkConf,
+                          schedulingMode: String,
+                          addedJars: Seq[String],
+                          addedFiles: Seq[String]): Map[String, Seq[(String, String)]] = {
 
     import Properties._
     val jvmInformation = Seq(

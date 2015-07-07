@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import java.util
+
 import scala.language.implicitConversions
 
 import java.io._
@@ -26,7 +28,7 @@ import java.util.{Arrays, Properties, UUID}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
-import scala.collection.{Map, Set}
+import scala.collection.{mutable, Map, Set}
 import scala.collection.JavaConversions._
 import scala.collection.generic.Growable
 import scala.collection.mutable.HashMap
@@ -1746,9 +1748,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int],
       allowLocal: Boolean
       ): Array[U] = {
-    val results = new Array[U](partitions.size)
-    runJob[T, U](rdd, func, partitions, allowLocal, (index, res) => results(index) = res)
-    results
+    val results = new mutable.HashMap[Int, U]()
+    val resultHandler: (Int, U) => Unit = (index: Int, res: U) => results += (index -> res)
+    runJob[T, U](rdd, func, partitions, allowLocal, resultHandler)
+    results.toArray.sortBy(_._1).map(_._2)
   }
 
   /**

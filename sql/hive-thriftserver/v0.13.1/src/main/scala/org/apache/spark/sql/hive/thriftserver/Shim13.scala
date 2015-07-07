@@ -178,6 +178,11 @@ private[hive] class SparkExecuteStatementOperation(
       hiveContext.sparkContext.setLocalProperty("spark.scheduler.pool", pool)
     }
     try {
+      if(parentSession.getUsername == null || parentSession.getUsername == "") {
+        val anonymousErr = "Username is null, can not execute sql"
+        logError(anonymousErr)
+        throw new HiveSQLException(anonymousErr)
+      }
       val proxyUser = UserGroupInformation.createRemoteUser(parentSession.getUsername)
       val currentUser = UserGroupInformation.getCurrentUser
       SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)

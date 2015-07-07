@@ -40,6 +40,7 @@ import org.apache.spark.Logging
 import org.apache.spark.sql.hive.{HiveContext, HiveShim}
 import org.apache.spark.util.Utils
 
+
 private[hive] object SparkSQLCLIDriver {
   private var prompt = "spark-sql"
   private var continuedPrompt = "".padTo(prompt.length, ' ')
@@ -170,7 +171,7 @@ private[hive] object SparkSQLCLIDriver {
 
     val reader = new ConsoleReader()
     reader.setBellEnabled(false)
-    // reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)))
+
     CliDriver.getCommandCompletor.foreach((e) => reader.addCompletor(e))
 
     val historyDirectory = System.getProperty("user.home")
