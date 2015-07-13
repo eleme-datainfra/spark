@@ -138,7 +138,7 @@ class DAGScheduler(
   private var minNumPartitions = sc.getConf.getInt("spark.reduce.partition.min", 2)
   private var maxNumPartitions = sc.getConf.getInt("spark.reduce.partition.max", 2)
   private var bytesPerPartition = sc.getConf.getInt("spark.reduce.per.partition.bytes",
-    256 * 1024 * 1024)
+    256) * 1024 * 1024
   private var isAutoPartitionForTest = false
 
   def setAutoPartitionForTest(isAutoPartitionForTest: Boolean, maxNumPartitions: Int,
