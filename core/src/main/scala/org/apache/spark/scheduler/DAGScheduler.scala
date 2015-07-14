@@ -914,7 +914,8 @@ class DAGScheduler(
     if(isAutoPartition){
       if (stageIdToChildStage.contains(stage.id)) {
         val childStage = stageIdToChildStage.get(stage.id)
-        if (!childStage.get.isResetNumPartitions && childStage.get.numPartitions > 1) {
+        if (!childStage.get.isResetNumPartitions
+          && childStage.get.numPartitions == sc.getConf.getInt("spark.sql.shuffle.partitions", 200)) {
           updateNumPartitionsOfStage(childStage.get, estimateNumPartitionsOfStage(childStage.get))
         } else {
           logInfo(stage + "'s child " + childStage + " have been estimated, partitionNumber=" +

@@ -1748,10 +1748,16 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       partitions: Seq[Int],
       allowLocal: Boolean
       ): Array[U] = {
-    val results = new mutable.HashMap[Int, U]()
-    val resultHandler: (Int, U) => Unit = (index: Int, res: U) => results += (index -> res)
-    runJob[T, U](rdd, func, partitions, allowLocal, resultHandler)
-    results.toArray.sortBy(_._1).map(_._2)
+    if(conf.getBoolean("spark.reduce.autoPartition", false)) {
+      val results = new mutable.HashMap[Int, U]()
+      val resultHandler: (Int, U) => Unit = (index: Int, res: U) => results += (index -> res)
+      runJob[T, U](rdd, func, partitions, allowLocal, resultHandler)
+      results.toArray.sortBy(_._1).map(_._2)
+    } else {
+      val results = new Array[U](partitions.size)
+      runJob[T, U](rdd, func, partitions, allowLocal, (index, res) => results(index) = res)
+      results
+    }
   }
 
   /**
