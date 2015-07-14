@@ -87,8 +87,9 @@ private[ui] class ThriftServerPage(parent: ThriftServerTab) extends WebUIPage(""
           <td>{formatDate(info.startTimestamp)}</td>
           <td>{if (info.finishTimestamp > 0) formatDate(info.finishTimestamp)}</td>
           <td>{formatDurationOption(Some(info.totalTime))}</td>
-          <td>{if(info.statement.length > 50) info.statement.substring(0, 50) else info.statement }</td>
-          {if(info.statement.length > 50) errorMessageCell(info.statement)}
+          <td title={info.statement}>
+            {if(info.statement.length > 200) info.statement.substring(0, 200) + "..." else info.statement }
+          </td>
           <td>{info.state}</td>
           {errorMessageCell(detail)}
         </tr>
