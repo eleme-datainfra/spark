@@ -51,7 +51,7 @@ else:
     raw_input = input
     xrange = range
 
-SPARK_EC2_VERSION = "1.4.0"
+SPARK_EC2_VERSION = "1.4.1"
 SPARK_EC2_DIR = os.path.dirname(os.path.realpath(__file__))
 
 VALID_SPARK_VERSIONS = set([
@@ -71,6 +71,7 @@ VALID_SPARK_VERSIONS = set([
     "1.3.0",
     "1.3.1",
     "1.4.0",
+    "1.4.1",
 ])
 
 SPARK_TACHYON_MAP = {
@@ -84,6 +85,7 @@ SPARK_TACHYON_MAP = {
     "1.3.0": "0.5.0",
     "1.3.1": "0.5.0",
     "1.4.0": "0.6.4",
+    "1.4.1": "0.6.4",
 }
 
 DEFAULT_SPARK_VERSION = SPARK_EC2_VERSION
@@ -125,7 +127,7 @@ def setup_external_libs(libs):
             )
             with open(tgz_file_path, "wb") as tgz_file:
                 tgz_file.write(download_stream.read())
-            with open(tgz_file_path) as tar:
+            with open(tgz_file_path, "rb") as tar:
                 if hashlib.md5(tar.read()).hexdigest() != lib["md5"]:
                     print("ERROR: Got wrong md5sum for {lib}.".format(lib=lib["name"]), file=stderr)
                     sys.exit(1)
@@ -1109,8 +1111,8 @@ def ssh(host, opts, command):
                 # If this was an ssh failure, provide the user with hints.
                 if e.returncode == 255:
                     raise UsageError(
-                        "Failed to SSH to remote host {0}.\n" +
-                        "Please check that you have provided the correct --identity-file and " +
+                        "Failed to SSH to remote host {0}.\n"
+                        "Please check that you have provided the correct --identity-file and "
                         "--key-pair parameters and try again.".format(host))
                 else:
                     raise e

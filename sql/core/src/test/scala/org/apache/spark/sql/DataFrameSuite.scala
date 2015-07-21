@@ -132,6 +132,14 @@ class DataFrameSuite extends QueryTest {
     )
   }
 
+  test("explode alias and star") {
+    val df = Seq((Array("a"), 1)).toDF("a", "b")
+
+    checkAnswer(
+      df.select(explode($"a").as("a"), $"*"),
+      Row("a", Seq("a"), 1) :: Nil)
+  }
+
   test("selectExpr") {
     checkAnswer(
       testData.selectExpr("abs(key)", "value"),
@@ -629,5 +637,12 @@ class DataFrameSuite extends QueryTest {
 
     val res11 = TestSQLContext.range(-1).select("id")
     assert(res11.count == 0)
+  }
+
+  test("SPARK-8621: support empty string column name") {
+    val df = Seq(Tuple1(1)).toDF("").as("t")
+    // We should allow empty string as column name
+    df.col("")
+    df.col("t.``")
   }
 }

@@ -574,7 +574,7 @@ class DataFrame private[sql](
   def as(alias: Symbol): DataFrame = as(alias.name)
 
   /**
-   * Selects a set of expressions.
+   * Selects a set of column based expressions.
    * {{{
    *   df.select($"colA", $"colB" + 1)
    * }}}
@@ -633,7 +633,6 @@ class DataFrame private[sql](
    *   // The following are equivalent:
    *   peopleDf.filter($"age" > 15)
    *   peopleDf.where($"age" > 15)
-   *   peopleDf($"age" > 15)
    * }}}
    * @group dfops
    * @since 1.3.0
@@ -658,7 +657,6 @@ class DataFrame private[sql](
    *   // The following are equivalent:
    *   peopleDf.filter($"age" > 15)
    *   peopleDf.where($"age" > 15)
-   *   peopleDf($"age" > 15)
    * }}}
    * @group dfops
    * @since 1.3.0
@@ -999,7 +997,7 @@ class DataFrame private[sql](
    * columns of the input row are implicitly joined with each value that is output by the function.
    *
    * {{{
-   *   df.explode("words", "word")(words: String => words.split(" "))
+   *   df.explode("words", "word"){words: String => words.split(" ")}
    * }}}
    * @group dfops
    * @since 1.3.0
