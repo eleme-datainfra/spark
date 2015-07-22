@@ -369,8 +369,8 @@ private[hive] class ClientWrapper(
           results
 
         case _ =>
-          if (state.out != null) {
-            state.out.println(tokens(0) + " " + cmd_1)
+          if (state.err != null) {
+            state.err.println(tokens(0) + " " + cmd_1)
           }
           Seq(proc.run(cmd_1).getResponseCode.toString)
       }
