@@ -517,7 +517,7 @@ private[spark] class ExecutorAllocationManager(
         if (stageIdToNumTasks.isEmpty) {
           allocationManager.onSchedulerQueueEmpty()
           if (numRunningTasks != 0) {
-            logWarning("No stages are running, but numRunningTasks != 0")
+            logInfo("No stages are running, but numRunningTasks != 0")
             numRunningTasks = 0
           }
         }
