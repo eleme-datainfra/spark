@@ -169,7 +169,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
             <h4> Workers </h4>
             {workerTable}
           </div>
-        </div>;
+        </div>
 
     UIUtils.basicSparkPage(content, "Spark Master at " + state.uri)
   }
