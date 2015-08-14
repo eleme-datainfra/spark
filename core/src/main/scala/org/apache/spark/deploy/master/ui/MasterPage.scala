@@ -74,7 +74,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
     val state = getMasterState
 
     val workerHeaders = Seq("Worker Id", "Address", "State", "Cores", "Memory")
-    val workers = state.workers.sortBy(_.id)
+    val workers = state.workers.sortBy(_.host)
     val workerTable = UIUtils.listingTable(workerHeaders, workerRow, workers)
 
     val appHeaders = Seq("Application ID", "Name", "Cores", "Memory per Node", "Submitted Time",

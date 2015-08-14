@@ -17,6 +17,10 @@
 
 package org.apache.spark.sql.hive.execution
 
+import java.io.{FileOutputStream, IOException, File}
+import java.net.{URI, URL}
+
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.EliminateSubQueries
 import org.apache.spark.sql.catalyst.util._
@@ -87,8 +91,48 @@ case class AddJar(path: String) extends RunnableCommand {
     val hiveContext = sqlContext.asInstanceOf[HiveContext]
     val currentClassLoader = Utils.getContextOrSparkClassLoader
 
-    // Add jar to current context
-    val jarURL = new java.io.File(path).toURL
+    var tmpFile = ""
+    var jarURL: URL = null
+    if(path.startsWith("hdfs")) {
+      var root = Option(sqlContext.sparkContext.conf.getenv("SPARK_LOCAL_DIRS"))
+        .getOrElse(sqlContext.sparkContext.hadoopConfiguration.get("spark.local.dir", System.getProperty("java.io.tmpdir")))
+        .split(",").head
+
+      try {
+        val rootDir = new File(root)
+        if (rootDir.exists || rootDir.mkdirs()) {
+          val dir = Utils.createTempDir(root)
+          Utils.chmod700(dir)
+          var jarFile = path.split("/").last
+          tmpFile = dir.getAbsolutePath + "/" + jarFile
+          val fs = FileSystem.get(URI.create(path), sqlContext.sparkContext.hadoopConfiguration)
+          val hdfsStream = fs.open(new Path(path))
+          val out = new FileOutputStream(tmpFile)
+          val ioBuffer = new Array[Byte](1024)
+          var readLen = hdfsStream.read(ioBuffer)
+          while (-1 != readLen) {
+            out.write(ioBuffer, 0, readLen)
+            readLen = hdfsStream.read(ioBuffer)
+          }
+          out.close()
+          hdfsStream.close()
+          fs.close()
+
+          jarURL = new java.io.File(tmpFile).toURL
+        } else {
+          logError(s"Failed to create dir in $root. Ignoring this directory.")
+          None
+        }
+      } catch {
+        case e: Exception =>
+          logError(e.getMessage)
+          None
+      }
+    } else {
+      // Add jar to current context
+      jarURL = new java.io.File(path).toURL
+    }
+
     val newClassLoader = new java.net.URLClassLoader(Array(jarURL), currentClassLoader)
     Thread.currentThread.setContextClassLoader(newClassLoader)
     // We need to explicitly set the class loader associated with the conf in executionHive's
@@ -104,7 +148,14 @@ case class AddJar(path: String) extends RunnableCommand {
 
     // Add jar to executors
     hiveContext.sparkContext.addJar(path)
-
+    if(tmpFile != "") {
+      try {
+        new File(tmpFile).delete()
+      } catch {
+        case e: Exception =>
+          logWarning(e.getMessage)
+      }
+    }
     Seq(Row(0))
   }
 }
