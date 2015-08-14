@@ -91,7 +91,7 @@ case class AddJar(path: String) extends RunnableCommand {
     val hiveContext = sqlContext.asInstanceOf[HiveContext]
     val currentClassLoader = Utils.getContextOrSparkClassLoader
 
-    var tmpFile = ""
+    var tempFile = ""
     var jarURL: URL = null
     if(path.startsWith("hdfs")) {
       var root = Option(sqlContext.sparkContext.conf.getenv("SPARK_LOCAL_DIRS"))
@@ -104,10 +104,10 @@ case class AddJar(path: String) extends RunnableCommand {
           val dir = Utils.createTempDir(root)
           Utils.chmod700(dir)
           var jarFile = path.split("/").last
-          tmpFile = dir.getAbsolutePath + "/" + jarFile
+          tempFile = dir.getAbsolutePath + "/" + jarFile
           val fs = FileSystem.get(URI.create(path), sqlContext.sparkContext.hadoopConfiguration)
           val hdfsStream = fs.open(new Path(path))
-          val out = new FileOutputStream(tmpFile)
+          val out = new FileOutputStream(tempFile)
           val ioBuffer = new Array[Byte](1024)
           var readLen = hdfsStream.read(ioBuffer)
           while (-1 != readLen) {
@@ -118,7 +118,7 @@ case class AddJar(path: String) extends RunnableCommand {
           hdfsStream.close()
           fs.close()
 
-          jarURL = new java.io.File(tmpFile).toURL
+          jarURL = new java.io.File(tempFile).toURL
         } else {
           logError(s"Failed to create dir in $root. Ignoring this directory.")
           None
@@ -148,9 +148,9 @@ case class AddJar(path: String) extends RunnableCommand {
 
     // Add jar to executors
     hiveContext.sparkContext.addJar(path)
-    if(tmpFile != "") {
+    if(tempFile != "") {
       try {
-        new File(tmpFile).delete()
+        new File(tempFile).delete()
       } catch {
         case e: Exception =>
           logWarning(e.getMessage)
