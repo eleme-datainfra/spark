@@ -74,7 +74,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
     val state = getMasterState
 
     val workerHeaders = Seq("Worker Id", "Address", "State", "Cores", "Memory")
-    val workers = state.workers.sortBy(_.id)
+    val workers = state.workers.sortBy(x=> Utils.parseIp(x.host))
     val workerTable = UIUtils.listingTable(workerHeaders, workerRow, workers)
 
     val appHeaders = Seq("Application ID", "Name", "Cores", "Memory per Node", "Submitted Time",
@@ -179,7 +179,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
       <td>
         <a href={worker.webUiAddress}>{worker.id}</a>
       </td>
-      <td>{worker.host}:{worker.port}</td>
+      <td>{Utils.parseIp(worker.host)}:{worker.port}</td>
       <td>{worker.state}</td>
       <td>{worker.cores} ({worker.coresUsed} Used)</td>
       <td sorttable_customkey={"%s.%s".format(worker.memory, worker.memoryUsed)}>
