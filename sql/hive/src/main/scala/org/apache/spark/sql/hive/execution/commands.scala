@@ -79,7 +79,7 @@ case class DropTable(
 }
 
 private[hive]
-case class AddJar(path: String) extends RunnableCommand {
+case class AddJar(var path: String) extends RunnableCommand {
 
   override val output: Seq[Attribute] = {
     val schema = StructType(
@@ -92,7 +92,6 @@ case class AddJar(path: String) extends RunnableCommand {
     val currentClassLoader = Utils.getContextOrSparkClassLoader
 
     var tempFile = ""
-    var jarURL: URL = null
     if(path.startsWith("hdfs")) {
       var root = Option(sqlContext.sparkContext.conf.getenv("SPARK_LOCAL_DIRS"))
         .getOrElse(sqlContext.sparkContext.hadoopConfiguration.get("spark.local.dir", System.getProperty("java.io.tmpdir")))
@@ -118,7 +117,7 @@ case class AddJar(path: String) extends RunnableCommand {
           hdfsStream.close()
           fs.close()
 
-          jarURL = new java.io.File(tempFile).toURL
+          path = tempFile
         } else {
           logError(s"Failed to create dir in $root. Ignoring this directory.")
           None
@@ -128,10 +127,10 @@ case class AddJar(path: String) extends RunnableCommand {
           logError(e.getMessage)
           None
       }
-    } else {
-      // Add jar to current context
-      jarURL = new java.io.File(path).toURL
     }
+
+    // Add jar to current context
+    var jarURL = new java.io.File(path).toURL
 
     val newClassLoader = new java.net.URLClassLoader(Array(jarURL), currentClassLoader)
     Thread.currentThread.setContextClassLoader(newClassLoader)
