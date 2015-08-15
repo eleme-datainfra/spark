@@ -148,14 +148,6 @@ case class AddJar(path: String) extends RunnableCommand {
 
     // Add jar to executors
     hiveContext.sparkContext.addJar(path)
-    if(tempFile != "") {
-      try {
-        new File(tempFile).delete()
-      } catch {
-        case e: Exception =>
-          logWarning(e.getMessage)
-      }
-    }
     Seq(Row(0))
   }
 }
