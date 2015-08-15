@@ -116,7 +116,12 @@ case class AddJar(var path: String) extends RunnableCommand {
           out.close()
           hdfsStream.close()
           fs.close()
-          Utils.chmod700(new File(tempFile))
+
+          var jar = new File(tempFile)
+          jar.setReadable(true, false)
+          jar.setWritable(true, false)
+          jar.setExecutable(true, false)
+          logInfo(s"Download jar file to $tempFile.")
           path = tempFile
         } else {
           logError(s"Failed to create dir in $root. Ignoring this directory.")
