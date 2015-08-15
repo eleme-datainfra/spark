@@ -101,7 +101,9 @@ case class AddJar(var path: String) extends RunnableCommand {
         val rootDir = new File(root)
         if (rootDir.exists || rootDir.mkdirs()) {
           val dir = Utils.createTempDir(root)
-          Utils.chmod700(dir)
+          dir.setReadable(true, false)
+          dir.setWritable(true, false)
+          dir.setExecutable(true, false)
           var jarFile = path.split("/").last
           tempFile = dir.getCanonicalPath + "/" + jarFile
           val fs = FileSystem.get(URI.create(path), sqlContext.sparkContext.hadoopConfiguration)
@@ -152,7 +154,7 @@ case class AddJar(var path: String) extends RunnableCommand {
 
     // Add jar to executors
     hiveContext.sparkContext.addJar(path)
-    Seq(Row(0))
+    Seq.empty[Row]
   }
 }
 
