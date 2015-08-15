@@ -103,7 +103,7 @@ case class AddJar(var path: String) extends RunnableCommand {
           val dir = Utils.createTempDir(root)
           Utils.chmod700(dir)
           var jarFile = path.split("/").last
-          tempFile = dir.getAbsolutePath + "/" + jarFile
+          tempFile = dir.getCanonicalPath + "/" + jarFile
           val fs = FileSystem.get(URI.create(path), sqlContext.sparkContext.hadoopConfiguration)
           val hdfsStream = fs.open(new Path(path))
           val out = new FileOutputStream(tempFile)
@@ -116,7 +116,7 @@ case class AddJar(var path: String) extends RunnableCommand {
           out.close()
           hdfsStream.close()
           fs.close()
-
+          Utils.chmod700(new File(tempFile))
           path = tempFile
         } else {
           logError(s"Failed to create dir in $root. Ignoring this directory.")
