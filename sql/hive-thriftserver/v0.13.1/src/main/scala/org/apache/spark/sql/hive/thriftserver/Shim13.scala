@@ -188,6 +188,8 @@ private[hive] class SparkExecuteStatementOperation(
       SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
       proxyUser.doAs(new PrivilegedExceptionAction[Unit] {
         def run: Unit = {
+          val newClassLoader = hiveContext.executionHive.state.getConf.getClassLoader
+          Thread.currentThread.setContextClassLoader(newClassLoader)
           result = hiveContext.sql(statement)
           logDebug(result.queryExecution.toString())
           result.queryExecution.logical match {

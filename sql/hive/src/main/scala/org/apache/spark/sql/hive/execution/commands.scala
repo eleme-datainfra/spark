@@ -101,9 +101,7 @@ case class AddJar(var path: String) extends RunnableCommand {
         val rootDir = new File(root)
         if (rootDir.exists || rootDir.mkdirs()) {
           val dir = Utils.createTempDir(root)
-          dir.setReadable(true, false)
-          dir.setWritable(true, false)
-          dir.setExecutable(true, false)
+          Utils.chmod700(dir)
           var jarFile = path.split("/").last
           tempFile = dir.getCanonicalPath + "/" + jarFile
           val fs = FileSystem.get(URI.create(path), sqlContext.sparkContext.hadoopConfiguration)
@@ -118,11 +116,7 @@ case class AddJar(var path: String) extends RunnableCommand {
           out.close()
           hdfsStream.close()
           fs.close()
-
-          var jar = new File(tempFile)
-          jar.setReadable(true, false)
-          jar.setWritable(true, false)
-          jar.setExecutable(true, false)
+          Utils.chmod700(new File(tempFile))
           logInfo(s"Download jar file to $tempFile.")
           path = tempFile
         } else {
