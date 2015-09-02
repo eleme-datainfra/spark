@@ -100,6 +100,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
   private val stopped: AtomicBoolean = new AtomicBoolean(false)
 
+  def isStopped(): Boolean = {
+    stopped.get()
+  }
+
   private def assertNotStopped(): Unit = {
     if (stopped.get()) {
       throw new IllegalStateException("Cannot call methods on a stopped SparkContext")
