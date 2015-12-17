@@ -444,7 +444,7 @@ private[master] class Master(
       logInfo(s"Received unregister request from application $applicationId")
       idToApp.get(applicationId).foreach(finishApplication)
 
-    case DisassociatedEvent(_, address, _) => {
+      case DisassociatedEvent(_, address, _) => {
       // The disconnected client could've been either a worker or an app; remove whichever it was
       logInfo(s"$address got disassociated, removing it.")
       addressToWorker.get(address).foreach(removeWorker)
@@ -769,7 +769,9 @@ private[master] class Master(
       waitingApps -= app
 
       // If application events are logged, use them to rebuild the UI
-      rebuildSparkUI(app)
+      //rebuildSparkUI(app)
+      app.desc.appUiUrl = conf.get("spark.yarn.historyServer.address") +
+        HistoryServer.UI_PATH_PREFIX + "/" + app.id + "/jobs/"
 
       for (exec <- app.executors.values) {
         exec.worker.removeExecutor(exec)

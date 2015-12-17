@@ -440,7 +440,7 @@ private[spark] class TaskSchedulerImpl(
     synchronized {
       if (activeExecutorIds.contains(executorId)) {
         val hostPort = executorIdToHost(executorId)
-        logError("Lost executor %s on %s: %s".format(executorId, hostPort, reason))
+        logInfo("Lost executor %s on %s: %s".format(executorId, hostPort, reason))
         removeExecutor(executorId)
         failedExecutor = Some(executorId)
       } else {
