@@ -105,6 +105,7 @@ class HistoryServer(
       res.sendRedirect(res.encodeRedirectURL(req.getRequestURI()))
     }
 
+
     // SPARK-5983 ensure TRACE is not supported
     protected override def doTrace(req: HttpServletRequest, res: HttpServletResponse): Unit = {
       res.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED)

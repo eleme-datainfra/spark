@@ -278,6 +278,23 @@ private[spark] object EventLoggingListener extends Logging {
     }
   }
 
+  /**
+   * 返回日志是否与appId匹配
+   * <br/>
+   * 我们需要从FileSystem中的eventlog文件名中获得appId和appAttemptId
+   * appId example: app-20151217185847-7121 带appAttemptId?在1.2.0以后，appId里直接带有appAttemptId
+   * 目前log构成方式：appId.codec[.inprogress]
+   * 如果没有压缩，那么：app-20151217185847-7121
+   * 如果有压缩，那么文件名：app-20151217185847-7121.lz4
+   * 如果还未完成，那么文件名：app-20151217185847-7121.lz4.inprogress
+   * @param logFileName 日志文件名称
+   * @param appId applicationId 应用id
+   * @return 是否匹配
+   */
+  def findLogFromAppId(logFileName: String, appId: String): Boolean = {
+    logFileName.contains(appId)
+  }
+
   private def sanitize(str: String): String = {
     str.replaceAll("[ :/]", "-").replaceAll("[.${}'\"]", "_").toLowerCase
   }

@@ -136,7 +136,8 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
 
   override def getAppUI(appId: String, attemptId: Option[String]): Option[SparkUI] = {
     try {
-      applications.get(appId).flatMap { appInfo =>
+      //得到一个appUI，会从applications列表中去寻找
+      val appMemory = applications.get(appId).flatMap { appInfo =>
         appInfo.attempts.find(_.attemptId == attemptId).flatMap { attempt =>
           val replayBus = new ReplayListenerBus()
           val ui = {
@@ -162,12 +163,70 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
           }
         }
       }
+
+      appMemory match {
+        case Some(_) =>
+          appMemory
+        case None =>
+          logInfo(s"Cannot find from memory app list, we will fetch from FS for $appId $attemptId")
+          searchForFSAppLog(appId, attemptId)
+      }
+
+
     } catch {
       case e: FileNotFoundException => None
     }
   }
 
   override def getConfig(): Map[String, String] = Map("Event log directory" -> logDir.toString)
+
+  /**
+   * 如果app在applications列表中不存在，那么我们再从FileSystem中查找下app是否存在
+   * @return
+   */
+  private def searchForFSAppLog(appId: String, attemptId: Option[String]): Option[SparkUI] = {
+    try {
+      val appList = Option(fs.listStatus(new Path(logDir))).map(_ toSeq).getOrElse(Seq[FileStatus]())
+      appList.find { entry =>
+        EventLoggingListener.findLogFromAppId(entry.getPath.getName, appId)
+      }.flatMap { logFile =>
+        logInfo("Successfully find log file from FileSystem. Now we will replay the event log.")
+        //TODO: 这里我们并没有预先知道程序的启动时间。所以设置为一个知道的时间
+        val startTime = logFile.getModificationTime
+
+        val replayBus = new ReplayListenerBus()
+        val ui = {
+          val conf = this.conf.clone()
+          val appSecManager = new SecurityManager(conf)
+          //这里会给replayBus加入更多的listener，这样在重放时候，可以重构出完成的细节信息
+          //而UI的数据来源则是listenerBus里的各种listener
+          SparkUI.createHistoryUI(conf, replayBus, appSecManager, appId,
+            HistoryServer.getAttemptURI(appId, attemptId), startTime)
+          // Do not call ui.bind() to avoid creating a new server for each application
+        }
+        val appListener = new ApplicationEventListener()
+        replayBus.addListener(appListener)
+        //这时候的重放，会把细节的信息都构建起来（因为这时候会访问）
+        val appInfo = replay(logFile, replayBus)
+        appInfo.map { info =>
+          ui.setAppName(s"${info.name} ($appId)")
+
+          val uiAclsEnabled = conf.getBoolean("spark.history.ui.acls.enable", false)
+          ui.getSecurityManager.setAcls(uiAclsEnabled)
+          // make sure to set admin acls before view acls so they are properly picked up
+          ui.getSecurityManager.setAdminAcls(appListener.adminAcls.getOrElse(""))
+          ui.getSecurityManager.setViewAcls(info.sparkUser,
+            appListener.viewAcls.getOrElse(""))
+          ui
+        }
+      }
+
+    } catch {
+      case e: Exception =>
+        logError("Exception in search for FSAppLog", e)
+        None
+    }
+  }
 
   /**
    * Builds the application list based on the current contents of the log directory.
@@ -201,7 +260,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
           mod1 >= mod2
       }
 
-      logInfos.sliding(20, 20).foreach { batch =>
+      logInfos.sliding(20, 20).foreach { batch => //将所有应用的信息，20个作为一个任务
         replayExecutor.submit(new Runnable {
           override def run(): Unit = mergeApplicationListing(batch)
         })
@@ -215,12 +274,14 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
 
   /**
    * Replay the log files in the list and merge the list of old applications with new ones
+   *
+   * 这个方法会定期执行，先将读取到的app merge到applications列表中。
    */
   private def mergeApplicationListing(logs: Seq[FileStatus]): Unit = {
-    val bus = new ReplayListenerBus()
+    val bus = new ReplayListenerBus() //ReplayListenerBus本身没有很多的listener
     val newAttempts = logs.flatMap { fileStatus =>
       try {
-        val res = replay(fileStatus, bus)
+        val res = replay(fileStatus, bus) //这个replay只会记录app id等基本信息，并不会重建所有的细节信息。
         res match {
           case Some(r) => logDebug(s"Application log ${r.logPath} loaded successfully.")
           case None => logWarning(s"Failed to load application log ${fileStatus.getPath}. " +
