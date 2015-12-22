@@ -404,6 +404,7 @@ private[worker] class Worker(
               exitStatus.map(" exitStatus " + _).getOrElse(""))
             executors -= fullId
             finishedExecutors(fullId) = executor
+            trimFinishedExecutorsIfNecessary()
             coresUsed -= executor.cores
             memoryUsed -= executor.memory
           case None =>
@@ -472,6 +473,7 @@ private[worker] class Worker(
       master ! DriverStateChanged(driverId, state, exception)
       val driver = drivers.remove(driverId).get
       finishedDrivers(driverId) = driver
+      trimFinishedDriversIfNecessary()
       memoryUsed -= driver.driverDesc.mem
       coresUsed -= driver.driverDesc.cores
     }
