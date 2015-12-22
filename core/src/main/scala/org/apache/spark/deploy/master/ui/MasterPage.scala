@@ -35,6 +35,10 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
   private val master = parent.masterActorRef
   private val timeout = parent.timeout
 
+  /**
+   * 在replayLog时候，master actor会阻塞，从而引起UI的阻塞
+   * @return
+   */
   def getMasterState: MasterStateResponse = {
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterStateResponse]
     Await.result(stateFuture, timeout)

@@ -42,7 +42,8 @@ import org.apache.spark.ui.SparkUI
 class HistoryServerSuite extends SparkFunSuite with BeforeAndAfter with Matchers with MockitoSugar
   with JsonTestUtils {
 
-  private val logDir = new File("src/test/resources/spark-events")
+  //修复了测试的bug，已有的测试文件应该在src/sore/test下
+  private val logDir = new File("core/src/test/resources/spark-events")
   private val expRoot = new File("src/test/resources/HistoryServerExpectations/")
 
   private var provider: FsHistoryProvider = null
