@@ -122,6 +122,9 @@ private[worker] class Worker(
   val appDirectories = new HashMap[String, Seq[String]]
   val finishedApps = new HashSet[String]
 
+  val retainedExecutors = conf.getInt("spark.worker.ui.retainedExecutors", 5)
+  val retainedDrivers = conf.getInt("spark.worker.ui.retainedDrivers", 5)
+
   // The shuffle service is not actually started unless configured.
   private val shuffleService = new ExternalShuffleService(conf, securityMgr)
 
@@ -491,6 +494,26 @@ private[worker] class Worker(
       maybeCleanupApplication(id)
   }
 
+  private def trimFinishedExecutorsIfNecessary(): Unit = {
+    // do not need to protect with locks since both WorkerPage and Restful server get data through
+    // thread-safe RpcEndPoint
+    if (finishedExecutors.size > retainedExecutors) {
+      finishedExecutors.take(math.max(finishedExecutors.size / 10, 1)).foreach {
+        case (executorId, _) => finishedExecutors.remove(executorId)
+      }
+    }
+  }
+
+  private def trimFinishedDriversIfNecessary(): Unit = {
+    // do not need to protect with locks since both WorkerPage and Restful server get data through
+    // thread-safe RpcEndPoint
+    if (finishedDrivers.size > retainedDrivers) {
+      finishedDrivers.take(math.max(finishedDrivers.size / 10, 1)).foreach {
+        case (driverId, _) => finishedDrivers.remove(driverId)
+      }
+    }
+  }
+
   private def masterDisconnected() {
     logError("Connection to master failed! Waiting for master to reconnect...")
     connected = false
@@ -579,5 +602,7 @@ private[deploy] object Worker extends Logging {
       cmd
     }
   }
+
+
 
 }
