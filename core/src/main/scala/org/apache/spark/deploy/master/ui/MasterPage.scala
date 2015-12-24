@@ -205,9 +205,17 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
         <a href="#" onclick={confirm} class="kill-link">(kill)</a>
       </form>
     }
+
+    val appIdUrl = if(app.state == ApplicationState.FINISHED || app.state == ApplicationState.KILLED
+      || app.state == ApplicationState.FAILED) {
+      app.desc.appUiUrl
+    } else {
+      "app?appId=" + app.id
+    }
+
     <tr>
       <td>
-        <a href={"app?appId=" + app.id}>{app.id}</a>
+        <a href={appIdUrl}>{app.id}</a>
         {killLink}
       </td>
       <td>

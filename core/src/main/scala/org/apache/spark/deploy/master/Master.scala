@@ -769,8 +769,11 @@ private[master] class Master(
       waitingApps -= app
 
       // If application events are logged, use them to rebuild the UI
-      //rebuildSparkUI(app)
-      app.desc.appUiUrl = conf.get("spark.yarn.historyServer.address") +
+      var historyServerUrl = conf.get("spark.yarn.historyServer.address")
+      if(historyServerUrl.startsWith("http://")) {
+        historyServerUrl = "http://" + historyServerUrl
+      }
+      app.desc.appUiUrl = historyServerUrl +
         HistoryServer.UI_PATH_PREFIX + "/" + app.id + "/jobs/"
 
       for (exec <- app.executors.values) {
