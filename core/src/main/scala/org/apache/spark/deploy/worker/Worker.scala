@@ -500,9 +500,8 @@ private[worker] class Worker(
     // do not need to protect with locks since both WorkerPage and Restful server get data through
     // thread-safe RpcEndPoint
     if (finishedExecutors.size > retainedExecutors) {
-      finishedExecutors.take(math.max(finishedExecutors.size / 10, 1)).foreach {
-        case (executorId, _) => finishedExecutors.remove(executorId)
-      }
+      var head = finishedExecutors.toSeq.sortBy(_._1).head
+      finishedExecutors.remove(head._1)
     }
   }
 
@@ -510,10 +509,9 @@ private[worker] class Worker(
     // do not need to protect with locks since both WorkerPage and Restful server get data through
     // thread-safe RpcEndPoint
     if (finishedDrivers.size > retainedDrivers) {
-      finishedDrivers.take(math.max(finishedDrivers.size / 10, 1)).foreach {
-        case (driverId, _) => finishedDrivers.remove(driverId)
+        var head = finishedDrivers.toSeq.sortBy(_._1).head
+        finishedDrivers.remove(head._1)
       }
-    }
   }
 
   private def masterDisconnected() {

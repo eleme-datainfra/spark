@@ -352,8 +352,8 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
       val now = clock.getTimeMillis()
       val logs = fs.listStatus(new Path(logDir))
       def shouldClean(attempt: FileStatus): Boolean = {
-        var name = attempt.getPath.getName
-        now - attempt.getModificationTime > maxAge &&
+        val name = attempt.getPath.getName
+        now - attempt.getModificationTime > maxAge && attempt.isFile &&
           (name.startsWith("app-") || name.startsWith("local-") || name.contains("application-"))
       }
 

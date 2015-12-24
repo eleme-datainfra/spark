@@ -26,7 +26,7 @@ import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
 import org.apache.spark.{Logging, SecurityManager, SparkConf}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.status.api.v1.{ApiRootResource, ApplicationInfo, ApplicationsListResource,
-  UIRoot}
+UIRoot}
 import org.apache.spark.ui.{SparkUI, UIUtils, WebUI}
 import org.apache.spark.ui.JettyUtils._
 import org.apache.spark.util.{SignalLogger, Utils}
@@ -43,10 +43,10 @@ import org.apache.spark.util.{SignalLogger, Utils}
  * EventLoggingListener.
  */
 class HistoryServer(
-    conf: SparkConf,
-    provider: ApplicationHistoryProvider,
-    securityManager: SecurityManager,
-    port: Int)
+                     conf: SparkConf,
+                     provider: ApplicationHistoryProvider,
+                     securityManager: SecurityManager,
+                     port: Int)
   extends WebUI(securityManager, port, conf) with Logging with UIRoot {
 
   // How many applications to retain
@@ -67,10 +67,10 @@ class HistoryServer(
   private val appCache = CacheBuilder.newBuilder()
     .maximumSize(retainedApplications)
     .removalListener(new RemovalListener[String, SparkUI] {
-      override def onRemoval(rm: RemovalNotification[String, SparkUI]): Unit = {
-        detachSparkUI(rm.getValue())
-      }
-    })
+    override def onRemoval(rm: RemovalNotification[String, SparkUI]): Unit = {
+      detachSparkUI(rm.getValue())
+    }
+  })
     .build(appLoader)
 
   private val loaderServlet = new HttpServlet {
@@ -91,7 +91,9 @@ class HistoryServer(
       // single attempt, we need to try both. Try the single-attempt route first, and if an
       // error is raised, then try the multiple attempt route.
       if (!loadAppUi(appId, None) && (!attemptId.isDefined || !loadAppUi(appId, attemptId))) {
-        val msg = <div class="row-fluid">Application {appId} not found.</div>
+        val msg = <div class="row-fluid">Application
+          {appId}
+          not found.</div>
         res.setStatus(HttpServletResponse.SC_NOT_FOUND)
         UIUtils.basicSparkPage(msg, "Not Found").foreach { n =>
           res.getWriter().write(n.toString)
@@ -203,8 +205,8 @@ class HistoryServer(
  * as well as any other relevant history server configuration, should be specified via
  * the $SPARK_HISTORY_OPTS environment variable. For example:
  *
- *   export SPARK_HISTORY_OPTS="-Dspark.history.fs.logDirectory=/tmp/spark-events"
- *   ./sbin/start-history-server.sh
+ * export SPARK_HISTORY_OPTS="-Dspark.history.fs.logDirectory=/tmp/spark-events"
+ * ./sbin/start-history-server.sh
  *
  * This launches the HistoryServer as a Spark daemon.
  */
@@ -234,7 +236,9 @@ object HistoryServer extends Logging {
     Utils.addShutdownHook { () => server.stop() }
 
     // Wait until the end of the world... or if the HistoryServer process is manually stopped
-    while(true) { Thread.sleep(Int.MaxValue) }
+    while (true) {
+      Thread.sleep(Int.MaxValue)
+    }
   }
 
   def initSecurity() {
