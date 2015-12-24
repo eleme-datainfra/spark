@@ -77,9 +77,6 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   @volatile private var applications: mutable.LinkedHashMap[String, FsApplicationHistoryInfo]
     = new mutable.LinkedHashMap()
 
-  // List of application logs to be deleted by event log cleaner.
-  private var attemptsToClean = new mutable.ListBuffer[FsApplicationAttemptInfo]
-
   /**
    * Return a runnable that performs the given operation on the event logs.
    * This operation is expected to be executed periodically.
@@ -352,47 +349,35 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   private[history] def cleanLogs(): Unit = {
     try {
       val maxAge = conf.getTimeAsSeconds("spark.history.fs.cleaner.maxAge", "7d") * 1000
-
       val now = clock.getTimeMillis()
-      val appsToRetain = new mutable.LinkedHashMap[String, FsApplicationHistoryInfo]()
-
-      def shouldClean(attempt: FsApplicationAttemptInfo): Boolean = {
-        now - attempt.lastUpdated > maxAge && attempt.completed
+      val logs = fs.listStatus(new Path(logDir))
+      def shouldClean(attempt: FileStatus): Boolean = {
+        var name = attempt.getPath.getName
+        now - attempt.getModificationTime > maxAge &&
+          (name.startsWith("app-") || name.startsWith("local-") || name.contains("application-"))
       }
 
-      // Scan all logs from the log directory.
-      // Only completed applications older than the specified max age will be deleted.
-      applications.values.foreach { app =>
-        val (toClean, toRetain) = app.attempts.partition(shouldClean)
-        attemptsToClean ++= toClean
-
-        if (toClean.isEmpty) {
-          appsToRetain += (app.id -> app)
-        } else if (toRetain.nonEmpty) {
-          appsToRetain += (app.id ->
-            new FsApplicationHistoryInfo(app.id, app.name, toRetain.toList))
+      var attemptsToClean = new mutable.ListBuffer[FileStatus]
+      logs.foreach { log =>
+        if(shouldClean(log)) {
+          attemptsToClean += log
         }
       }
 
-      applications = appsToRetain
-
-      val leftToClean = new mutable.ListBuffer[FsApplicationAttemptInfo]
       attemptsToClean.foreach { attempt =>
         try {
-          val path = new Path(logDir, attempt.logPath)
+          val path = attempt.getPath
           if (fs.exists(path)) {
             fs.delete(path, true)
           }
         } catch {
           case e: AccessControlException =>
-            logInfo(s"No permission to delete ${attempt.logPath}, ignoring.")
+            logInfo(s"No permission to delete ${attempt.getPath.toString}, ignoring.")
           case t: IOException =>
-            logError(s"IOException in cleaning ${attempt.logPath}", t)
-            leftToClean += attempt
+            logError(s"IOException in cleaning ${attempt.getPath.toString}", t)
         }
       }
 
-      attemptsToClean = leftToClean
     } catch {
       case t: Exception => logError("Exception in cleaning logs", t)
     }
