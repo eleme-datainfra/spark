@@ -101,7 +101,7 @@ private[deploy] class ExecutorRunner(
     do {
       try {
         process.exitValue()
-        hasNotExited = hasNotExited
+        hasNotExited = false
       } catch {
         case e: IllegalThreadStateException =>
           logError("Executor " + fullId + " on Worker " + workerId + " has not exited!"
