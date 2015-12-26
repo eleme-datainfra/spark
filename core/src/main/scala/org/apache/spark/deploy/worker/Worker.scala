@@ -416,7 +416,6 @@ private[worker] class Worker(
       }
       master ! ExecutorStateChanged(appId, execId, state, message, exitStatus)
 
-
     case KillExecutor(masterUrl, appId, execId) =>
       if (masterUrl != activeMasterUrl) {
         logWarning("Invalid Master (" + masterUrl + ") attempted to launch executor " + execId)
