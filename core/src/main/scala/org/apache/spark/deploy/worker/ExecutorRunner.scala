@@ -109,6 +109,11 @@ private[deploy] class ExecutorRunner(
           hasNotExited = true
           retries = retries + 1
           try{
+            if(retries == maxRetries) {
+              logError("Kill Executor " + fullId + " on Worker " + workerId
+                + " after Retrying " + retries + " times!")
+              process.destroy()
+            }
             Thread.sleep(500L)
           } catch {
             case e: Exception =>
