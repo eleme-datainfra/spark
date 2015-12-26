@@ -96,7 +96,7 @@ private[deploy] class ExecutorRunner(
 
   def waitForProcessExit(): Unit = {
     var hasNotExited = false
-    val maxRetries = 5
+    val maxRetries = 10
     var retries = 0
     do {
       try {
@@ -109,7 +109,7 @@ private[deploy] class ExecutorRunner(
           hasNotExited = true
           retries = retries + 1
           try{
-            Thread.sleep(1000L)
+            Thread.sleep(500L)
           } catch {
             case e: Exception =>
           }
