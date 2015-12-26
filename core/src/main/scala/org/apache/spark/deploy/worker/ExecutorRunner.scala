@@ -96,21 +96,25 @@ private[deploy] class ExecutorRunner(
 
   def waitForProcessExit(): Unit = {
     var hasNotExited = false
+    val maxRetries = 10
+    var retries = 0
     do {
       try {
         process.exitValue()
         hasNotExited = hasNotExited
       } catch {
         case e: IllegalThreadStateException =>
-          logError("Executor " + fullId + " on Worker " + workerId + " has not exited!")
+          logError("Executor " + fullId + " on Worker " + workerId + " has not exited!"
+            + "retry " + retries + " times")
           hasNotExited = true
+          retries = retries + 1
           try{
             Thread.sleep(1000L)
           } catch {
             case e: Exception =>
           }
       }
-    } while (hasNotExited)
+    } while (hasNotExited && retries < maxRetries)
   }
 
   /** Stop this executor runner, including killing the process it launched */
