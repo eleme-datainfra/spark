@@ -394,7 +394,6 @@ private[worker] class Worker(
       }
 
     case ExecutorStateChanged(appId, execId, state, message, exitStatus) =>
-      master ! ExecutorStateChanged(appId, execId, state, message, exitStatus)
       val fullId = appId + "/" + execId
       if (ExecutorState.isFinished(state)) {
         executors.get(fullId) match {
@@ -404,6 +403,7 @@ private[worker] class Worker(
               exitStatus.map(" exitStatus " + _).getOrElse(""))
             executors -= fullId
             finishedExecutors(fullId) = executor
+            executor.waitForProcessExit()
             trimFinishedExecutorsIfNecessary()
             coresUsed -= executor.cores
             memoryUsed -= executor.memory
@@ -414,6 +414,8 @@ private[worker] class Worker(
         }
         maybeCleanupApplication(appId)
       }
+      master ! ExecutorStateChanged(appId, execId, state, message, exitStatus)
+
 
     case KillExecutor(masterUrl, appId, execId) =>
       if (masterUrl != activeMasterUrl) {

@@ -94,6 +94,25 @@ private[deploy] class ExecutorRunner(
     worker ! ExecutorStateChanged(appId, execId, state, message, exitCode)
   }
 
+  def waitForProcessExit(): Unit = {
+    var hasNotExited = false
+    do {
+      try {
+        process.exitValue()
+        hasNotExited = hasNotExited
+      } catch {
+        case e: IllegalThreadStateException =>
+          logError("Executor " + fullId + " on Worker " + workerId + " has not exited!")
+          hasNotExited = true
+          try{
+            Thread.sleep(1000L)
+          } catch {
+            case e: Exception =>
+          }
+      }
+    } while (hasNotExited)
+  }
+
   /** Stop this executor runner, including killing the process it launched */
   private[worker] def kill() {
     if (workerThread != null) {
