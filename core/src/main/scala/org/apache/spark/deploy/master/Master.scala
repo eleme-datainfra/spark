@@ -818,7 +818,9 @@ private[deploy] class Master(
       waitingApps -= app
 
       // If application events are logged, use them to rebuild the UI
-      rebuildSparkUI(app)
+      var historyServerUrl = conf.get("spark.yarn.historyServer.address")
+      app.appUIUrlAtHistoryServer = Some(historyServerUrl +
+        HistoryServer.UI_PATH_PREFIX + "/" + app.id + "/jobs/")
 
       for (exec <- app.executors.values) {
         killExecutor(exec)
