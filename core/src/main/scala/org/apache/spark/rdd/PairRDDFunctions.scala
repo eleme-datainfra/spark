@@ -1154,6 +1154,12 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    * MapReduce job.
    */
   def saveAsHadoopDataset(conf: JobConf): Unit = self.withScope {
+    val partitionSize = self.partitions.size
+    val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
+    if(partitionSize > maxFiles) {
+      throw new SparkException(s"partitions size ${partitionSize} is more " +
+        s"than ${maxFiles}")
+    }
     // Rename this as hadoopConf internally to avoid shadowing (see SPARK-2038).
     val hadoopConf = conf
     val outputFormatInstance = hadoopConf.getOutputFormat
