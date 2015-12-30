@@ -1072,6 +1072,12 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    * result of using direct output committer with speculation enabled.
    */
   def saveAsNewAPIHadoopDataset(conf: Configuration): Unit = self.withScope {
+    val partitionSize = self.partitions.size
+    val maxFiles = self.conf.getInt("didi.spark.max.createFiles", 1000)
+    if(partitionSize > maxFiles) {
+      throw new SparkException(s"partitions size ${partitionSize} is more " +
+        s"than ${maxFiles}")
+    }
     // Rename this as hadoopConf internally to avoid shadowing (see SPARK-2038).
     val hadoopConf = conf
     val job = new NewAPIHadoopJob(hadoopConf)
@@ -1155,7 +1161,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    */
   def saveAsHadoopDataset(conf: JobConf): Unit = self.withScope {
     val partitionSize = self.partitions.size
-    val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
+    val maxFiles = self.conf.getInt("didi.spark.max.createFiles", 1000)
     if(partitionSize > maxFiles) {
       throw new SparkException(s"partitions size ${partitionSize} is more " +
         s"than ${maxFiles}")
