@@ -19,8 +19,14 @@ package org.apache.spark.streaming.kafka
 
 import java.io.OutputStream
 import java.lang.{Integer => JInt, Long => JLong}
-import java.util.{List => JList, Map => JMap, Set => JSet}
+import java.text.SimpleDateFormat
+import java.util.concurrent.Executors
+import java.util.{List => JList, Map => JMap, Set => JSet, Date}
 
+import org.apache.hadoop.fs.{FSDataInputStream, Path, FileSystem}
+import org.apache.spark.deploy.SparkHadoopUtil
+
+import org.apache.spark.util.Utils
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
@@ -32,7 +38,7 @@ import net.razorvine.pickle.{Opcodes, Pickler, IObjectPickler}
 
 import org.apache.spark.api.java.function.{Function => JFunction}
 import org.apache.spark.streaming.util.WriteAheadLogUtils
-import org.apache.spark.{SparkContext, SparkException}
+import org.apache.spark.{Logging, SparkContext, SparkException}
 import org.apache.spark.api.java.{JavaSparkContext, JavaPairRDD, JavaRDD}
 import org.apache.spark.api.python.SerDeUtil
 import org.apache.spark.rdd.RDD
@@ -41,7 +47,7 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.api.java._
 import org.apache.spark.streaming.dstream.{DStream, InputDStream, ReceiverInputDStream}
 
-object KafkaUtils {
+object KafkaUtils extends Logging {
   /**
    * Create an input stream that pulls messages from Kafka Brokers.
    * @param ssc       StreamingContext object
@@ -428,12 +434,116 @@ object KafkaUtils {
       ssc: StreamingContext,
       kafkaParams: Map[String, String],
       topics: Set[String]
-  ): InputDStream[(K, V)] = {
+  ): DStream[(K, V)] = {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
     val kc = new KafkaCluster(kafkaParams)
-    val fromOffsets = getFromOffsets(kc, kafkaParams, topics)
-    new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
-      ssc, kafkaParams, fromOffsets, messageHandler)
+    var fromOffsets = getFromOffsets(kc, kafkaParams, topics)
+    val restoreDir = ssc.conf.get("didi.spark.streaming.restoreDir")
+    val numConcurrentJobs = ssc.conf.getInt("spark.streaming.concurrentJobs", 1)
+    if(restoreDir != null && numConcurrentJobs == 1) {
+      fromOffsets = getOffsetRangesFromRestoreFile(fromOffsets, restoreDir)
+      var stream = new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
+        ssc, kafkaParams, fromOffsets, messageHandler)
+      var offsetRanges = Array[OffsetRange]()
+      val dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS")
+      val restoreFileWriter = Executors.newFixedThreadPool(1)
+      // save offset to hdfs restore file
+      stream.transform{ (rdd, time)=>
+        offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
+        restoreFileWriter.execute(new Runnable {
+          override def run(): Unit = {
+            saveKafkaOffset(offsetRanges, new Path(restoreDir, dateFormat.format(new Date(time.milliseconds))))
+          }
+        })
+        rdd
+      }
+    } else {
+      new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
+        ssc, kafkaParams, fromOffsets, messageHandler)
+    }
+  }
+
+  def getOffsetRangesFromRestoreFile(fromOffsets: Map[TopicAndPartition, Long], restoreDir: String):
+    Map[TopicAndPartition, Long] = {
+    val hadoopConf = SparkHadoopUtil.get.conf
+    val fs  = FileSystem.get(hadoopConf)
+    val restoreFiles = fs.listStatus(new Path(restoreDir)).filter(f => f.getLen > 0)
+      .sortBy(_.getModificationTime).reverse
+    if(!restoreFiles.isEmpty) {
+      var inputStream: FSDataInputStream = null
+      restoreFiles.foreach { file =>
+        try {
+          inputStream = fs.open(file.getPath)
+          var offsets = Map[TopicAndPartition, Long]()
+          var offsetStr: String = null
+          while((offsetStr = inputStream.readLine()) != null) {
+            var splits = offsetStr.split(",")
+            if(splits.length == 4) {
+              offsets += TopicAndPartition(splits(0), splits(1).toInt) -> splits(2).toLong
+            }
+          }
+          if(fromOffsets.size == offsets.size) {
+            return offsets
+          }
+        } catch {
+          case e: Exception =>
+            System.err.println("Error reading restore file from "  + file.getPath.getName)
+        } finally {
+          inputStream.close()
+        }
+      }
+      throw new SparkException("Error reading from restore files! Please check restore files!")
+    } else {
+      fromOffsets
+    }
+  }
+
+  def saveKafkaOffset(offsetRanges: Array[OffsetRange], file: Path): Unit = {
+      val hadoopConf = SparkHadoopUtil.get.conf
+      val fs  = FileSystem.get(hadoopConf)
+      var sb = new StringBuilder()
+      for(offsetRange <-  offsetRanges) {
+        var topic = offsetRange.topic
+        var partition = offsetRange.partition
+        var fromOffset = offsetRange.fromOffset
+        var untilOffset = offsetRange.untilOffset
+        sb.append(s"${topic},${partition},${fromOffset},${untilOffset}\n")
+      }
+      var data = sb.toString().getBytes()
+      var attempts = 0
+      while(attempts < 3) {
+        try {
+          if(fs.exists(file)) {
+            logInfo("Deleting file " + file.getName)
+            fs.delete(file)
+          }
+
+          logInfo("Saving restore file " + file.getName)
+          var outputStream = fs.create(file)
+          Utils.tryWithSafeFinally {
+            outputStream.write(data)
+          } {
+            outputStream.close()
+          }
+
+          val restoreFiles = fs.listStatus(file.getParent()).sortBy(_.getModificationTime)
+          if(restoreFiles.size > 5) {
+            var file = restoreFiles.take(restoreFiles.size - 5).foreach { file =>
+              logInfo("Deleting file " + file.getPath.getName)
+              fs.delete(file.getPath)
+            }
+          }
+
+          return
+        } catch {
+          case e: Exception =>
+            attempts = attempts + 1
+            logWarning(s"Error in attempt ${attempts} of writing restore file " + file.getName, e)
+        }
+
+        logWarning(s"Error writing restore file " + file.getName)
+      }
+
   }
 
   /**
