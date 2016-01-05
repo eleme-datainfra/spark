@@ -488,7 +488,7 @@ object KafkaUtils extends Logging {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
     val kc = new KafkaCluster(kafkaParams)
     var fromOffsets = getFromOffsets(kc, kafkaParams, topics)
-    val restoreDir = ssc.conf.get("didi.spark.streaming.restoreDir")
+    val restoreDir = ssc.conf.get("spark.streaming.restoreDir")
     val numConcurrentJobs = ssc.conf.getInt("spark.streaming.concurrentJobs", 1)
     if(restoreDir != null && numConcurrentJobs == 1) {
       fromOffsets = getOffsetRangesFromRestoreFile(fromOffsets, restoreDir)

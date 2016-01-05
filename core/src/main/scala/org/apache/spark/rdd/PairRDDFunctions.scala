@@ -1073,7 +1073,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    */
   def saveAsNewAPIHadoopDataset(conf: Configuration): Unit = self.withScope {
     val partitionSize = self.partitions.size
-    val maxFiles = self.conf.getInt("didi.spark.max.createFiles", 1000)
+    val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
     if(partitionSize > maxFiles) {
       throw new SparkException(s"partitions size ${partitionSize} is more " +
         s"than ${maxFiles}")
@@ -1161,7 +1161,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
    */
   def saveAsHadoopDataset(conf: JobConf): Unit = self.withScope {
     val partitionSize = self.partitions.size
-    val maxFiles = self.conf.getInt("didi.spark.max.createFiles", 1000)
+    val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
     if(partitionSize > maxFiles) {
       throw new SparkException(s"partitions size ${partitionSize} is more " +
         s"than ${maxFiles}")
