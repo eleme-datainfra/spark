@@ -169,6 +169,12 @@ private[ui] class ExecutorsPage(
           Seq.empty
         }
       }
+      {
+        val encodedId = URLEncoder.encode(info.id, "UTF-8")
+        <td>
+          <a href={s"executorMetrics/?executorId=${encodedId}"}>Metrics</a>
+        </td>
+      }
     </tr>
   }
 

@@ -26,16 +26,18 @@ import java.util.concurrent._
 import java.util.{Locale, Properties, Random, UUID}
 import javax.net.ssl.HttpsURLConnection
 
+import com.codahale.metrics.jvm.{MemoryUsageGaugeSet, GarbageCollectorMetricSet}
+import com.codahale.metrics.{Metric, MetricSet, MetricRegistry, Gauge}
+
 import scala.collection.JavaConverters._
 import scala.collection.Map
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ListBuffer, ArrayBuffer}
 import scala.io.Source
 import scala.reflect.ClassTag
 import scala.util.Try
 import scala.util.control.{ControlThrowable, NonFatal}
 
 import com.google.common.io.{ByteStreams, Files}
-import com.google.common.net.InetAddresses
 import org.apache.commons.lang3.SystemUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, FileUtil, Path}
@@ -1930,6 +1932,31 @@ private[spark] object Utils extends Logging {
       ThreadStackTrace(threadInfo.getThreadId, threadInfo.getThreadName,
         threadInfo.getThreadState, stackTrace)
     }
+  }
+
+  def getMetrics(): Map[String, Seq[(String, String)]] = {
+
+    def fileStats[T](scheme: String, f: FileSystem.Statistics => T, defaultValue: T) : T = {
+      FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme)).map(f).getOrElse(defaultValue)
+    }
+
+    var fileSystemMetrics = ListBuffer[(String, String)]()
+    for (scheme <- Array("hdfs", "file")) {
+      fileSystemMetrics += ((scheme + ".read.bytes", fileStats(scheme, _.getBytesRead(), 0L).toString))
+      fileSystemMetrics += ((scheme + ".write.bytes", fileStats(scheme, _.getBytesWritten(), 0L).toString))
+      fileSystemMetrics += ((scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString))
+      fileSystemMetrics += ((scheme + ".largeRead.ops", fileStats(scheme,  _.getLargeReadOps(), 0).toString))
+      fileSystemMetrics += ((scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString))
+    }
+
+    var memoryMetrics = ListBuffer[(String, String)]()
+    val registry = new MetricRegistry()
+    registry.registerAll(new MemoryUsageGaugeSet())
+    registry.getGauges.asScala.foreach(x => {
+      memoryMetrics += ((x._1, x._2.getValue.toString))
+    })
+
+    Map("filesystem" -> fileSystemMetrics, "memory" -> memoryMetrics)
   }
 
   /**

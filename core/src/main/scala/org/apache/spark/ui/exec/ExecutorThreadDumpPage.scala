@@ -20,7 +20,6 @@ package org.apache.spark.ui.exec
 import java.net.URLDecoder
 import javax.servlet.http.HttpServletRequest
 
-import scala.util.Try
 import scala.xml.{Text, Node}
 
 import org.apache.spark.ui.{UIUtils, WebUIPage}

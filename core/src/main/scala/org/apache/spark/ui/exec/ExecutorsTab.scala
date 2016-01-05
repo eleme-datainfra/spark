@@ -36,6 +36,7 @@ private[ui] class ExecutorsTab(parent: SparkUI) extends SparkUITab(parent, "exec
   if (threadDumpEnabled) {
     attachPage(new ExecutorThreadDumpPage(this))
   }
+  attachPage(new ExexutorMetricsPage(this))
 }
 
 /**

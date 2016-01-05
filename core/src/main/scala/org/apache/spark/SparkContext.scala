@@ -61,7 +61,7 @@ import org.apache.spark.scheduler.cluster.{CoarseGrainedSchedulerBackend,
 import org.apache.spark.scheduler.cluster.mesos.{CoarseMesosSchedulerBackend, MesosSchedulerBackend}
 import org.apache.spark.scheduler.local.LocalBackend
 import org.apache.spark.storage._
-import org.apache.spark.storage.BlockManagerMessages.TriggerThreadDump
+import org.apache.spark.storage.BlockManagerMessages.{GetMetrics, TriggerThreadDump}
 import org.apache.spark.ui.{SparkUI, ConsoleProgressBar}
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.util._
@@ -625,6 +625,23 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     } catch {
       case e: Exception =>
         logError(s"Exception getting thread dump from executor $executorId", e)
+        None
+    }
+  }
+
+  private[spark] def getExecutorMetrics(executorId: String): Option[Map[String, Seq[(String, String)]]] = {
+    try {
+      if (executorId == SparkContext.DRIVER_IDENTIFIER) {
+        Some(Utils.getMetrics())
+        None
+      } else {
+        val endpointRef = env.blockManager.master.getExecutorEndpointRef(executorId).get
+        Some(endpointRef.askWithRetry[Map[String, Seq[(String, String)]]](GetMetrics))
+        None
+      }
+    } catch {
+      case e: Exception =>
+        logError(s"Exception getting metrics from executor $executorId", e)
         None
     }
   }
