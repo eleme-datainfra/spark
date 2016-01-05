@@ -45,13 +45,13 @@ private[ui] class ExexutorMetricsPage(parent: ExecutorsTab) extends WebUIPage("e
     val metrics = sc.get.getExecutorMetrics(executorId)
     val fileSystemInformationTable = UIUtils.listingTable(
       propertyHeader, propertyRow, metrics.get("filesystem"), fixedWidth = true)
-    val memoryInfomationTable = UIUtils.listingTable(
+    val memoryInformationTable = UIUtils.listingTable(
       propertyHeader, propertyRow, metrics.get("memory"), fixedWidth = true)
 
     val content =
       <span>
         <h4>File System</h4> {fileSystemInformationTable}
-        <h4>Memory</h4> {memoryInfomationTable}
+        <h4>Memory</h4> {memoryInformationTable}
       </span>
 
     UIUtils.headerSparkPage(s"Executor metrics for executor $executorId", content, parent)
