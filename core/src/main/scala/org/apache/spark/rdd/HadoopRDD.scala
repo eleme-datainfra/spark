@@ -232,9 +232,9 @@ class HadoopRDD[K, V](
 
       split.inputSplit.value match {
         case s: FileSplit =>
-          println("Start to read " + s.toString)
+          println("Input split: " + s.toString)
         case s: CombineFileSplit =>
-          println("Start to read " + s.toString)
+          println("Input split: " + s.toString)
       }
 
       var reader: RecordReader[K, V] = null

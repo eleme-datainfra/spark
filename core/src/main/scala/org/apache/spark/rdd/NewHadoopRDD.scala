@@ -147,9 +147,9 @@ class NewHadoopRDD[K, V](
 
       split.serializableHadoopSplit.value match {
         case s: FileSplit =>
-          println("Start to read " + s.toString)
+          println("Input split: " + s.toString)
         case s: CombineFileSplit =>
-          println("Start to read " + s.toString)
+          println("Input split: " + s.toString)
       }
 
       val attemptId = newTaskAttemptID(jobTrackerId, id, isMap = true, split.index, 0)
