@@ -144,6 +144,14 @@ class NewHadoopRDD[K, V](
           configurable.setConf(conf)
         case _ =>
       }
+
+      split.serializableHadoopSplit.value match {
+        case s: FileSplit =>
+          println("Start to read " + s.toString)
+        case s: CombineFileSplit =>
+          println("Start to read " + s.toString)
+      }
+
       val attemptId = newTaskAttemptID(jobTrackerId, id, isMap = true, split.index, 0)
       val hadoopAttemptContext = newTaskAttemptContext(conf, attemptId)
       private var reader = format.createRecordReader(

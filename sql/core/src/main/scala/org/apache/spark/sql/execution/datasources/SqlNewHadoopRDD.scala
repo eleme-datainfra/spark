@@ -174,6 +174,13 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
         }
       }
 
+      split.serializableHadoopSplit.value match {
+        case s: FileSplit =>
+          println("Start to read " + s.toString)
+        case s: CombineFileSplit =>
+          println("Start to read " + s.toString)
+      }
+
       if (reader == null) {
         reader = format.createRecordReader(
           split.serializableHadoopSplit.value, hadoopAttemptContext)
