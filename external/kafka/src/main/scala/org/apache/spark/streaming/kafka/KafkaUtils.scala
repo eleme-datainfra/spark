@@ -57,6 +57,7 @@ object KafkaUtils extends Logging {
    *                  in its own thread
    * @param storageLevel  Storage level to use for storing the received objects
    *                      (default: StorageLevel.MEMORY_AND_DISK_SER_2)
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createStream(
       ssc: StreamingContext,
@@ -80,6 +81,11 @@ object KafkaUtils extends Logging {
    * @param topics      Map of (topic_name -> numPartitions) to consume. Each partition is consumed
    *                    in its own thread.
    * @param storageLevel Storage level to use for storing the received objects
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam U type of Kafka message key decoder
+   * @tparam T type of Kafka message value decoder
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createStream[K: ClassTag, V: ClassTag, U <: Decoder[_]: ClassTag, T <: Decoder[_]: ClassTag](
       ssc: StreamingContext,
@@ -99,6 +105,7 @@ object KafkaUtils extends Logging {
    * @param groupId   The group id for this consumer
    * @param topics    Map of (topic_name -> numPartitions) to consume. Each partition is consumed
    *                  in its own thread
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createStream(
       jssc: JavaStreamingContext,
@@ -117,6 +124,7 @@ object KafkaUtils extends Logging {
    * @param topics    Map of (topic_name -> numPartitions) to consume. Each partition is consumed
    *                  in its own thread.
    * @param storageLevel RDD storage level.
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createStream(
       jssc: JavaStreamingContext,
@@ -141,6 +149,11 @@ object KafkaUtils extends Logging {
    * @param topics  Map of (topic_name -> numPartitions) to consume. Each partition is consumed
    *                in its own thread
    * @param storageLevel RDD storage level.
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam U type of Kafka message key decoder
+   * @tparam T type of Kafka message value decoder
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createStream[K, V, U <: Decoder[_], T <: Decoder[_]](
       jssc: JavaStreamingContext,
@@ -225,6 +238,11 @@ object KafkaUtils extends Logging {
    *    host1:port1,host2:port2 form.
    * @param offsetRanges Each OffsetRange in the batch corresponds to a
    *   range of offsets for a given Kafka topic/partition
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @return RDD of (Kafka message key, Kafka message value)
    */
   def createRDD[
     K: ClassTag,
@@ -257,6 +275,12 @@ object KafkaUtils extends Logging {
    * @param leaders Kafka brokers for each TopicAndPartition in offsetRanges.  May be an empty map,
    *   in which case leaders will be looked up on the driver.
    * @param messageHandler Function for translating each message and metadata into the desired type
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @tparam R type returned by messageHandler
+   * @return RDD of R
    */
   def createRDD[
     K: ClassTag,
@@ -294,6 +318,15 @@ object KafkaUtils extends Logging {
    *    host1:port1,host2:port2 form.
    * @param offsetRanges Each OffsetRange in the batch corresponds to a
    *   range of offsets for a given Kafka topic/partition
+   * @param keyClass type of Kafka message key
+   * @param valueClass type of Kafka message value
+   * @param keyDecoderClass type of Kafka message key decoder
+   * @param valueDecoderClass type of Kafka message value decoder
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @return RDD of (Kafka message key, Kafka message value)
    */
   def createRDD[K, V, KD <: Decoder[K], VD <: Decoder[V]](
       jsc: JavaSparkContext,
@@ -327,6 +360,12 @@ object KafkaUtils extends Logging {
    * @param leaders Kafka brokers for each TopicAndPartition in offsetRanges.  May be an empty map,
    *   in which case leaders will be looked up on the driver.
    * @param messageHandler Function for translating each message and metadata into the desired type
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @tparam R type returned by messageHandler
+   * @return RDD of R
    */
   def createRDD[K, V, KD <: Decoder[K], VD <: Decoder[V], R](
       jsc: JavaSparkContext,
@@ -379,6 +418,12 @@ object KafkaUtils extends Logging {
    * @param fromOffsets Per-topic/partition Kafka offsets defining the (inclusive)
    *    starting point of the stream
    * @param messageHandler Function for translating each message and metadata into the desired type
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @tparam R type returned by messageHandler
+   * @return DStream of R
    */
   def createDirectStream[
     K: ClassTag,
@@ -425,6 +470,11 @@ object KafkaUtils extends Logging {
    *   If not starting from a checkpoint, "auto.offset.reset" may be set to "largest" or "smallest"
    *   to determine where the stream starts (defaults to "largest")
    * @param topics Names of the topics to consume
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createDirectStream[
     K: ClassTag,
@@ -580,6 +630,12 @@ object KafkaUtils extends Logging {
    * @param fromOffsets Per-topic/partition Kafka offsets defining the (inclusive)
    *    starting point of the stream
    * @param messageHandler Function for translating each message and metadata into the desired type
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @tparam R type returned by messageHandler
+   * @return DStream of R
    */
   def createDirectStream[K, V, KD <: Decoder[K], VD <: Decoder[V], R](
       jssc: JavaStreamingContext,
@@ -639,6 +695,11 @@ object KafkaUtils extends Logging {
    *   If not starting from a checkpoint, "auto.offset.reset" may be set to "largest" or "smallest"
    *   to determine where the stream starts (defaults to "largest")
    * @param topics Names of the topics to consume
+   * @tparam K type of Kafka message key
+   * @tparam V type of Kafka message value
+   * @tparam KD type of Kafka message key decoder
+   * @tparam VD type of Kafka message value decoder
+   * @return DStream of (Kafka message key, Kafka message value)
    */
   def createDirectStream[K, V, KD <: Decoder[K], VD <: Decoder[V]](
       jssc: JavaStreamingContext,
