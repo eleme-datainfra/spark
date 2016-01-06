@@ -22,7 +22,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import org.apache.spark.{Logging, MapOutputTracker, SparkEnv}
 import org.apache.spark.rpc.{RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.storage.BlockManagerMessages._
-import org.apache.spark.util.{ThreadUtils, Utils}
+import org.apache.spark.util.{Metrics, ThreadUtils, Utils}
 
 /**
  * An RpcEndpoint to take commands from the master to execute options. For example,
@@ -75,7 +75,7 @@ class BlockManagerSlaveEndpoint(
       context.reply(Utils.getThreadDump())
 
     case GetMetrics =>
-      context.reply(Utils.getMetrics())
+      context.reply(Metrics(Utils.getMetrics()))
   }
 
   private def doAsync[T](actionMessage: String, context: RpcCallContext)(body: => T) {
