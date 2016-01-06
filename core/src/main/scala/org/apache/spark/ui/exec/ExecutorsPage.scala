@@ -173,7 +173,7 @@ private[ui] class ExecutorsPage(
       {
         val encodedId = URLEncoder.encode(info.id, "UTF-8")
         <td>
-          <a href={s"executorMetrics/?executorId=${encodedId}"}>Fetch</a>
+          <a href={s"executorMetrics/?executorId=${encodedId}"}>Fetch Metrics</a>
         </td>
       }
     </tr>

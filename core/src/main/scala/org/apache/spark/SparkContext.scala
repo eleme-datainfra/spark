@@ -629,15 +629,14 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     }
   }
 
-  private[spark] def getExecutorMetrics(executorId: String): Option[Map[String, Seq[(String, String)]]] = {
+  private[spark] def getExecutorMetrics(executorId: String): Option[Seq[(String, String)]] = {
     try {
-      logWarning("finding metrics for executorId")
       if (executorId == SparkContext.DRIVER_IDENTIFIER) {
         Some(Utils.getMetrics())
         None
       } else {
         val endpointRef = env.blockManager.master.getExecutorEndpointRef(executorId).get
-        Some(endpointRef.askWithRetry[Map[String, Seq[(String, String)]]](GetMetrics))
+        Some(endpointRef.askWithRetry[Metrics](GetMetrics).metrics)
         None
       }
     } catch {

@@ -1934,44 +1934,28 @@ private[spark] object Utils extends Logging {
     }
   }
 
-  def getMetrics(): Map[String, Seq[(String, String)]] = {
+  def getMetrics(): Seq[(String, String)] = {
 
     def fileStats[T](scheme: String, f: FileSystem.Statistics => T, defaultValue: T) : T = {
       FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme)).map(f).getOrElse(defaultValue)
     }
 
-
-    try {
-      var fileSystemMetrics = ListBuffer[(String, String)]()
-      for (scheme <- Array("hdfs", "file")) {
-        fileSystemMetrics += ((scheme + ".read.bytes", fileStats(scheme, _.getBytesRead(), 0L).toString))
-        fileSystemMetrics += ((scheme + ".write.bytes", fileStats(scheme, _.getBytesWritten(), 0L).toString))
-        fileSystemMetrics += ((scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString))
-        fileSystemMetrics += ((scheme + ".largeRead.ops", fileStats(scheme,  _.getLargeReadOps(), 0).toString))
-        fileSystemMetrics += ((scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString))
-      }
-
-      fileSystemMetrics.foreach { m =>
-        logWarning(m._1 + ":" + m._2)
-      }
-
-      var memoryMetrics = ListBuffer[(String, String)]()
-      val registry = new MetricRegistry()
-      registry.registerAll(new MemoryUsageGaugeSet())
-      registry.getGauges.asScala.foreach(x => {
-        memoryMetrics += ((x._1, x._2.getValue.toString))
-      })
-
-      memoryMetrics.foreach { m =>
-        logWarning(m._1 + ":" + m._2)
-      }
-
-      Map("filesystem" -> fileSystemMetrics, "memory" -> memoryMetrics)
-    } catch {
-      case e: Exception => logError("Error when fetch metrics", e)
+    var metrics = ListBuffer[(String, String)]()
+    for (scheme <- Array("hdfs", "file")) {
+      metrics += ((scheme + ".read.bytes", fileStats(scheme, _.getBytesRead(), 0L).toString))
+      metrics += ((scheme + ".write.bytes", fileStats(scheme, _.getBytesWritten(), 0L).toString))
+      metrics += ((scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString))
+      metrics += ((scheme + ".largeRead.ops", fileStats(scheme,  _.getLargeReadOps(), 0).toString))
+      metrics += ((scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString))
     }
-    null
 
+    val registry = new MetricRegistry()
+    registry.registerAll(new MemoryUsageGaugeSet())
+    registry.getGauges.asScala.foreach(x => {
+      metrics += ((x._1, x._2.getValue.toString))
+    })
+
+    metrics
   }
 
   /**

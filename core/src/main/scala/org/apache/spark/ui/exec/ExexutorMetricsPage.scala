@@ -42,16 +42,13 @@ private[ui] class ExexutorMetricsPage(parent: ExecutorsTab) extends WebUIPage("e
       throw new IllegalArgumentException(s"Missing executorId parameter")
     }
 
-    val metrics = sc.get.getExecutorMetrics(executorId)
-    val content = metrics.map { m=>
-      val fileSystemInformationTable = UIUtils.listingTable(
-        propertyHeader, propertyRow, m.get("filesystem").get, fixedWidth = true)
-      val memoryInformationTable = UIUtils.listingTable(
-        propertyHeader, propertyRow, m.get("memory").get, fixedWidth = true)
+    val maybeMetrics = sc.get.getExecutorMetrics(executorId)
+    val content = maybeMetrics.map { metrics =>
+      val metricsInformationTable = UIUtils.listingTable(
+        propertyHeader, propertyRow, metrics, fixedWidth = true)
 
       <span>
-        <h4>File System</h4> {fileSystemInformationTable}
-        <h4>Memory</h4> {memoryInformationTable}
+        <h4>Metrics</h4> {metricsInformationTable}
       </span>
     }.getOrElse(Text("Error fetching metrics"))
 
