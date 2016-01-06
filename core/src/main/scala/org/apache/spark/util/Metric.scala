@@ -18,6 +18,6 @@
 package org.apache.spark.util
 
 /**
- * Used for shipping per-thread stacktraces from the executors to driver.
+ * Used for shipping metrics from the executors to driver
  */
-private[spark] case class Metrics(metrics: Seq[(String, String)])
+private[spark] case class Metric(name: String, value: String)

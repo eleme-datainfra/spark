@@ -75,7 +75,7 @@ class BlockManagerSlaveEndpoint(
       context.reply(Utils.getThreadDump())
 
     case GetMetrics =>
-      context.reply(Metrics(Utils.getMetrics()))
+      context.reply(Utils.getMetrics())
   }
 
   private def doAsync[T](actionMessage: String, context: RpcCallContext)(body: => T) {

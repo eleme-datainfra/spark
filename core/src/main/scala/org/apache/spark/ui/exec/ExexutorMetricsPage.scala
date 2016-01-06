@@ -45,7 +45,7 @@ private[ui] class ExexutorMetricsPage(parent: ExecutorsTab) extends WebUIPage("e
     val maybeMetrics = sc.get.getExecutorMetrics(executorId)
     val content = maybeMetrics.map { metrics =>
       val metricsInformationTable = UIUtils.listingTable(
-        propertyHeader, propertyRow, metrics, fixedWidth = true)
+        propertyHeader, propertyRow, metrics.map(m => (m.name, m.value)), fixedWidth = true)
 
       <span>
         <h4>Metrics</h4> {metricsInformationTable}
