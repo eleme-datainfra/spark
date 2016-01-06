@@ -20,7 +20,7 @@ package org.apache.spark.ui.exec
 import java.net.URLDecoder
 import javax.servlet.http.HttpServletRequest
 import org.apache.spark.ui.{UIUtils, WebUIPage}
-import scala.xml.Node
+import scala.xml.{Text, Node}
 
 private[ui] class ExexutorMetricsPage(parent: ExecutorsTab) extends WebUIPage("executorMetrics") {
   private val sc = parent.sc
@@ -43,16 +43,18 @@ private[ui] class ExexutorMetricsPage(parent: ExecutorsTab) extends WebUIPage("e
     }
 
     val metrics = sc.get.getExecutorMetrics(executorId)
-    val fileSystemInformationTable = UIUtils.listingTable(
-      propertyHeader, propertyRow, metrics.get("filesystem"), fixedWidth = true)
-    val memoryInformationTable = UIUtils.listingTable(
-      propertyHeader, propertyRow, metrics.get("memory"), fixedWidth = true)
+    val content = metrics.map { m=>
+      val fileSystemInformationTable = UIUtils.listingTable(
+        propertyHeader, propertyRow, m.get("filesystem").get, fixedWidth = true)
+      val memoryInformationTable = UIUtils.listingTable(
+        propertyHeader, propertyRow, m.get("memory").get, fixedWidth = true)
 
-    val content =
       <span>
         <h4>File System</h4> {fileSystemInformationTable}
         <h4>Memory</h4> {memoryInformationTable}
       </span>
+    }.getOrElse(Text("Error fetching metrics"))
+
 
     UIUtils.headerSparkPage(s"Executor metrics for executor $executorId", content, parent)
   }

@@ -86,6 +86,7 @@ private[ui] class ExecutorsPage(
           </th>
           {if (logsExist) <th class="sorttable_nosort">Logs</th> else Seq.empty}
           {if (threadDumpEnabled) <th class="sorttable_nosort">Thread Dump</th> else Seq.empty}
+          <th class="sorttable_nosort">Metrics</th>
         </thead>
         <tbody>
           {execInfoSorted.map(execRow(_, logsExist))}
@@ -172,7 +173,7 @@ private[ui] class ExecutorsPage(
       {
         val encodedId = URLEncoder.encode(info.id, "UTF-8")
         <td>
-          <a href={s"executorMetrics/?executorId=${encodedId}"}>Metrics</a>
+          <a href={s"executorMetrics/?executorId=${encodedId}"}>Fetch</a>
         </td>
       }
     </tr>

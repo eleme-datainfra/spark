@@ -26,8 +26,8 @@ import java.util.concurrent._
 import java.util.{Locale, Properties, Random, UUID}
 import javax.net.ssl.HttpsURLConnection
 
-import com.codahale.metrics.jvm.{MemoryUsageGaugeSet, GarbageCollectorMetricSet}
-import com.codahale.metrics.{Metric, MetricSet, MetricRegistry, Gauge}
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet
+import com.codahale.metrics.MetricRegistry
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
