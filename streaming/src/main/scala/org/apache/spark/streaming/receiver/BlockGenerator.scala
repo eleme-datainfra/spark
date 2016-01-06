@@ -103,7 +103,7 @@ private[streaming] class BlockGenerator(
   require(blockIntervalMs > 0, s"'spark.streaming.blockInterval' should be a positive value")
 
   private val blockIntervalTimer =
-    new RecurringTimer(clock, blockIntervalMs, updateCurrentBuffer, "BlockGenerator")
+    new RecurringTimer(clock, blockIntervalMs, 0, updateCurrentBuffer, "BlockGenerator")
   private val blockQueueSize = conf.getInt("spark.streaming.blockQueueSize", 10)
   private val blocksForPushing = new ArrayBlockingQueue[Block](blockQueueSize)
   private val blockPushingThread = new Thread() { override def run() { keepPushingBlocks() } }
