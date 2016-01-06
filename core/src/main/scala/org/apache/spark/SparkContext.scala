@@ -631,6 +631,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
   private[spark] def getExecutorMetrics(executorId: String): Option[Map[String, Seq[(String, String)]]] = {
     try {
+      logWarning("finding metrics for executorId")
       if (executorId == SparkContext.DRIVER_IDENTIFIER) {
         Some(Utils.getMetrics())
         None
