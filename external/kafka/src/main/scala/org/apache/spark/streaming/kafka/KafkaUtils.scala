@@ -484,7 +484,7 @@ object KafkaUtils extends Logging {
       ssc: StreamingContext,
       kafkaParams: Map[String, String],
       topics: Set[String]
-  ): DStream[(K, V)] = {
+  ): InputDStream[(K, V)] = {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
     val kc = new KafkaCluster(kafkaParams)
     var fromOffsets = getFromOffsets(kc, kafkaParams, topics)
@@ -506,7 +506,7 @@ object KafkaUtils extends Logging {
           }
         })
         rdd
-      }
+      }.asInstanceOf[InputDStream[(K, V)]]
     } else {
       new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
         ssc, kafkaParams, fromOffsets, messageHandler)
