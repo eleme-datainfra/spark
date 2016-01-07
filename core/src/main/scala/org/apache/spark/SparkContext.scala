@@ -633,11 +633,9 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     try {
       if (executorId == SparkContext.DRIVER_IDENTIFIER) {
         Some(Utils.getMetrics())
-        None
       } else {
         val endpointRef = env.blockManager.master.getExecutorEndpointRef(executorId).get
         Some(endpointRef.askWithRetry[Array[Metric]](GetMetrics))
-        None
       }
     } catch {
       case e: Exception =>
