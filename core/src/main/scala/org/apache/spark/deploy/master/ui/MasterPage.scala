@@ -138,24 +138,23 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
           </div>
         </div>
 
+        <div>
+          {if (hasDrivers) {
+             <div class="row-fluid">
+               <div class="span12">
+                 <h4> Running Drivers </h4>
+                 {activeDriversTable}
+               </div>
+             </div>
+           }
+          }
+        </div>
+
         <div class="row-fluid">
           <div class="span12">
             <h4> Completed Applications </h4>
             {completedAppsTable}
           </div>
-        </div>
-
-        <div>
-          {
-            if (hasDrivers) {
-              <div class="row-fluid">
-                <div class="span12">
-                  <h4> Running Drivers </h4>
-                  {activeDriversTable}
-                </div>
-              </div>
-            }
-          }
         </div>
 
         <div>
