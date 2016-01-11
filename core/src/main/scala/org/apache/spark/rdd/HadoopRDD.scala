@@ -230,13 +230,6 @@ class HadoopRDD[K, V](
       }
       inputMetrics.setBytesReadCallback(bytesReadCallback)
 
-      split.inputSplit.value match {
-        case s: FileSplit =>
-          println("Input split: " + s.toString)
-        case s: CombineFileSplit =>
-          println("Input split: " + s.toString)
-      }
-
       var reader: RecordReader[K, V] = null
       val inputFormat = getInputFormat(jobConf)
       HadoopRDD.addLocalConfiguration(new SimpleDateFormat("yyyyMMddHHmm").format(createTime),
