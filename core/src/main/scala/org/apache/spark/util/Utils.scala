@@ -1955,8 +1955,6 @@ private[spark] object Utils extends Logging {
       metrics += Metric(x._1, x._2.getValue.toString)
     })
 
-    metrics.foreach(m => logWarning(m.name + ":" + m.value))
-
     metrics.toArray
   }
 
