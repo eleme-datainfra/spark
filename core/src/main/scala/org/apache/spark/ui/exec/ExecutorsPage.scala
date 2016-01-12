@@ -50,6 +50,7 @@ private[ui] class ExecutorsPage(
     threadDumpEnabled: Boolean)
   extends WebUIPage("") {
   private val listener = parent.listener
+  private val isAlive = parent.sc != None
 
   def render(request: HttpServletRequest): Seq[Node] = {
     val storageStatusList = listener.storageStatusList
@@ -86,7 +87,7 @@ private[ui] class ExecutorsPage(
           </th>
           {if (logsExist) <th class="sorttable_nosort">Logs</th> else Seq.empty}
           {if (threadDumpEnabled) <th class="sorttable_nosort">Thread Dump</th> else Seq.empty}
-          <th class="sorttable_nosort">Metrics</th>
+          {if (isAlive) <th class="sorttable_nosort">Metrics</th> else Seq.empty}
         </thead>
         <tbody>
           {execInfoSorted.map(execRow(_, logsExist))}
@@ -171,10 +172,12 @@ private[ui] class ExecutorsPage(
         }
       }
       {
-        val encodedId = URLEncoder.encode(info.id, "UTF-8")
-        <td>
-          <a href={s"executorMetrics/?executorId=${encodedId}"}>Fetch Metrics</a>
-        </td>
+        if (isAlive) {
+          val encodedId = URLEncoder.encode(info.id, "UTF-8")
+          <td>
+            <a href={s"executorMetrics/?executorId=${encodedId}"}>Fetch Metrics</a>
+          </td>
+        }
       }
     </tr>
   }

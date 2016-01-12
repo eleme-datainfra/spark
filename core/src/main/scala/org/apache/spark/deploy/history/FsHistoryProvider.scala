@@ -192,13 +192,20 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
       app match {
         case Some(appInfo: FsApplicationHistoryInfo) =>
           appInfo.attempts.find(_.attemptId == attemptId).flatMap { attempt =>
-            getSparkUI(attempt.logPath)
+            getSparkUI(attempt.logPath, appId, attemptId)
           }
         case None =>
-          var log = fs.listStatus(new Path(logDir))
-            .find(log=> log.getPath.getName.contains(appId))
+          var logs = fs.listStatus(new Path(logDir)).filter(log => log.getPath.getName.contains(appId))
+          var log: Option[FileStatus] = logs.length match {
+            case 1 =>
+              Some(logs.head)
+            case 0 =>
+              None
+            case _ =>
+              attemptId.map(id => logs.find(log => log.getPath.getName.contains("_" + id)).get)
+          }
           if(log != None) {
-            getSparkUI(log.get.getPath.getName)
+            getSparkUI(log.get.getPath.getName, appId, attemptId)
           } else {
             None
           }
@@ -208,27 +215,31 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
     }
   }
 
-  def getSparkUI(logPath: String): Option[SparkUI] = {
+  def getSparkUI(logPath: String, appId: String, attemptId: Option[String]): Option[SparkUI] = {
     val replayBus = new ReplayListenerBus()
     val appListener = new ApplicationEventListener()
     replayBus.addListener(appListener)
+
+    val ui = {
+      val conf = this.conf.clone()
+      val appSecManager = new SecurityManager(conf)
+      SparkUI.createHistoryUI(conf, replayBus, appSecManager, "",
+        HistoryServer.getAttemptURI(appId, attemptId), 0L)
+      // Do not call ui.bind() to avoid creating a new server for each application
+    }
+
     val appAttemptInfo = replay(fs.getFileStatus(new Path(logDir, logPath)), replayBus)
     appAttemptInfo.map { attempt =>
-      val ui = {
-        val conf = this.conf.clone()
-        val appSecManager = new SecurityManager(conf)
-        SparkUI.createHistoryUI(conf, replayBus, appSecManager, attempt.name,
-          HistoryServer.getAttemptURI(attempt.appId, attempt.attemptId), attempt.startTime)
-        // Do not call ui.bind() to avoid creating a new server for each application
-      }
       val uiAclsEnabled = conf.getBoolean("spark.history.ui.acls.enable", false)
       ui.getSecurityManager.setAcls(uiAclsEnabled)
       // make sure to set admin acls before view acls so they are properly picked up
       ui.getSecurityManager.setAdminAcls(appListener.adminAcls.getOrElse(""))
-      ui.getSecurityManager.setViewAcls(attempt.sparkUser,
-        appListener.viewAcls.getOrElse(""))
+      ui.getSecurityManager.setViewAcls(attempt.sparkUser, appListener.viewAcls.getOrElse(""))
+      ui.appName = attempt.name
+      ui.startTime = attempt.startTime
       ui
     }
+
   }
 
   override def getConfig(): Map[String, String] = {
