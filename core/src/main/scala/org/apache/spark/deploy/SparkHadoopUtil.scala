@@ -49,6 +49,10 @@ class SparkHadoopUtil extends Logging {
   val conf: Configuration = newConfiguration(sparkConf)
   UserGroupInformation.setConfiguration(conf)
 
+  def getSparkConf(): SparkConf = {
+    sparkConf
+  }
+
   /**
    * Runs the given function with a Hadoop UserGroupInformation as a thread local variable
    * (distributed to child threads), used for authenticating HDFS and YARN calls.

@@ -39,6 +39,11 @@ class ApplicationMasterArguments(val args: Array[String]) {
 
     var args = inputArgs
 
+    if(!inputArgs.contains("--executor-cores"))
+      executorCores = YarnSparkHadoopUtil.get.getSparkConf.get("spark.executor.cores", "1").toInt
+      println("Warning: You don't specify --executor-cores! Use spark.executor.cores " + executorCores)
+    }
+
     while (!args.isEmpty) {
       // --num-workers, --worker-memory, and --worker-cores are deprecated since 1.0,
       // the properties with executor in their names are preferred.
