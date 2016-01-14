@@ -533,11 +533,14 @@ object KafkaUtils extends Logging {
             }
           }
           if(fromOffsets.size == offsets.size) {
+            logInfo("Reading offset from file:" + file.getPath.toString)
+            offsets.foreach(o => logInfo(s"Partition  ${o._1.partition} -> offset ${o._2}"))
             return offsets
           }
+          logWarning("Skip file " + file.getPath.toString + ", partition size is not equal!")
         } catch {
           case e: Exception =>
-            System.err.println("Error reading restore file from "  + file.getPath.getName)
+            logError("Error reading restore file from "  + file.getPath.getName)
         } finally {
           inputStream.close()
         }
