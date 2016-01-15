@@ -18,7 +18,6 @@
 package org.apache.spark.deploy.yarn
 
 import org.apache.spark.util.{MemoryParam, IntParam}
-import org.apache.spark.deploy.yarn.YarnSparkHadoopUtil._
 import collection.mutable.ArrayBuffer
 
 class ApplicationMasterArguments(val args: Array[String]) {
@@ -37,11 +36,6 @@ class ApplicationMasterArguments(val args: Array[String]) {
     val userArgsBuffer = new ArrayBuffer[String]()
 
     var args = inputArgs
-
-    if(!inputArgs.contains("--executor-cores")) {
-      executorCores = YarnSparkHadoopUtil.get.sparkConf.get("spark.executor.cores", "1").toInt
-      println("Warning: You don't specify --executor-cores! Use spark.executor.cores " + executorCores)
-   }
 
     while (!args.isEmpty) {
       // --num-workers, --worker-memory, and --worker-cores are deprecated since 1.0,

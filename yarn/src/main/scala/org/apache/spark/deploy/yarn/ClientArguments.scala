@@ -35,7 +35,7 @@ private[spark] class ClientArguments(args: Array[String], sparkConf: SparkConf) 
   var primaryRFile: String = null
   var userArgs: ArrayBuffer[String] = new ArrayBuffer[String]()
   var executorMemory = 1024 // MB
-  var executorCores = 1
+  var executorCores = sparkConf.get("spark.executor.cores", "1").toInt
   var numExecutors = DEFAULT_NUMBER_EXECUTORS
   var amQueue = sparkConf.get("spark.yarn.queue", "default")
   var amMemory: Int = 512 // MB
