@@ -31,7 +31,7 @@ import com.codahale.metrics.MetricRegistry
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
-import scala.collection.mutable.{ListBuffer, ArrayBuffer}
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import scala.reflect.ClassTag
 import scala.util.Try
@@ -1942,8 +1942,8 @@ private[spark] object Utils extends Logging {
 
     var metrics = ArrayBuffer[Metric]()
     for (scheme <- Array("hdfs", "file")) {
-      metrics += Metric(scheme + ".read.bytes", fileStats(scheme, _.getBytesRead(), 0L).toString)
-      metrics += Metric(scheme + ".write.bytes", fileStats(scheme, _.getBytesWritten(), 0L).toString)
+      metrics += Metric(scheme + ".read.bytes", bytesToString(fileStats(scheme, _.getBytesRead(), 0L)))
+      metrics += Metric(scheme + ".write.bytes", bytesToString(fileStats(scheme, _.getBytesWritten(), 0L)))
       metrics += Metric(scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString)
       metrics += Metric(scheme + ".largeRead.ops", fileStats(scheme,  _.getLargeReadOps(), 0).toString)
       metrics += Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
@@ -1952,10 +1952,23 @@ private[spark] object Utils extends Logging {
     val registry = new MetricRegistry()
     registry.registerAll(new MemoryUsageGaugeSet())
     registry.getGauges.asScala.foreach(x => {
-      metrics += Metric(x._1, x._2.getValue.toString)
+      metrics += Metric(x._1, formatMetric(x._2.getValue))
     })
 
     metrics.toArray
+  }
+
+  def formatMetric(value: Any): String = {
+    value match {
+      case l: Long if(l > 1) =>
+          bytesToString(l)
+      case d: Double if(d > 0 && d < 1) =>
+        f"$d%1.2f" + "%"
+      case f: Float if(f > 0 && f < 1) =>
+        f"$f%1.2f" + "%"
+      case _ =>
+        value.toString
+    }
   }
 
   /**
