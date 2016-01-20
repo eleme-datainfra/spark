@@ -1963,9 +1963,9 @@ private[spark] object Utils extends Logging {
       case l: Long if(l > 1) =>
           bytesToString(l)
       case d: Double if(d > 0 && d < 1) =>
-        f"$d%1.2f" + "%"
+        f"${d * 100}%1.2f" + "%"
       case f: Float if(f > 0 && f < 1) =>
-        f"$f%1.2f" + "%"
+        f"${f * 100}%1.2f" + "%"
       case _ =>
         value.toString
     }
