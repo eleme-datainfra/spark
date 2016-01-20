@@ -258,9 +258,17 @@ object KafkaRDD {
         tp -> (lo.host, lo.port)
     }.toMap
 
-    val offsetRanges = fromOffsets.map { case (tp, fo) =>
+    val multiple = sc.conf.get("spark.streaming.kafka.partition.multiple", "1").toInt
+
+    val offsetRanges = fromOffsets.flatMap { case (tp, fo) =>
         val uo = untilOffsets(tp)
-        OffsetRange(tp.topic, tp.partition, fo, uo.offset)
+        val avgSize = (uo.offset - fo) / multiple
+        for(i <- 0 until multiple if(avgSize > 0))
+        yield  {
+          val startOffset = fo + i * avgSize + (if(i == 0 || avgSize == 0) 0 else 1)
+          val endOffset = math.min(fo + (i + 1) * avgSize, uo.offset)
+          OffsetRange(tp.topic, tp.partition, startOffset,endOffset)
+        }
     }.toArray
 
     new KafkaRDD[K, V, U, T, R](sc, kafkaParams, offsetRanges, leaders, messageHandler)
