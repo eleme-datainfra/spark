@@ -213,11 +213,12 @@ public class TaskMemoryManager {
       long memoryNotAccountedFor =
         memoryManager.getExecutionMemoryUsageForTask(taskAttemptId) - memoryAccountedForByConsumers;
       logger.info(
-        "{} bytes of memory were used by task {} but are not associated with specific consumers",
-        memoryNotAccountedFor, taskAttemptId);
+        "{} of memory were used by task {} but are not associated with specific consumers",
+        Utils.bytesToString(memoryNotAccountedFor), taskAttemptId);
       logger.info(
-        "{} bytes of memory are used for execution and {} bytes of memory are used for storage",
-        memoryManager.executionMemoryUsed(), memoryManager.storageMemoryUsed());
+        "{} of memory are used for execution and {} of memory are used for storage",
+        Utils.bytesToString(memoryManager.executionMemoryUsed()),
+        Utils.bytesToString(memoryManager.storageMemoryUsed()));
     }
   }
 
