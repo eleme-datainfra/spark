@@ -138,6 +138,8 @@ public class TaskMemoryManager {
     // optimization now in case we forget to undo it late when making changes.
     synchronized (this) {
       long got = memoryManager.acquireExecutionMemory(required, taskAttemptId, mode);
+      logger.debug("Task {} acquire {} for {}, required is {}", taskAttemptId,
+          Utils.bytesToString(got), consumer,  Utils.bytesToString(required));
 
       // Try to release memory from other consumers first, then we can reduce the frequency of
       // spilling, avoid to have too many spilled files.
