@@ -17,6 +17,8 @@
 
 package org.apache.spark.memory
 
+import org.apache.spark.util.Utils
+
 import scala.collection.mutable
 
 import org.apache.spark.SparkConf
@@ -103,9 +105,9 @@ private[spark] class UnifiedMemoryManager private[memory] (
                 math.min(extraMemoryNeeded, memoryReclaimableFromStorage))
               onHeapExecutionMemoryPool.incrementPoolSize(spaceReclaimed)
             }
-            logInfo(s"taskAttemptId is $taskAttemptId, extraMemoryNeeded is  $extraMemoryNeeded " +
-              s"memoryReclaimableFromStorage is $memoryReclaimableFromStorage  " +
-              s"memoryFree is ${storageMemoryPool.memoryFree}, ")
+            logInfo(s"taskAttemptId is $taskAttemptId, extraMemoryNeeded is  $extraMemoryNeeded, " +
+              s"memoryReclaimableFromStorage is ${Utils.bytesToString(memoryReclaimableFromStorage)}, " +
+              s"memoryFree is ${Utils.bytesToString(storageMemoryPool.memoryFree)}")
 
           }
         }
