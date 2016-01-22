@@ -105,7 +105,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
             }
             logInfo(s"taskAttemptId is $taskAttemptId, extraMemoryNeeded is  $extraMemoryNeeded " +
               s"memoryReclaimableFromStorage is $memoryReclaimableFromStorage  " +
-              s"memoryFree is $storageMemoryPool.memoryFree, ")
+              s"memoryFree is ${storageMemoryPool.memoryFree}, ")
 
           }
         }
