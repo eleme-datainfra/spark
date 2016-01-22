@@ -59,13 +59,14 @@ private[spark] class ClientArguments(args: Array[String], sparkConf: SparkConf) 
   loadEnvironmentArgs()
   validateArgs()
 
+  val memoryOverheadFactor = sparkConf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.10)
   // Additional memory to allocate to containers
   val amMemoryOverheadConf = if (isClusterMode) driverMemOverheadKey else amMemOverheadKey
   val amMemoryOverhead = sparkConf.getInt(amMemoryOverheadConf,
-    math.max((MEMORY_OVERHEAD_FACTOR * amMemory).toInt, MEMORY_OVERHEAD_MIN))
+    math.max((memoryOverheadFactor * amMemory).toInt, MEMORY_OVERHEAD_MIN))
 
   val executorMemoryOverhead = sparkConf.getInt("spark.yarn.executor.memoryOverhead",
-    math.max((MEMORY_OVERHEAD_FACTOR * executorMemory).toInt, MEMORY_OVERHEAD_MIN))
+    math.max((memoryOverheadFactor * executorMemory).toInt, MEMORY_OVERHEAD_MIN))
 
   /** Load any default arguments provided through environment variables and Spark properties. */
   private def loadEnvironmentArgs(): Unit = {
