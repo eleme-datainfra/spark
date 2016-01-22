@@ -129,8 +129,9 @@ private[memory] class ExecutionMemoryPool(
       // Only give it as much memory as is free, which might be none if it reached 1 / numTasks
       val toGrant = math.min(maxToGrant, memoryFree)
       logInfo(s"TID $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
-        s"curMem is ${Utils.bytesToString(curMem)}, " + s"memoryFree is ${Utils.bytesToString(memoryFree)}, ") +
-        s"activeTasks is $numActiveTasks"
+        s"curMem is ${Utils.bytesToString(curMem)}, " + s"memoryFree is ${Utils.bytesToString(memoryFree)}, " +
+        s"activeTasks is $numActiveTasks")
+
       // We want to let each task get at least 1 / (2 * numActiveTasks) before blocking;
       // if we can't give it this much now, wait for other tasks to free up memory
       // (this happens if older tasks allocated lots of memory before N grew)
