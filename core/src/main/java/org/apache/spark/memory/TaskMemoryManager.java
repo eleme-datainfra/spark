@@ -157,7 +157,7 @@ public class TaskMemoryManager {
                   break;
                 }
               } else {
-                logger.debug("Task {} released {} from {} for {}, but it's mode {} is not equal to {}!",
+                logger.debug("Task {} released {} from {} for {}, memory mode is {} vs {}!",
                     taskAttemptId, Utils.bytesToString(released), c, consumer, mode, tungstenMemoryMode);
               }
 
@@ -179,7 +179,7 @@ public class TaskMemoryManager {
               Utils.bytesToString(released), consumer);
             got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
           } else {
-            logger.debug("Task {} released {} from {}, but it's mode {} is not equal to {}!",
+            logger.debug("Task {} released {} from {}, memory mode is {} vs {}!",
                 taskAttemptId, Utils.bytesToString(released), consumer, mode, tungstenMemoryMode);
           }
         } catch (IOException e) {
