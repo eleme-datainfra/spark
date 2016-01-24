@@ -24,7 +24,8 @@ import org.apache.spark.{Logging, SparkEnv}
  * Spills contents of an in-memory collection to disk when the memory threshold
  * has been exceeded.
  */
-private[spark] trait Spillable[C] extends MemoryConsumer with Logging {
+private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
+  extends MemoryConsumer(taskMemoryManager) with Logging {
   /**
    * Spills the current in-memory collection to disk, and releases the memory.
    *
@@ -38,9 +39,6 @@ private[spark] trait Spillable[C] extends MemoryConsumer with Logging {
   // Called by subclasses every time a record is read
   // It's used for checking spilling frequency
   protected def addElementsRead(): Unit = { _elementsRead += 1 }
-
-  // Memory manager that can be used to acquire/release memory
-  protected[this] def taskMemoryManager: TaskMemoryManager
 
   // Initial threshold for the size of a collection before we start tracking its memory usage
   // For testing only

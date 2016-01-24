@@ -59,10 +59,10 @@ class ExternalAppendOnlyMap[K, V, C](
     serializer: Serializer = SparkEnv.get.serializer,
     blockManager: BlockManager = SparkEnv.get.blockManager,
     context: TaskContext = TaskContext.get())
-  extends Iterable[(K, C)]
+  extends Spillable[SizeTracker](context.taskMemoryManager())
   with Serializable
   with Logging
-  with Spillable[SizeTracker] {
+  with Iterable[(K, C)] {
 
   if (context == null) {
     throw new IllegalStateException(
@@ -78,8 +78,6 @@ class ExternalAppendOnlyMap[K, V, C](
       blockManager: BlockManager) {
     this(createCombiner, mergeValue, mergeCombiners, serializer, blockManager, TaskContext.get())
   }
-
-  override protected[this] def taskMemoryManager: TaskMemoryManager = context.taskMemoryManager()
 
   private var currentMap = new SizeTrackingAppendOnlyMap[K, C]
   private val spilledMaps = new ArrayBuffer[DiskMapIterator]

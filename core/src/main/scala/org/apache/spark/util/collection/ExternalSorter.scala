@@ -92,10 +92,8 @@ private[spark] class ExternalSorter[K, V, C](
     partitioner: Option[Partitioner] = None,
     ordering: Option[Ordering[K]] = None,
     serializer: Option[Serializer] = None)
-  extends Logging
-  with Spillable[WritablePartitionedPairCollection[K, C]] {
-
-  override protected[this] def taskMemoryManager: TaskMemoryManager = context.taskMemoryManager()
+  extends Spillable[WritablePartitionedPairCollection[K, C]](context.taskMemoryManager())
+  with Logging {
 
   private val conf = SparkEnv.get.conf
 
