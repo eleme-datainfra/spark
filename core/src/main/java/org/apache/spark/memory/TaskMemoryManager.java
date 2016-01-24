@@ -19,9 +19,7 @@ package org.apache.spark.memory;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.HashSet;
+import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -109,7 +107,7 @@ public class TaskMemoryManager {
    * Tracks spillable memory consumers.
    */
   @GuardedBy("this")
-  private final HashSet<MemoryConsumer> consumers;
+  private final TreeSet<MemoryConsumer> consumers;
 
   /**
    * Construct a new TaskMemoryManager.
@@ -118,7 +116,19 @@ public class TaskMemoryManager {
     this.tungstenMemoryMode = memoryManager.tungstenMemoryMode();
     this.memoryManager = memoryManager;
     this.taskAttemptId = taskAttemptId;
-    this.consumers = new HashSet<>();
+    this.consumers = new TreeSet<>(new Comparator<MemoryConsumer>() {
+      @Override
+      public int compare(MemoryConsumer c1, MemoryConsumer c2) {
+        long delta = c1.getUsed() - c2.getUsed();
+        if (delta > 0) {
+          return -1;
+        } else if (delta == 0) {
+          return 0;
+        } else {
+          return 1;
+        }
+      }
+    });
   }
 
   /**

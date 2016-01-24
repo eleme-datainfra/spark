@@ -28,7 +28,7 @@ import com.google.common.io.ByteStreams
 
 import org.apache.spark.{Logging, SparkEnv, TaskContext}
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.memory.TaskMemoryManager
+import org.apache.spark.memory.{MemoryConsumer, TaskMemoryManager}
 import org.apache.spark.serializer.{DeserializationStream, Serializer}
 import org.apache.spark.storage.{BlockId, BlockManager}
 import org.apache.spark.util.CompletionIterator
@@ -176,10 +176,27 @@ class ExternalAppendOnlyMap[K, V, C](
     insertAll(entries.iterator)
   }
 
+
+  override def spill(size: Long, trigger: MemoryConsumer): Long = {
+    if (trigger != this || currentMap == null || currentMap.size == 0) {
+      return 0L
+    } else {
+      if(spill(currentMap)) {
+        val released = getUsed()
+        if(spill(currentMap, currentMap.estimateSize())) {
+          currentMap = new SizeTrackingAppendOnlyMap[K, C]
+        }
+        released
+      } else {
+        0L
+      }
+    }
+  }
+
   /**
    * Sort the existing contents of the in-memory map and spill them to a temporary file on disk.
    */
-  override protected[this] def spill(collection: SizeTracker): Unit = {
+  override protected[this] def spill(collection: SizeTracker): Boolean = {
     val (blockId, file) = diskBlockManager.createTempLocalBlock()
     curWriteMetrics = new ShuffleWriteMetrics()
     var writer = blockManager.getDiskWriter(blockId, file, ser, fileBufferSize, curWriteMetrics)
@@ -220,6 +237,8 @@ class ExternalAppendOnlyMap[K, V, C](
         w.revertPartialWritesAndClose()
       }
       success = true
+      spilledMaps.append(new DiskMapIterator(file, blockId, batchSizes))
+      success
     } finally {
       if (!success) {
         // This code path only happens if an exception was thrown above before we set success;
@@ -232,10 +251,9 @@ class ExternalAppendOnlyMap[K, V, C](
             logWarning(s"Error deleting ${file}")
           }
         }
+        return success
       }
     }
-
-    spilledMaps.append(new DiskMapIterator(file, blockId, batchSizes))
   }
 
   /**

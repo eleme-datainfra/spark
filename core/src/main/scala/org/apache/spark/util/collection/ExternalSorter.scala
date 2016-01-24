@@ -26,7 +26,7 @@ import scala.collection.mutable
 import com.google.common.io.ByteStreams
 
 import org.apache.spark._
-import org.apache.spark.memory.TaskMemoryManager
+import org.apache.spark.memory.{MemoryConsumer, TaskMemoryManager}
 import org.apache.spark.serializer._
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.storage.{BlockId, DiskBlockObjectWriter}
@@ -227,13 +227,34 @@ private[spark] class ExternalSorter[K, V, C](
     }
   }
 
+
+  override def spill(size: Long, trigger: MemoryConsumer): Long = {
+    if (trigger != this) {
+      return 0L
+    }
+    val usingMap = aggregator.isDefined
+    val collection: WritablePartitionedPairCollection[K, C] = if (usingMap) map else buffer
+    val estimatedSize: Long = if(usingMap) map.estimateSize() else buffer.estimateSize()
+    val used = getUsed()
+    if(used > 0 && spill(collection, estimatedSize)) {
+      if(usingMap) {
+        map = new PartitionedAppendOnlyMap[K, C]
+      } else {
+        buffer = new PartitionedPairBuffer[K, C]
+      }
+      used
+    } else {
+      0L
+    }
+  }
+
   /**
    * Spill our in-memory collection to a sorted file that we can merge later.
    * We add this file into `spilledFiles` to find it later.
    *
    * @param collection whichever collection we're using (map or buffer)
    */
-  override protected[this] def spill(collection: WritablePartitionedPairCollection[K, C]): Unit = {
+  override protected[this] def spill(collection: WritablePartitionedPairCollection[K, C]): Boolean = {
     // Because these files may be read during shuffle, their compression must be controlled by
     // spark.shuffle.compress instead of spark.shuffle.spill.compress, so we need to use
     // createTempShuffleBlock here; see SPARK-3426 for more context.
@@ -292,6 +313,7 @@ private[spark] class ExternalSorter[K, V, C](
         w.revertPartialWritesAndClose()
       }
       success = true
+      spills.append(SpilledFile(file, blockId, batchSizes.toArray, elementsPerPartition))
     } finally {
       if (!success) {
         // This code path only happens if an exception was thrown above before we set success;
@@ -306,8 +328,7 @@ private[spark] class ExternalSorter[K, V, C](
         }
       }
     }
-
-    spills.append(SpilledFile(file, blockId, batchSizes.toArray, elementsPerPartition))
+    success
   }
 
   /**
