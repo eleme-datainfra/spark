@@ -146,7 +146,7 @@ public class TaskMemoryManager {
       if (got < required) {
         // Call spill() on other consumers to release memory
         for (MemoryConsumer c: consumers) {
-          if (c != consumer && c.getUsed() > 0) {
+          if (c.getUsed() > 0) {
             try {
               long released = c.spill(required - got, consumer);
               if (released > 0 && mode == tungstenMemoryMode) {
