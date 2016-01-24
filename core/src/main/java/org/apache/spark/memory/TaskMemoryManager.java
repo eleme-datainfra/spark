@@ -146,7 +146,7 @@ public class TaskMemoryManager {
       if (got < required) {
         // Call spill() on other consumers to release memory
         for (MemoryConsumer c: consumers) {
-          if (c.getUsed() > 0) {
+          if (c != consumer && c.getUsed() > 0) {
             try {
               long released = c.spill(required - got, consumer);
               if (released > 0 && mode == tungstenMemoryMode) {
@@ -156,7 +156,11 @@ public class TaskMemoryManager {
                 if (got >= required) {
                   break;
                 }
+              } else {
+                logger.debug("Task {} released {} from {} for {}, but it's mode {} is not equal to {}!",
+                    taskAttemptId, Utils.bytesToString(released), c, consumer, mode, tungstenMemoryMode);
               }
+
             } catch (IOException e) {
               logger.error("error while calling spill() on " + c, e);
               throw new OutOfMemoryError("error while calling spill() on " + c + " : "
@@ -174,6 +178,9 @@ public class TaskMemoryManager {
             logger.debug("Task {} released {} from itself ({})", taskAttemptId,
               Utils.bytesToString(released), consumer);
             got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
+          } else {
+            logger.debug("Task {} released {} from {}, but it's mode {} is not equal to {}!",
+                taskAttemptId, Utils.bytesToString(released), consumer, mode, tungstenMemoryMode);
           }
         } catch (IOException e) {
           logger.error("error while calling spill() on " + consumer, e);
