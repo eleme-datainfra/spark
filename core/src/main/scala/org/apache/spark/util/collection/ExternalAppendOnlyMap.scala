@@ -181,11 +181,11 @@ class ExternalAppendOnlyMap[K, V, C](
       return 0L
     } else {
       if(spill(currentMap)) {
-        val released = getUsed()
+        val used = getUsed()
         if(spill(currentMap, currentMap.estimateSize())) {
           currentMap = new SizeTrackingAppendOnlyMap[K, C]
         }
-        released
+        used
       } else {
         0L
       }
