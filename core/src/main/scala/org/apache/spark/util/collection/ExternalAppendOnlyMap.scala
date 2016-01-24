@@ -28,7 +28,7 @@ import com.google.common.io.ByteStreams
 
 import org.apache.spark.{Logging, SparkEnv, TaskContext}
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.memory.{MemoryConsumer, TaskMemoryManager}
+import org.apache.spark.memory.{MemoryMode, MemoryConsumer, TaskMemoryManager}
 import org.apache.spark.serializer.{DeserializationStream, Serializer}
 import org.apache.spark.storage.{BlockId, BlockManager}
 import org.apache.spark.util.CompletionIterator
@@ -176,7 +176,8 @@ class ExternalAppendOnlyMap[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || currentMap == null || currentMap.size == 0) {
+    if (trigger != this || currentMap == null || currentMap.size == 0
+      || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP) {
       return 0L
     } else {
       if(spill(currentMap)) {

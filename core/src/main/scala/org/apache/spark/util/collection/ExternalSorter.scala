@@ -26,7 +26,7 @@ import scala.collection.mutable
 import com.google.common.io.ByteStreams
 
 import org.apache.spark._
-import org.apache.spark.memory.{MemoryConsumer, TaskMemoryManager}
+import org.apache.spark.memory.{MemoryMode, MemoryConsumer, TaskMemoryManager}
 import org.apache.spark.serializer._
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.storage.{BlockId, DiskBlockObjectWriter}
@@ -227,7 +227,7 @@ private[spark] class ExternalSorter[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this) {
+    if (trigger != this || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP) {
       return 0L
     }
     val usingMap = aggregator.isDefined

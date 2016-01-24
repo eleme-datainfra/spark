@@ -101,7 +101,7 @@ public class TaskMemoryManager {
    * without doing any masking or lookups. Since this branching should be well-predicted by the JIT,
    * this extra layer of indirection / abstraction hopefully shouldn't be too expensive.
    */
-  final MemoryMode tungstenMemoryMode;
+  public final MemoryMode tungstenMemoryMode;
 
   /**
    * Tracks spillable memory consumers.
