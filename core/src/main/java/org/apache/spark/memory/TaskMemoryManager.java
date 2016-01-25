@@ -170,7 +170,6 @@ public class TaskMemoryManager {
                 logger.debug("Task {} released {} from {} for {}, memory mode is {} vs {}!",
                     taskAttemptId, Utils.bytesToString(released), c, consumer, mode, tungstenMemoryMode);
               }
-
             } catch (IOException e) {
               logger.error("error while calling spill() on " + c, e);
               throw new OutOfMemoryError("error while calling spill() on " + c + " : "

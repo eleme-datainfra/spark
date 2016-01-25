@@ -125,6 +125,7 @@ private[spark] class ExternalSorter[K, V, C](
   // store them in an array buffer.
   private var map = new PartitionedAppendOnlyMap[K, C]
   private var buffer = new PartitionedPairBuffer[K, C]
+  private var isShuffleSort = false
 
   // Total spilling statistics
   private var _diskBytesSpilled = 0L
@@ -227,7 +228,7 @@ private[spark] class ExternalSorter[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP) {
+    if (trigger != this || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP || isShuffleSort == true) {
       return 0L
     }
     val usingMap = aggregator.isDefined
@@ -650,7 +651,10 @@ private[spark] class ExternalSorter[K, V, C](
   /**
    * Return an iterator over all the data written to this object, aggregated by our aggregator.
    */
-  def iterator: Iterator[Product2[K, C]] = partitionedIterator.flatMap(pair => pair._2)
+  def iterator: Iterator[Product2[K, C]] = {
+    isShuffleSort = true
+    partitionedIterator.flatMap(pair => pair._2)
+  }
 
   /**
    * Write all the data added into this ExternalSorter into a file in the disk store. This is
@@ -724,6 +728,10 @@ private[spark] class ExternalSorter[K, V, C](
   {
     val buffered = data.buffered
     (0 until numPartitions).iterator.map(p => (p, new IteratorForPartition(p, buffered)))
+  }
+
+  override def toString(): String = {
+    this.getClass.getName + "@" + java.lang.Integer.toHexString(this.hashCode())
   }
 
   /**

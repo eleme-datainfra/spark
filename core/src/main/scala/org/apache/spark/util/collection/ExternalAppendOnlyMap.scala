@@ -181,8 +181,12 @@ class ExternalAppendOnlyMap[K, V, C](
       return 0L
     } else {
         val used = getUsed()
-        if(spill(currentMap, currentMap.estimateSize())) {
-          currentMap = new SizeTrackingAppendOnlyMap[K, C]
+        var isSuccess = false
+        isSuccess = spill(currentMap, currentMap.estimateSize())
+        if(isSuccess) {
+          currentMap.synchronized {
+            currentMap = new SizeTrackingAppendOnlyMap[K, C]
+          }
           used
         } else {
           0L
@@ -270,8 +274,10 @@ class ExternalAppendOnlyMap[K, V, C](
   }
 
   private def freeCurrentMap(): Unit = {
-    currentMap = null // So that the memory can be garbage-collected
-    releaseMemory()
+    if (currentMap != null) {
+      currentMap = null // So that the memory can be garbage-collected
+      releaseMemory()
+    }
   }
 
   /**
@@ -547,6 +553,10 @@ class ExternalAppendOnlyMap[K, V, C](
 
   /** Convenience function to hash the given (K, C) pair by the key. */
   private def hashKey(kc: (K, C)): Int = ExternalAppendOnlyMap.hash(kc._1)
+
+  override def toString(): String = {
+    this.getClass.getName + "@" + java.lang.Integer.toHexString(this.hashCode())
+  }
 }
 
 private[spark] object ExternalAppendOnlyMap {
