@@ -180,15 +180,13 @@ class ExternalAppendOnlyMap[K, V, C](
       || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP) {
       return 0L
     } else {
-      if(spill(currentMap)) {
         val used = getUsed()
         if(spill(currentMap, currentMap.estimateSize())) {
           currentMap = new SizeTrackingAppendOnlyMap[K, C]
+          used
+        } else {
+          0L
         }
-        used
-      } else {
-        0L
-      }
     }
   }
 
