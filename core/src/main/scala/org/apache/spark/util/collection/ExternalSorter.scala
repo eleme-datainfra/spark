@@ -228,7 +228,7 @@ private[spark] class ExternalSorter[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP || isShuffleSort == true) {
+    if (trigger != this || isShuffleSort == true) {
       return 0L
     }
     val usingMap = aggregator.isDefined

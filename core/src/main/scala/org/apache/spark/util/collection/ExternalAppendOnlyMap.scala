@@ -176,8 +176,7 @@ class ExternalAppendOnlyMap[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || currentMap == null || currentMap.size == 0
-      || taskMemoryManager.tungstenMemoryMode != MemoryMode.ON_HEAP) {
+    if (trigger != this || currentMap == null || currentMap.size == 0) {
       return 0L
     } else {
         val used = getUsed()
