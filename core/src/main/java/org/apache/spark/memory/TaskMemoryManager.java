@@ -198,7 +198,7 @@ public class TaskMemoryManager {
         }
       }
 
-      if (consumer != null) {
+      if (consumer != null && !consumers.contains(consumer)) {
         consumers.add(consumer);
       }
       logger.debug("Task {} acquire {} for {}", taskAttemptId, Utils.bytesToString(got), consumer);
