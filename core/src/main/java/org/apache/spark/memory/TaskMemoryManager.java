@@ -167,8 +167,8 @@ public class TaskMemoryManager {
                   break;
                 }
               } else {
-                logger.debug("Task {} released {} from {} for {}, memory mode is {} vs {}!",
-                    taskAttemptId, Utils.bytesToString(released), c, consumer, mode, tungstenMemoryMode);
+                logger.debug("Task {} released {} from {} for {}, but required is {}!",
+                    taskAttemptId, Utils.bytesToString(released), c, consumer, required);
               }
             } catch (IOException e) {
               logger.error("error while calling spill() on " + c, e);
@@ -188,8 +188,8 @@ public class TaskMemoryManager {
               Utils.bytesToString(released), consumer);
             got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
           } else {
-            logger.debug("Task {} released {} from {}, memory mode is {} vs {}!",
-                taskAttemptId, Utils.bytesToString(released), consumer, mode, tungstenMemoryMode);
+            logger.debug("Task {} released {} from {}, but required is {}!",
+                taskAttemptId, Utils.bytesToString(released), consumer, required);
           }
         } catch (IOException e) {
           logger.error("error while calling spill() on " + consumer, e);
