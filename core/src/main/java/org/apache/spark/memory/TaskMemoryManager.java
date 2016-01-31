@@ -107,7 +107,7 @@ public class TaskMemoryManager {
    * Tracks spillable memory consumers.
    */
   @GuardedBy("this")
-  private volatile TreeSet<MemoryConsumer> consumers;
+  private final HashSet<MemoryConsumer> consumers;
 
   /**
    * Construct a new TaskMemoryManager.
@@ -116,19 +116,7 @@ public class TaskMemoryManager {
     this.tungstenMemoryMode = memoryManager.tungstenMemoryMode();
     this.memoryManager = memoryManager;
     this.taskAttemptId = taskAttemptId;
-    this.consumers = new TreeSet<>(new Comparator<MemoryConsumer>() {
-      @Override
-      public int compare(MemoryConsumer c1, MemoryConsumer c2) {
-        long delta = c1.getUsed() - c2.getUsed();
-        if (delta > 0) {
-          return -1;
-        } else if (delta == 0) {
-          return 0;
-        } else {
-          return 1;
-        }
-      }
-    });
+    this.consumers = new HashSet<MemoryConsumer>();
   }
 
   /**
@@ -198,8 +186,7 @@ public class TaskMemoryManager {
         }
       }
 
-      if (consumer != null && !consumers.contains(consumer)) {
-        logger.debug("Do not contains consumer {} for Task {}, add it", consumer, taskAttemptId);
+      if (consumer != null) {
         consumers.add(consumer);
       }
       logger.debug("Task {} acquire {} for {}", taskAttemptId, Utils.bytesToString(got), consumer);
