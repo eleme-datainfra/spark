@@ -1075,8 +1075,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
     val partitionSize = self.partitions.size
     val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
     if(partitionSize > maxFiles) {
-      throw new SparkException(s"partitions size ${partitionSize} is more " +
-        s"than ${maxFiles}")
+      throw new SparkException(s"You can't create files more than ${maxFiles}")
     }
     // Rename this as hadoopConf internally to avoid shadowing (see SPARK-2038).
     val hadoopConf = conf
@@ -1163,8 +1162,7 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
     val partitionSize = self.partitions.size
     val maxFiles = self.conf.getInt("spark.max.createFiles", 1000)
     if(partitionSize > maxFiles) {
-      throw new SparkException(s"partitions size ${partitionSize} is more " +
-        s"than ${maxFiles}")
+      throw new SparkException(s"You can't create files more than ${maxFiles}")
     }
     // Rename this as hadoopConf internally to avoid shadowing (see SPARK-2038).
     val hadoopConf = conf
