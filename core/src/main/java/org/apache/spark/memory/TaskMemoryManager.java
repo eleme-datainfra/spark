@@ -107,7 +107,7 @@ public class TaskMemoryManager {
    * Tracks spillable memory consumers.
    */
   @GuardedBy("this")
-  private final TreeSet<MemoryConsumer> consumers;
+  private volatile TreeSet<MemoryConsumer> consumers;
 
   /**
    * Construct a new TaskMemoryManager.
@@ -167,8 +167,8 @@ public class TaskMemoryManager {
                   break;
                 }
               } else {
-                logger.debug("Task {} released {} from {} for {}, but required is {}!",
-                    taskAttemptId, Utils.bytesToString(released), c, consumer, required);
+                logger.debug("Task {} released {} from {} for {}({}), but required is {}!",
+                  taskAttemptId, Utils.bytesToString(released), c, consumer, consumer.getUsed(), required);
               }
             } catch (IOException e) {
               logger.error("error while calling spill() on " + c, e);
@@ -188,8 +188,8 @@ public class TaskMemoryManager {
               Utils.bytesToString(released), consumer);
             got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
           } else {
-            logger.debug("Task {} released {} from {}, but required is {}!",
-                taskAttemptId, Utils.bytesToString(released), consumer, required);
+            logger.debug("Task {} released {} from {}({}), but required is {}!",
+              taskAttemptId, Utils.bytesToString(released), consumer, consumer.getUsed(), required);
           }
         } catch (IOException e) {
           logger.error("error while calling spill() on " + consumer, e);
