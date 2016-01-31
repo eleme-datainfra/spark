@@ -199,6 +199,7 @@ public class TaskMemoryManager {
       }
 
       if (consumer != null && !consumers.contains(consumer)) {
+        logger.debug("Do not contains consumer {} for Task {}, add it", consumer, taskAttemptId);
         consumers.add(consumer);
       }
       logger.debug("Task {} acquire {} for {}", taskAttemptId, Utils.bytesToString(got), consumer);
