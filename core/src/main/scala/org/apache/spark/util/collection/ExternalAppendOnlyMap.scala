@@ -179,10 +179,12 @@ class ExternalAppendOnlyMap[K, V, C](
     if (trigger != this || currentMap == null || currentMap.size == 0) {
       return 0L
     } else {
-        val used = getUsed()
-        var isSuccess = false
+      val used = getUsed()
+      var isSuccess = false
+      currentMap synchronized {
         isSuccess = spill(currentMap, currentMap.estimateSize())
-        if(isSuccess) {
+
+        if (isSuccess) {
           currentMap.synchronized {
             currentMap = new SizeTrackingAppendOnlyMap[K, C]
           }
@@ -190,6 +192,7 @@ class ExternalAppendOnlyMap[K, V, C](
         } else {
           0L
         }
+      }
     }
   }
 
