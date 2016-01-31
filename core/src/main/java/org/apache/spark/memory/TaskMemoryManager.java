@@ -209,6 +209,7 @@ public class TaskMemoryManager {
     logger.info("Memory used in task " + taskAttemptId);
     synchronized (this) {
       long memoryAccountedForByConsumers = 0;
+      logger.info("There are {} consumsers", consumers.size());
       for (MemoryConsumer c: consumers) {
         long totalMemUsage = c.getUsed();
         memoryAccountedForByConsumers += totalMemUsage;
