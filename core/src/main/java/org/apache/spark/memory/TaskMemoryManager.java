@@ -18,10 +18,12 @@
 package org.apache.spark.memory;
 
 import javax.annotation.concurrent.GuardedBy;
+import javax.ws.rs.Consumes;
 import java.io.IOException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.spark.util.collection.Spillable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,6 +121,18 @@ public class TaskMemoryManager {
     this.consumers = new HashSet<>();
   }
 
+  public boolean hasExecutionMemory(MemoryMode mode) {
+    return memoryManager.hasExecutionMemory(taskAttemptId, mode);
+  }
+
+  public long getAllUsed() {
+    long sum = 0L;
+    for(MemoryConsumer c : consumers) {
+      sum += c.getUsed();
+    }
+    return sum;
+  }
+
   /**
    * Acquire N bytes of memory for a consumer. If there is no enough memory, it will call
    * spill() of consumers to release more memory.
@@ -143,7 +157,7 @@ public class TaskMemoryManager {
       // spilling, avoid to have too many spilled files.
       if (got < required) {
         // Call spill() on other consumers to release memory
-        for (MemoryConsumer c: consumers) {
+        for (MemoryConsumer c : consumers) {
           if (c != consumer && c.getUsed() > 0) {
             try {
               long released = c.spill(required - got, consumer);
@@ -168,7 +182,7 @@ public class TaskMemoryManager {
       }
 
       // call spill() on itself
-      if (got < required && consumer != null) {
+      if (got < required && consumer != null && !(consumer instanceof Spillable)) {
         try {
           long released = consumer.spill(required - got, consumer);
           if (released > 0 && mode == tungstenMemoryMode) {

@@ -85,7 +85,11 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
       // If we were granted too little memory to grow further (either tryToAcquire returned 0,
       // or we already had more memory than myMemoryThreshold), spill the current collection
       shouldSpill = currentMemory >= myMemoryThreshold
+    } else {
+      val hasMemory = taskMemoryManager.hasExecutionMemory(MemoryMode.ON_HEAP)
+      if (!hasMemory && currentMemory >= (taskMemoryManager.getAllUsed() / 2)) shouldSpill = true
     }
+
     shouldSpill = shouldSpill || _elementsRead > numElementsForceSpillThreshold
     // Actually spill
     if (shouldSpill) {
@@ -106,6 +110,9 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
     success
   }
 
+  override def spill(size: Long, trigger: MemoryConsumer): Long = {
+    return 0L
+  }
 
   /**
    * @return number of bytes spilled in total

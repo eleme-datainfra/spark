@@ -109,7 +109,6 @@ private[spark] class UnifiedMemoryManager private[memory] (
               s"${Utils.bytesToString(extraMemoryNeeded)}, " +
               s"memoryReclaimableFromStorage is ${Utils.bytesToString(memoryReclaimableFromStorage)}, " +
               s"memoryFree is ${Utils.bytesToString(storageMemoryPool.memoryFree)}")
-
           }
         }
 

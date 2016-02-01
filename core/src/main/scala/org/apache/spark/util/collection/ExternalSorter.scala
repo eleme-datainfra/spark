@@ -125,7 +125,6 @@ private[spark] class ExternalSorter[K, V, C](
   // store them in an array buffer.
   private var map = new PartitionedAppendOnlyMap[K, C]
   private var buffer = new PartitionedPairBuffer[K, C]
-  private var isShuffleSort = false
 
   // Total spilling statistics
   private var _diskBytesSpilled = 0L
@@ -223,27 +222,6 @@ private[spark] class ExternalSorter[K, V, C](
 
     if (estimatedSize > _peakMemoryUsedBytes) {
       _peakMemoryUsedBytes = estimatedSize
-    }
-  }
-
-
-  override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (isShuffleSort == true) {
-      return 0L
-    }
-    val usingMap = aggregator.isDefined
-    val collection: WritablePartitionedPairCollection[K, C] = if (usingMap) map else buffer
-    val estimatedSize: Long = if (usingMap) map.estimateSize() else buffer.estimateSize()
-    val used = getUsed()
-    if (used > 0 && spill(collection, estimatedSize)) {
-      if (usingMap) {
-        map = new PartitionedAppendOnlyMap[K, C]
-      } else {
-        buffer = new PartitionedPairBuffer[K, C]
-      }
-      used
-    } else {
-      0L
     }
   }
 
@@ -651,10 +629,7 @@ private[spark] class ExternalSorter[K, V, C](
   /**
    * Return an iterator over all the data written to this object, aggregated by our aggregator.
    */
-  def iterator: Iterator[Product2[K, C]] = {
-    isShuffleSort = true
-    partitionedIterator.flatMap(pair => pair._2)
-  }
+  def iterator: Iterator[Product2[K, C]] = partitionedIterator.flatMap(pair => pair._2)
 
   /**
    * Write all the data added into this ExternalSorter into a file in the disk store. This is

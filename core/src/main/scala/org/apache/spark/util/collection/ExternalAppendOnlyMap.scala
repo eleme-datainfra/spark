@@ -174,25 +174,6 @@ class ExternalAppendOnlyMap[K, V, C](
     insertAll(entries.iterator)
   }
 
-
-  override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (currentMap == null || currentMap.size == 0) {
-      return 0L
-    } else {
-      val used = getUsed()
-      var isSuccess = false
-      currentMap synchronized {
-        isSuccess = spill(currentMap, currentMap.estimateSize())
-        if (isSuccess) {
-          currentMap = new SizeTrackingAppendOnlyMap[K, C]
-          used
-        } else {
-          0L
-        }
-      }
-    }
-  }
-
   /**
    * Sort the existing contents of the in-memory map and spill them to a temporary file on disk.
    */
@@ -273,10 +254,8 @@ class ExternalAppendOnlyMap[K, V, C](
   }
 
   private def freeCurrentMap(): Unit = {
-    if (currentMap != null) {
-      currentMap = null // So that the memory can be garbage-collected
-      releaseMemory()
-    }
+    currentMap = null // So that the memory can be garbage-collected
+    releaseMemory()
   }
 
   /**

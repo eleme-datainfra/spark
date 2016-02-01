@@ -146,6 +146,18 @@ private[memory] class ExecutionMemoryPool(
     0L  // Never reached
   }
 
+  private[memory] def hasExecutionMemory(taskAttemptId: Long): Boolean = {
+    if (!memoryForTask.contains(taskAttemptId)) {
+      // This will later cause waiting tasks to wake up and check numTasks again
+      return true
+    }
+
+    val numActiveTasks = memoryForTask.keys.size
+    val curMem = memoryForTask(taskAttemptId)
+    val maxMemoryPerTask = poolSize / numActiveTasks
+    if (curMem > maxMemoryPerTask) false else true
+  }
+
   /**
     * Try to acquire up to `numBytes` of memory for the given task and return the number of bytes
     * obtained, or 0 if none can be allocated.
