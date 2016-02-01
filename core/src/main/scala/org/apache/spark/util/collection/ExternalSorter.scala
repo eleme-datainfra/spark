@@ -228,15 +228,15 @@ private[spark] class ExternalSorter[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || isShuffleSort == true) {
+    if (isShuffleSort == true) {
       return 0L
     }
     val usingMap = aggregator.isDefined
     val collection: WritablePartitionedPairCollection[K, C] = if (usingMap) map else buffer
-    val estimatedSize: Long = if(usingMap) map.estimateSize() else buffer.estimateSize()
+    val estimatedSize: Long = if (usingMap) map.estimateSize() else buffer.estimateSize()
     val used = getUsed()
-    if(used > 0 && spill(collection, estimatedSize)) {
-      if(usingMap) {
+    if (used > 0 && spill(collection, estimatedSize)) {
+      if (usingMap) {
         map = new PartitionedAppendOnlyMap[K, C]
       } else {
         buffer = new PartitionedPairBuffer[K, C]

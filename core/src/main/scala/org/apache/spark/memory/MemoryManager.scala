@@ -110,6 +110,22 @@ private[spark] abstract class MemoryManager(
       memoryMode: MemoryMode): Long
 
   /**
+    * Try to acquire up to `numBytes` of execution memory for the current task and return the
+    * number of bytes obtained, or 0 if none can be allocated.
+    *
+    */
+  private[memory]
+  def acquireExecutionMemoryIfFree(
+      numBytes: Long,
+      taskAttemptId: Long,
+      memoryMode: MemoryMode): Long = synchronized {
+    memoryMode match {
+      case MemoryMode.ON_HEAP => onHeapExecutionMemoryPool.acquireMemoryIfFree(numBytes, taskAttemptId)
+      case MemoryMode.OFF_HEAP => offHeapExecutionMemoryPool.acquireMemoryIfFree(numBytes, taskAttemptId)
+    }
+  }
+
+  /**
    * Release numBytes of execution memory belonging to the given task.
    */
   private[memory]

@@ -147,6 +147,33 @@ private[memory] class ExecutionMemoryPool(
   }
 
   /**
+    * Try to acquire up to `numBytes` of memory for the given task and return the number of bytes
+    * obtained, or 0 if none can be allocated.
+    *
+    * @param numBytes number of bytes to acquire
+    * @param taskAttemptId the task attempt acquiring memory
+    *
+    * @return the number of bytes granted to the task.
+    */
+  private[memory] def acquireMemoryIfFree(numBytes: Long, taskAttemptId: Long): Long = lock.synchronized {
+    // Add this task to the taskMemory map just so we can keep an accurate count of the number
+    // of active tasks, to let other tasks ramp down their memory in calls to `acquireMemory`
+    if (!memoryForTask.contains(taskAttemptId)) {
+      memoryForTask(taskAttemptId) = 0L
+      // This will later cause waiting tasks to wake up and check numTasks again
+      lock.notifyAll()
+    }
+
+    if (numBytes < memoryFree) {
+      memoryForTask(taskAttemptId) += numBytes
+      numBytes
+    } else {
+      0L
+    }
+  }
+
+
+  /**
    * Release `numBytes` of memory acquired by the given task.
    */
   def releaseMemory(numBytes: Long, taskAttemptId: Long): Unit = lock.synchronized {

@@ -116,7 +116,7 @@ public class TaskMemoryManager {
     this.tungstenMemoryMode = memoryManager.tungstenMemoryMode();
     this.memoryManager = memoryManager;
     this.taskAttemptId = taskAttemptId;
-    this.consumers = new HashSet<MemoryConsumer>();
+    this.consumers = new HashSet<>();
   }
 
   /**
@@ -174,7 +174,12 @@ public class TaskMemoryManager {
           if (released > 0 && mode == tungstenMemoryMode) {
             logger.debug("Task {} released {} from itself ({})", taskAttemptId,
               Utils.bytesToString(released), consumer);
-            got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
+            if(released > required) {
+              got += memoryManager.acquireExecutionMemoryIfFree(required - got, taskAttemptId, mode);
+            } else {
+              got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
+            }
+
           } else {
             logger.debug("Task {} released {} from {}({}), but required is {}!",
               taskAttemptId, Utils.bytesToString(released), consumer, consumer.getUsed(), required);
@@ -210,7 +215,7 @@ public class TaskMemoryManager {
     synchronized (this) {
       long memoryAccountedForByConsumers = 0;
       logger.info("There are {} consumsers", consumers.size());
-      for (MemoryConsumer c: consumers) {
+      for (MemoryConsumer c : consumers) {
         long totalMemUsage = c.getUsed();
         memoryAccountedForByConsumers += totalMemUsage;
         if (totalMemUsage > 0) {

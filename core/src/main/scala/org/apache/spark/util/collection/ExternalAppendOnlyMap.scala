@@ -176,18 +176,15 @@ class ExternalAppendOnlyMap[K, V, C](
 
 
   override def spill(size: Long, trigger: MemoryConsumer): Long = {
-    if (trigger != this || currentMap == null || currentMap.size == 0) {
+    if (currentMap == null || currentMap.size == 0) {
       return 0L
     } else {
       val used = getUsed()
       var isSuccess = false
       currentMap synchronized {
         isSuccess = spill(currentMap, currentMap.estimateSize())
-
         if (isSuccess) {
-          currentMap.synchronized {
-            currentMap = new SizeTrackingAppendOnlyMap[K, C]
-          }
+          currentMap = new SizeTrackingAppendOnlyMap[K, C]
           used
         } else {
           0L
