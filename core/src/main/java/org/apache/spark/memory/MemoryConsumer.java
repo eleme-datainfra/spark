@@ -130,4 +130,21 @@ public abstract class MemoryConsumer {
     used -= page.size();
     taskMemoryManager.freePage(page, this);
   }
+
+  /**
+   * Allocates a heap memory of `size`.
+   */
+  public long allocateHeapExecutionMemory(long size) {
+    long granted = taskMemoryManager.acquireExecutionMemory(size, MemoryMode.ON_HEAP, this);
+    used += granted;
+    return granted;
+  }
+
+  /**
+   * Release N bytes of heap memory.
+   */
+  public void freeHeapExecutionMemory(long size) {
+    taskMemoryManager.releaseExecutionMemory(size, MemoryMode.ON_HEAP, this);
+    used -= size;
+  }
 }
