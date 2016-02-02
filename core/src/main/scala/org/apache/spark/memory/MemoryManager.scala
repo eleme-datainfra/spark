@@ -116,7 +116,7 @@ private[spark] abstract class MemoryManager(
   private[memory]
   def hasExecutionMemory(
       taskAttemptId: Long,
-      memoryMode: MemoryMode): Boolean = synchronized {
+      memoryMode: MemoryMode): Boolean = {
     memoryMode match {
       case MemoryMode.ON_HEAP => onHeapExecutionMemoryPool.hasExecutionMemory(taskAttemptId)
       case MemoryMode.OFF_HEAP => offHeapExecutionMemoryPool.hasExecutionMemory(taskAttemptId)
