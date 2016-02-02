@@ -18,12 +18,10 @@
 package org.apache.spark.memory;
 
 import javax.annotation.concurrent.GuardedBy;
-import javax.ws.rs.Consumes;
 import java.io.IOException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.spark.util.collection.Spillable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,7 +101,7 @@ public class TaskMemoryManager {
    * without doing any masking or lookups. Since this branching should be well-predicted by the JIT,
    * this extra layer of indirection / abstraction hopefully shouldn't be too expensive.
    */
-  public final MemoryMode tungstenMemoryMode;
+  final MemoryMode tungstenMemoryMode;
 
   /**
    * Tracks spillable memory consumers.
@@ -183,7 +181,7 @@ public class TaskMemoryManager {
       }
 
       // call spill() on itself
-      if (got < required && consumer != null && !(consumer instanceof Spillable)) {
+      if (got < required && consumer != null) {
         try {
           long released = consumer.spill(required - got, consumer);
           if (released > 0 && mode == tungstenMemoryMode) {
@@ -414,5 +412,12 @@ public class TaskMemoryManager {
    */
   public long getMemoryConsumptionForThisTask() {
     return memoryManager.getExecutionMemoryUsageForTask(taskAttemptId);
+  }
+
+  /**
+   * Returns Tungsten memory mode
+   */
+  public MemoryMode getTungstenMemoryMode(){
+    return tungstenMemoryMode;
   }
 }
