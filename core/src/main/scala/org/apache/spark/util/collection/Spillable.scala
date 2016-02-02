@@ -87,7 +87,7 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
       shouldSpill = currentMemory >= myMemoryThreshold
     } else {
       val hasMemory = taskMemoryManager.hasExecutionMemory(MemoryMode.ON_HEAP)
-      if (!hasMemory && currentMemory >= (taskMemoryManager.getAllUsed() / 2)) shouldSpill = true
+      if (!hasMemory && currentMemory >= taskMemoryManager.getAvgUsed()) shouldSpill = true
     }
 
     shouldSpill = shouldSpill || _elementsRead > numElementsForceSpillThreshold

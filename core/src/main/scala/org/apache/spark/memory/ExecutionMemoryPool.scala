@@ -128,7 +128,7 @@ private[memory] class ExecutionMemoryPool(
       val maxToGrant = math.min(numBytes, math.max(0, maxMemoryPerTask - curMem))
       // Only give it as much memory as is free, which might be none if it reached 1 / numTasks
       val toGrant = math.min(maxToGrant, memoryFree)
-      logInfo(s"TID $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
+      logDebug(s"Task $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
         s"curMem is ${Utils.bytesToString(curMem)}, " + s"memoryFree is ${Utils.bytesToString(memoryFree)}, " +
         s"activeTasks is $numActiveTasks")
 
@@ -136,7 +136,7 @@ private[memory] class ExecutionMemoryPool(
       // if we can't give it this much now, wait for other tasks to free up memory
       // (this happens if older tasks allocated lots of memory before N grew)
       if (toGrant < numBytes && curMem + toGrant < minMemoryPerTask) {
-        logInfo(s"TID $taskAttemptId waiting for at least 1/2N of $poolName pool to be free")
+        logInfo(s"Task $taskAttemptId waiting for at least 1/2N of $poolName pool to be free")
         lock.wait()
       } else {
         memoryForTask(taskAttemptId) += toGrant
@@ -153,6 +153,7 @@ private[memory] class ExecutionMemoryPool(
     }
 
     val numActiveTasks = memoryForTask.keys.size
+    if (numActiveTasks == 0) return true
     val curMem = memoryForTask(taskAttemptId)
     val maxMemoryPerTask = poolSize / numActiveTasks
     if (curMem > maxMemoryPerTask) false else true

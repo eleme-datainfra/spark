@@ -125,12 +125,13 @@ public class TaskMemoryManager {
     return memoryManager.hasExecutionMemory(taskAttemptId, mode);
   }
 
-  public long getAllUsed() {
+  public long getAvgUsed() {
     long sum = 0L;
+    if (consumers.size() == 0) return Long.MAX_VALUE;
     for(MemoryConsumer c : consumers) {
       sum += c.getUsed();
     }
-    return sum;
+    return sum / consumers.size();
   }
 
   /**
