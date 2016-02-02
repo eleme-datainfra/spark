@@ -25,9 +25,7 @@ import org.apache.spark.{Logging, SparkEnv}
  * has been exceeded.
  */
 private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
-  extends MemoryConsumer(taskMemoryManager)
-  with Logging {
-  
+  extends MemoryConsumer(taskMemoryManager) with Logging {
   /**
    * Spills the current in-memory collection to disk, and releases the memory.
    *
