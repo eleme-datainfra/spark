@@ -125,7 +125,7 @@ private[spark] abstract class MemoryManager(
 
   /**
     * Try to acquire up to `numBytes` of execution memory for the current task and return the
-    * number of bytes obtained, or 0 if none can be allocated.s
+    * number of bytes obtained, or 0 if none can be allocated.
     */
   private[memory]
   def acquireExecutionMemoryIfFree(

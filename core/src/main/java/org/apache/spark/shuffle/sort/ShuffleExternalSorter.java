@@ -75,6 +75,9 @@ final class ShuffleExternalSorter extends MemoryConsumer {
   /** Force this sorter to spill when there are this many elements in memory. For testing only */
   private final long numElementsForSpillThreshold;
 
+  // Force this collection to spill when there are this many elements in memory
+  private final long maxUsedMemoryForceSpillThreshold;
+
   /** The buffer size to use when writing spills using DiskBlockObjectWriter */
   private final int fileBufferSizeBytes;
 
@@ -114,6 +117,8 @@ final class ShuffleExternalSorter extends MemoryConsumer {
     this.fileBufferSizeBytes = (int) conf.getSizeAsKb("spark.shuffle.file.buffer", "32k") * 1024;
     this.numElementsForSpillThreshold =
       conf.getLong("spark.shuffle.spill.numElementsForceSpillThreshold", Long.MAX_VALUE);
+    this.maxUsedMemoryForceSpillThreshold =
+      conf.getSizeAsBytes("spark.shuffle.spill.maxUsedMemoryForceSpillThreshold", "512m");
     this.writeMetrics = writeMetrics;
     this.inMemSorter = new ShuffleInMemorySorter(this, initialSize);
     this.peakMemoryUsedBytes = getMemoryUsage();

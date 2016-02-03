@@ -146,9 +146,8 @@ private[memory] class ExecutionMemoryPool(
     0L  // Never reached
   }
 
-  private[memory] def hasExecutionMemory(taskAttemptId: Long): Boolean = {
+  private[memory] def hasExecutionMemory(taskAttemptId: Long): Boolean = lock.synchronized {
     if (!memoryForTask.contains(taskAttemptId)) {
-      // This will later cause waiting tasks to wake up and check numTasks again
       return true
     }
 
