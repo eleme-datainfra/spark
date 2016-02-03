@@ -293,10 +293,8 @@ class ExternalAppendOnlyMap[K, V, C](
   }
 
   private def freeCurrentMap(): Unit = {
-    if (currentMap != null) {
-      currentMap = null // So that the memory can be garbage-collected
-      releaseMemory()
-    }
+    currentMap = null // So that the memory can be garbage-collected
+    releaseMemory()
   }
 
   /**
