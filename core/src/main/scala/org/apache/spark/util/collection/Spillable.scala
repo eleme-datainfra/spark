@@ -128,6 +128,7 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
    * Release our memory back to the execution pool so that other tasks can grab it.
    */
   def releaseMemory(): Unit = {
+    logInfo(s"release memory ${myMemoryThreshold}")
     freeHeapExecutionMemory(myMemoryThreshold)
     myMemoryThreshold = 0L
   }

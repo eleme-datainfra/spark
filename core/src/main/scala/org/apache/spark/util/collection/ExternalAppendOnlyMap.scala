@@ -275,6 +275,7 @@ class ExternalAppendOnlyMap[K, V, C](
       override def next() = inMemoryOrDiskIterator.next()
     }
   }
+
   /**
    * Return a destructive iterator that merges the in-memory map with the spilled maps.
    * If no spill has occurred, simply return the in-memory map's iterator.
@@ -293,6 +294,7 @@ class ExternalAppendOnlyMap[K, V, C](
   }
 
   private def freeCurrentMap(): Unit = {
+    logInfo(s"free current map $used")
     currentMap = null // So that the memory can be garbage-collected
     releaseMemory()
   }
