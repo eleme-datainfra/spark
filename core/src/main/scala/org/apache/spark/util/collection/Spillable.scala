@@ -52,6 +52,10 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
   private[this] val numElementsForceSpillThreshold: Long =
     SparkEnv.get.conf.getLong("spark.shuffle.spill.numElementsForceSpillThreshold", Long.MaxValue)
 
+  // Force this collection to spill when it exceeds
+  private[this] val maxUsedMemoryForceSpillThreshold: Long =
+    SparkEnv.get.conf.getSizeAsBytes("spark.shuffle.spill.maxUsedMemoryForceSpillThreshold", "512m")
+
   // Threshold for this collection's size in bytes before we start tracking its memory usage
   // To avoid a large number of small spills, initialize this to a value orders of magnitude > 0
   private[this] var myMemoryThreshold = initialMemoryThreshold
@@ -75,6 +79,7 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
    */
   protected def maybeSpill(collection: C, currentMemory: Long): Boolean = {
     var shouldSpill = false
+    var exceedMemoryThresshold = false
     if (elementsRead % 32 == 0 && currentMemory >= myMemoryThreshold) {
       // Claim up to double our current memory from the shuffle memory pool
       val amountToRequest = 2 * currentMemory - myMemoryThreshold
@@ -84,8 +89,12 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
       // If we were granted too little memory to grow further (either tryToAcquire returned 0,
       // or we already had more memory than myMemoryThreshold), spill the current collection
       shouldSpill = currentMemory >= myMemoryThreshold
+    } else {
+      exceedMemoryThresshold = currentMemory > maxUsedMemoryForceSpillThreshold
     }
-    shouldSpill = shouldSpill || _elementsRead > numElementsForceSpillThreshold
+
+    val exceedElementsRead = _elementsRead > numElementsForceSpillThreshold
+    shouldSpill = shouldSpill || exceedElementsRead || exceedMemoryThresshold
     // Actually spill
     if (shouldSpill) {
       _spillCount += 1

@@ -60,6 +60,15 @@ private[spark] abstract class MemoryManager(
   def maxStorageMemory: Long
 
   /**
+    * Total available memory for execution per task, in bytes.
+    * If one task's memory usage is larger than the threshold, maybe it will throw Exception.
+    * @return execution memory threshold per task
+    */
+  def getExecutionMemoryThresholdPerTask: Long = {
+    onHeapExecutionMemory / numCores
+  }
+
+  /**
    * Set the [[MemoryStore]] used by this manager to evict cached blocks.
    * This must be set after construction due to initialization ordering constraints.
    */

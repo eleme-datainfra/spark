@@ -125,6 +125,10 @@ public class TaskMemoryManager {
     return memoryManager.hasExecutionMemory(taskAttemptId, mode);
   }
 
+  public long getExecutionMemoryThresholdPerTask() {
+    return memoryManager.getExecutionMemoryThresholdPerTask();
+  }
+
   public long getAvgUsed() {
     long sum = 0L;
     if (consumers.size() == 0) return Long.MAX_VALUE;
