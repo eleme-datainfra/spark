@@ -19,7 +19,9 @@ package org.apache.spark.memory;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.HashSet;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -412,12 +414,5 @@ public class TaskMemoryManager {
    */
   public long getMemoryConsumptionForThisTask() {
     return memoryManager.getExecutionMemoryUsageForTask(taskAttemptId);
-  }
-
-  /**
-   * Returns Tungsten memory mode
-   */
-  public MemoryMode getTungstenMemoryMode(){
-    return tungstenMemoryMode;
   }
 }
