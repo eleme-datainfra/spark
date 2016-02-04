@@ -128,7 +128,7 @@ private[memory] class ExecutionMemoryPool(
       val maxToGrant = math.min(numBytes, math.max(0, maxMemoryPerTask - curMem))
       // Only give it as much memory as is free, which might be none if it reached 1 / numTasks
       val toGrant = math.min(maxToGrant, memoryFree)
-      logDebug(s"Task $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
+      logInfo(s"Task $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
         s"curMem is ${Utils.bytesToString(curMem)}, " + s"memoryFree is ${Utils.bytesToString(memoryFree)}, " +
         s"activeTasks is $numActiveTasks")
 

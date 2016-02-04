@@ -149,7 +149,7 @@ public class TaskMemoryManager {
     // optimization now in case we forget to undo it late when making changes.
     synchronized (this) {
       long got = memoryManager.acquireExecutionMemory(required, taskAttemptId, mode);
-      logger.debug("Task {} acquire {} for {}, required is {}", taskAttemptId,
+      logger.info("Task {} acquire {} for {}, required is {}", taskAttemptId,
           Utils.bytesToString(got), consumer,  Utils.bytesToString(required));
 
       // Try to release memory from other consumers first, then we can reduce the frequency of
@@ -161,14 +161,14 @@ public class TaskMemoryManager {
             try {
               long released = c.spill(required - got, consumer);
               if (released > 0 && mode == tungstenMemoryMode) {
-                logger.debug("Task {} released {} from {} for {}", taskAttemptId,
+                logger.info("Task {} released {} from {} for {}", taskAttemptId,
                   Utils.bytesToString(released), c, consumer);
                 got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
                 if (got >= required) {
                   break;
                 }
               } else {
-                logger.debug("Task {} released {} from {} for {}({}), but required is {}!",
+                logger.info("Task {} released {} from {} for {}({}), but required is {}!",
                   taskAttemptId, Utils.bytesToString(released), c, consumer, consumer.getUsed(), required);
               }
             } catch (IOException e) {
@@ -185,7 +185,7 @@ public class TaskMemoryManager {
         try {
           long released = consumer.spill(required - got, consumer);
           if (released > 0 && mode == tungstenMemoryMode) {
-            logger.debug("Task {} released {} from itself ({})", taskAttemptId,
+            logger.info("Task {} released {} from itself ({})", taskAttemptId,
               Utils.bytesToString(released), consumer);
             if(released > required) {
               got += memoryManager.acquireExecutionMemoryIfFree(required - got, taskAttemptId, mode);
@@ -194,7 +194,7 @@ public class TaskMemoryManager {
             }
 
           } else {
-            logger.debug("Task {} released {} from {}({}), but required is {}!",
+            logger.info("Task {} released {} from {}({}), but required is {}!",
               taskAttemptId, Utils.bytesToString(released), consumer, consumer.getUsed(), required);
           }
         } catch (IOException e) {
@@ -207,7 +207,7 @@ public class TaskMemoryManager {
       if (consumer != null) {
         consumers.add(consumer);
       }
-      logger.debug("Task {} acquire {} for {}", taskAttemptId, Utils.bytesToString(got), consumer);
+      logger.info("Task {} acquire {} for {}", taskAttemptId, Utils.bytesToString(got), consumer);
       return got;
     }
   }
@@ -216,7 +216,7 @@ public class TaskMemoryManager {
    * Release N bytes of execution memory for a MemoryConsumer.
    */
   public void releaseExecutionMemory(long size, MemoryMode mode, MemoryConsumer consumer) {
-    logger.debug("Task {} release {} from {}", taskAttemptId, Utils.bytesToString(size), consumer);
+    logger.info("Task {} release {} from {}", taskAttemptId, Utils.bytesToString(size), consumer);
     memoryManager.releaseExecutionMemory(size, taskAttemptId, mode);
   }
 
