@@ -120,9 +120,16 @@ private[memory] class ExecutionMemoryPool(
       // must take into account potential free memory as well as the amount this pool currently
       // occupies. Otherwise, we may run into SPARK-12155 where, in unified memory management,
       // we did not take into account space that could have been freed by evicting cached blocks.
-      val maxPoolSize = computeMaxPoolSize()
-      val maxMemoryPerTask = maxPoolSize / numActiveTasks
-      val minMemoryPerTask = poolSize / (2 * numActiveTasks)
+      var maxPoolSize = computeMaxPoolSize()
+      var maxMemoryPerTask = maxPoolSize / numActiveTasks
+      var minMemoryPerTask = poolSize / (2 * numActiveTasks)
+
+      if (curMem > maxMemoryPerTask) {
+        maybeGrowPool(curMem - maxMemoryPerTask + numBytes)
+        maxPoolSize = computeMaxPoolSize()
+        maxMemoryPerTask = maxPoolSize / numActiveTasks
+        minMemoryPerTask = maxPoolSize / (2 * numActiveTasks)
+      }
 
       // How much we can grant this task; keep its share within 0 <= X <= 1 / numActiveTasks
       val maxToGrant = math.min(numBytes, math.max(0, maxMemoryPerTask - curMem))
@@ -140,22 +147,16 @@ private[memory] class ExecutionMemoryPool(
         lock.wait()
       } else {
         memoryForTask(taskAttemptId) += toGrant
+        if (toGrant == 0) {
+          logInfo(s"Task $taskAttemptId got 0 bytes")
+          for(task <- memoryForTask) {
+            logInfo(s"Task ${task._1} got ${Utils.bytesToString(task._2)}")
+          }
+        }
         return toGrant
       }
     }
     0L  // Never reached
-  }
-
-  private[memory] def hasExecutionMemory(taskAttemptId: Long): Boolean = lock.synchronized {
-    if (!memoryForTask.contains(taskAttemptId)) {
-      return true
-    }
-
-    val numActiveTasks = memoryForTask.keys.size
-    if (numActiveTasks == 0) return true
-    val curMem = memoryForTask(taskAttemptId)
-    val maxMemoryPerTask = poolSize / numActiveTasks
-    if (curMem > maxMemoryPerTask) false else true
   }
 
   /**

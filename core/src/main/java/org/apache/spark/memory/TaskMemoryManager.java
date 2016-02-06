@@ -121,21 +121,8 @@ public class TaskMemoryManager {
     this.consumers = new HashSet<>();
   }
 
-  public boolean hasExecutionMemory(MemoryMode mode) {
-    return memoryManager.hasExecutionMemory(taskAttemptId, mode);
-  }
-
   public long getExecutionMemoryThresholdPerTask() {
     return memoryManager.getExecutionMemoryThresholdPerTask();
-  }
-
-  public long getAvgUsed() {
-    long sum = 0L;
-    if (consumers.size() == 0) return Long.MAX_VALUE;
-    for(MemoryConsumer c : consumers) {
-      sum += c.getUsed();
-    }
-    return sum / consumers.size();
   }
 
   /**

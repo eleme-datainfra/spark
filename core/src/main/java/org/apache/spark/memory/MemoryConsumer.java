@@ -32,6 +32,8 @@ public abstract class MemoryConsumer {
   protected final TaskMemoryManager taskMemoryManager;
   private final long pageSize;
   protected long used;
+  public int spillCount = 0;
+  public long spillTime = 0L;
 
   protected MemoryConsumer(TaskMemoryManager taskMemoryManager, long pageSize) {
     this.taskMemoryManager = taskMemoryManager;

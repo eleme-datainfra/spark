@@ -75,9 +75,6 @@ final class ShuffleExternalSorter extends MemoryConsumer {
   /** Force this sorter to spill when there are this many elements in memory. For testing only */
   private final long numElementsForSpillThreshold;
 
-  // Force this collection to spill when there are this many elements in memory
-  private final long maxUsedMemoryForceSpillThreshold;
-
   /** The buffer size to use when writing spills using DiskBlockObjectWriter */
   private final int fileBufferSizeBytes;
 
@@ -117,8 +114,6 @@ final class ShuffleExternalSorter extends MemoryConsumer {
     this.fileBufferSizeBytes = (int) conf.getSizeAsKb("spark.shuffle.file.buffer", "32k") * 1024;
     this.numElementsForSpillThreshold =
       conf.getLong("spark.shuffle.spill.numElementsForceSpillThreshold", Long.MAX_VALUE);
-    this.maxUsedMemoryForceSpillThreshold =
-      conf.getSizeAsBytes("spark.shuffle.spill.maxUsedMemoryForceSpillThreshold", "512m");
     this.writeMetrics = writeMetrics;
     this.inMemSorter = new ShuffleInMemorySorter(this, initialSize);
     this.peakMemoryUsedBytes = getMemoryUsage();
@@ -258,9 +253,18 @@ final class ShuffleExternalSorter extends MemoryConsumer {
       spills.size(),
       spills.size() > 1 ? " times" : " time");
 
+    long start = System.currentTimeMillis();
     writeSortedFile(false);
+    long end = System.currentTimeMillis();
+    spillTime += (end - start);
+    logger.info("Thread {} spent {} spill sort data to disk ({} so far)",
+      Thread.currentThread().getId(),
+      Utils.msDurationToString(end - start),
+      Utils.msDurationToString(spillTime));
     final long spillSize = freeMemory();
     taskContext.taskMetrics().incMemoryBytesSpilled(spillSize);
+    taskContext.taskMetrics().incSpillCount(1);
+    taskContext.taskMetrics().incSpillTime(end - start);
     return spillSize;
   }
 

@@ -1941,11 +1941,11 @@ private[spark] object Utils extends Logging {
     }
 
     var metrics = ArrayBuffer[Metric]()
-    for (scheme <- Array("hdfs", "file")) {
+    for (scheme <- Array("hdfs")) {
       metrics += Metric(scheme + ".read.bytes", bytesToString(fileStats(scheme, _.getBytesRead(), 0L)))
       metrics += Metric(scheme + ".write.bytes", bytesToString(fileStats(scheme, _.getBytesWritten(), 0L)))
       metrics += Metric(scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString)
-      metrics += Metric(scheme + ".largeRead.ops", fileStats(scheme,  _.getLargeReadOps(), 0).toString)
+      metrics += Metric(scheme + ".largeRead.ops", fileStats(scheme, _.getLargeReadOps(), 0).toString)
       metrics += Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
     }
 
@@ -1960,11 +1960,11 @@ private[spark] object Utils extends Logging {
 
   def formatMetric(value: Any): String = {
     value match {
-      case l: Long if(l > 1) =>
+      case l: Long if (l > 1) =>
           bytesToString(l)
-      case d: Double if(d > 0 && d < 1) =>
+      case d: Double if (d > 0 && d < 1) =>
         f"${d * 100}%1.2f" + "%"
-      case f: Float if(f > 0 && f < 1) =>
+      case f: Float if (f > 0 && f < 1) =>
         f"${f * 100}%1.2f" + "%"
       case _ =>
         value.toString

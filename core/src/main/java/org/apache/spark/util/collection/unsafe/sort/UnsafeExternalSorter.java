@@ -176,7 +176,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       Utils.bytesToString(getMemoryUsage()),
       spillWriters.size(),
       spillWriters.size() > 1 ? " times" : " time");
-
+    spillCount++;
+    long start = System.currentTimeMillis();
     // We only write out contents of the inMemSorter if it is not empty.
     if (inMemSorter.numRecords() > 0) {
       final UnsafeSorterSpillWriter spillWriter =
@@ -195,12 +196,19 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
 
       inMemSorter.reset();
     }
-
+    long end = System.currentTimeMillis();
+    spillTime += (end - start);
+    logger.info("Thread {} spent {} spill sort data to disk ({} so far)",
+      Thread.currentThread().getId(),
+      Utils.msDurationToString(end - start),
+      Utils.msDurationToString(spillTime));
     final long spillSize = freeMemory();
     // Note that this is more-or-less going to be a multiple of the page size, so wasted space in
     // pages will currently be counted as memory spilled even though that space isn't actually
     // written to disk. This also counts the space needed to store the sorter's pointer array.
     taskContext.taskMetrics().incMemoryBytesSpilled(spillSize);
+    taskContext.taskMetrics().incSpillCount(1);
+    taskContext.taskMetrics().incSpillTime(end - start);
 
     return spillSize;
   }

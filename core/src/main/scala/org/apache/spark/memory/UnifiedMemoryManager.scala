@@ -105,7 +105,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
                 math.min(extraMemoryNeeded, memoryReclaimableFromStorage))
               onHeapExecutionMemoryPool.incrementPoolSize(spaceReclaimed)
             }
-            logDebug(msg = s"taskAttemptId is $taskAttemptId, extraMemoryNeeded is " +
+            logInfo(msg = s"taskAttemptId is $taskAttemptId, extraMemoryNeeded is " +
               s"${Utils.bytesToString(extraMemoryNeeded)}, " +
               s"memoryReclaimableFromStorage is ${Utils.bytesToString(memoryReclaimableFromStorage)}, " +
               s"memoryFree is ${Utils.bytesToString(storageMemoryPool.memoryFree)}")
