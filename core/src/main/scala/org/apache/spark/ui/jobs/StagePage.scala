@@ -254,6 +254,15 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
                   </span>
                 </li>
               }}
+              {if (stageData.hasBytesSpilled) {
+              <li>
+                <span data-toggle="tooltip"
+                      title={ToolTips.SPILL_COUNT} data-placement="right">
+                  <input type="checkbox" name={TaskDetailsClassNames.SPILL_COUNT}/>
+                  <span class="additional-metric-title">Spill Count</span>
+                </span>
+              </li>
+            }}
             </ul>
           </div>
         </div>
@@ -800,7 +809,9 @@ private[ui] case class TaskTableRowBytesSpilledData(
     memoryBytesSpilledSortable: Long,
     memoryBytesSpilledReadable: String,
     diskBytesSpilledSortable: Long,
-    diskBytesSpilledReadable: String)
+    diskBytesSpilledReadable: String,
+    spillCount: Int,
+    spillTime: Long)
 
 /**
  * Contains all data that needs for sorting and generating HTML. Using this one rather than
@@ -933,6 +944,12 @@ private[ui] class TaskDataSource(
     val diskBytesSpilledSortable = maybeDiskBytesSpilled.getOrElse(0L)
     val diskBytesSpilledReadable = maybeDiskBytesSpilled.map(Utils.bytesToString).getOrElse("")
 
+    val maybeSpillCount = metrics.map(_.spillCount)
+    val spillCount = maybeSpillCount.getOrElse(0)
+
+    val maybeSpillTime = metrics.map(_.spillTime)
+    val spillTime = maybeSpillTime.getOrElse(0L)
+
     val input =
       if (hasInput) {
         Some(TaskTableRowInputData(inputSortable, s"$inputReadable / $inputRecords"))
@@ -979,7 +996,9 @@ private[ui] class TaskDataSource(
           memoryBytesSpilledSortable,
           memoryBytesSpilledReadable,
           diskBytesSpilledSortable,
-          diskBytesSpilledReadable
+          diskBytesSpilledReadable,
+          spillCount,
+          spillTime
         ))
       } else {
         None
@@ -1182,6 +1201,28 @@ private[ui] class TaskDataSource(
           throw new IllegalArgumentException(
             "Cannot sort by Shuffle Spill (Disk) because of no spills")
         }
+      case "Spill Count" =>
+        if (hasBytesSpilled) {
+          new Ordering[TaskTableRowData] {
+            override def compare(x: TaskTableRowData, y: TaskTableRowData): Int =
+              Ordering.Int.compare(x.bytesSpilled.get.spillCount,
+                y.bytesSpilled.get.spillCount)
+          }
+        } else {
+          throw new IllegalArgumentException(
+            "Cannot sort by Sort Count because of no spills")
+        }
+      case "Spill Time" =>
+        if (hasBytesSpilled) {
+          new Ordering[TaskTableRowData] {
+            override def compare(x: TaskTableRowData, y: TaskTableRowData): Int =
+              Ordering.Long.compare(x.bytesSpilled.get.spillTime,
+                y.bytesSpilled.get.spillTime)
+          }
+        } else {
+          throw new IllegalArgumentException(
+            "Cannot sort by Sort Time because of no spills")
+        }
       case "Errors" => new Ordering[TaskTableRowData] {
         override def compare(x: TaskTableRowData, y: TaskTableRowData): Int =
           Ordering.String.compare(x.error, y.error)
@@ -1287,7 +1328,8 @@ private[ui] class TaskPagedTable(
           Nil
         }} ++
         {if (hasBytesSpilled) {
-          Seq(("Shuffle Spill (Memory)", ""), ("Shuffle Spill (Disk)", ""))
+          Seq(("Shuffle Spill (Memory)", ""), ("Shuffle Spill (Disk)", ""),
+            ("Spill Count", TaskDetailsClassNames.SPILL_COUNT), ("Spill Time", ""))
         } else {
           Nil
         }} ++
@@ -1377,6 +1419,10 @@ private[ui] class TaskPagedTable(
       {if (task.bytesSpilled.nonEmpty) {
         <td>{task.bytesSpilled.get.memoryBytesSpilledReadable}</td>
         <td>{task.bytesSpilled.get.diskBytesSpilledReadable}</td>
+        <td class={TaskDetailsClassNames.SPILL_COUNT}>
+          {task.bytesSpilled.get.spillCount}
+        </td>
+        <td>{UIUtils.formatDuration(task.bytesSpilled.get.spillTime)}</td>
       }}
       {errorMessageCell(task.error)}
     </tr>

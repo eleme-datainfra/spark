@@ -69,6 +69,8 @@ private[spark] object ToolTips {
        in this task. For SQL jobs, this only tracks all unsafe operators, broadcast joins, and
        external sort."""
 
+  val SPILL_COUNT = "Number of spills."
+
   val JOB_TIMELINE =
     """Shows when jobs started and ended and when executors joined or left. Drag to scroll.
        Click Enable Zooming and use mouse wheel to zoom in/out."""

@@ -112,10 +112,10 @@ class TaskMetrics extends Serializable {
   /**
     * Number of spills
     */
-  private var _spillCount: Long = _
-  def spillCount: Long = _spillCount
-  private[spark] def incSpillCount(value: Long): Unit = _spillCount += value
-  private[spark] def decSpillCount(value: Long): Unit = _spillCount -= value
+  private var _spillCount: Int = _
+  def spillCount: Int = _spillCount
+  private[spark] def incSpillCount(value: Int): Unit = _spillCount += value
+  private[spark] def decSpillCount(value: Int): Unit = _spillCount -= value
 
   /**
    * If this task reads from a HadoopRDD or from persisted data, metrics on how much data was read
