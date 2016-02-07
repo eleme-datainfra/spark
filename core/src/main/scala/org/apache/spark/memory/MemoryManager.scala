@@ -116,22 +116,23 @@ private[spark] abstract class MemoryManager(
   def acquireExecutionMemory(
       numBytes: Long,
       taskAttemptId: Long,
-      memoryMode: MemoryMode): Long
+      memoryMode: MemoryMode,
+      forceAcquire: Boolean = false): Long
 
   /**
     * Try to acquire up to `numBytes` of execution memory for the current task and return the
     * number of bytes obtained, or 0 if none can be allocated.
+    *
+    * This call may block until there is enough free memory in some situations, to make sure each
+    * task has a chance to ramp up to at least 1 / 2N of the total memory pool (where N is the # of
+    * active tasks) before it is forced to spill. This can happen if the number of tasks increase
+    * but an older task had a lot of memory already.
     */
   private[memory]
-  def acquireExecutionMemoryIfFree(
+  def acquireExecutionMemory(
       numBytes: Long,
       taskAttemptId: Long,
-      memoryMode: MemoryMode): Long = synchronized {
-    memoryMode match {
-      case MemoryMode.ON_HEAP => onHeapExecutionMemoryPool.acquireMemoryIfFree(numBytes, taskAttemptId)
-      case MemoryMode.OFF_HEAP => offHeapExecutionMemoryPool.acquireMemoryIfFree(numBytes, taskAttemptId)
-    }
-  }
+      memoryMode: MemoryMode): Long = acquireExecutionMemory(numBytes, taskAttemptId, memoryMode, false)
 
   /**
    * Release numBytes of execution memory belonging to the given task.

@@ -78,7 +78,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
   override private[memory] def acquireExecutionMemory(
       numBytes: Long,
       taskAttemptId: Long,
-      memoryMode: MemoryMode): Long = synchronized {
+      memoryMode: MemoryMode,
+      forceAcquire: Boolean = false): Long = synchronized {
     assert(onHeapExecutionMemoryPool.poolSize + storageMemoryPool.poolSize == maxMemory)
     assert(numBytes >= 0)
     memoryMode match {
@@ -130,12 +131,12 @@ private[spark] class UnifiedMemoryManager private[memory] (
         }
 
         onHeapExecutionMemoryPool.acquireMemory(
-          numBytes, taskAttemptId, maybeGrowExecutionPool, computeMaxExecutionPoolSize)
+          numBytes, taskAttemptId, forceAcquire, maybeGrowExecutionPool, computeMaxExecutionPoolSize)
 
       case MemoryMode.OFF_HEAP =>
         // For now, we only support on-heap caching of data, so we do not need to interact with
         // the storage pool when allocating off-heap memory. This will change in the future, though.
-        offHeapExecutionMemoryPool.acquireMemory(numBytes, taskAttemptId)
+        offHeapExecutionMemoryPool.acquireMemory(numBytes, taskAttemptId, forceAcquire)
     }
   }
 

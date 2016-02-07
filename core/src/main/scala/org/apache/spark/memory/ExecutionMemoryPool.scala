@@ -77,6 +77,7 @@ private[memory] class ExecutionMemoryPool(
    * @param maybeGrowPool a callback that potentially grows the size of this pool. It takes in
    *                      one parameter (Long) that represents the desired amount of memory by
    *                      which this pool should be expanded.
+   * @param forceAcquire force to acquire memory if there is memory free.
    * @param computeMaxPoolSize a callback that returns the maximum allowable size of this pool
    *                           at this given moment. This is not a field because the max pool
    *                           size is variable in certain cases. For instance, in unified
@@ -88,6 +89,7 @@ private[memory] class ExecutionMemoryPool(
   private[memory] def acquireMemory(
       numBytes: Long,
       taskAttemptId: Long,
+      forceAcquire: Boolean = false,
       maybeGrowPool: Long => Unit = (additionalSpaceNeeded: Long) => Unit,
       computeMaxPoolSize: () => Long = () => poolSize): Long = lock.synchronized {
     assert(numBytes > 0, s"invalid number of bytes requested: $numBytes")
@@ -134,7 +136,11 @@ private[memory] class ExecutionMemoryPool(
       // How much we can grant this task; keep its share within 0 <= X <= 1 / numActiveTasks
       val maxToGrant = math.min(numBytes, math.max(0, maxMemoryPerTask - curMem))
       // Only give it as much memory as is free, which might be none if it reached 1 / numTasks
-      val toGrant = math.min(maxToGrant, memoryFree)
+      var toGrant = math.min(maxToGrant, memoryFree)
+      if (forceAcquire && numBytes < memoryFree) {
+        toGrant = numBytes
+      }
+
       logDebug(s"Task $taskAttemptId, maxMemoryPerTask is ${Utils.bytesToString(maxMemoryPerTask)}, " +
         s"curMem is ${Utils.bytesToString(curMem)}, " + s"memoryFree is ${Utils.bytesToString(memoryFree)}, " +
         s"activeTasks is $numActiveTasks")
@@ -158,33 +164,6 @@ private[memory] class ExecutionMemoryPool(
     }
     0L  // Never reached
   }
-
-  /**
-    * Try to acquire up to `numBytes` of memory for the given task and return the number of bytes
-    * obtained, or 0 if none can be allocated.
-    *
-    * @param numBytes number of bytes to acquire
-    * @param taskAttemptId the task attempt acquiring memory
-    *
-    * @return the number of bytes granted to the task.
-    */
-  private[memory] def acquireMemoryIfFree(numBytes: Long, taskAttemptId: Long): Long = lock.synchronized {
-    // Add this task to the taskMemory map just so we can keep an accurate count of the number
-    // of active tasks, to let other tasks ramp down their memory in calls to `acquireMemory`
-    if (!memoryForTask.contains(taskAttemptId)) {
-      memoryForTask(taskAttemptId) = 0L
-      // This will later cause waiting tasks to wake up and check numTasks again
-      lock.notifyAll()
-    }
-
-    if (numBytes < memoryFree) {
-      memoryForTask(taskAttemptId) += numBytes
-      numBytes
-    } else {
-      0L
-    }
-  }
-
 
   /**
    * Release `numBytes` of memory acquired by the given task.

@@ -181,7 +181,7 @@ public class TaskMemoryManager {
             logger.debug("Task {} released {} from itself ({})", taskAttemptId,
               Utils.bytesToString(released), consumer);
             if(released > required) {
-              got += memoryManager.acquireExecutionMemoryIfFree(required - got, taskAttemptId, mode);
+              got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode, true);
             } else {
               got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);
             }
