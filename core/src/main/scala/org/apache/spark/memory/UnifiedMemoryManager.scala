@@ -62,8 +62,14 @@ private[spark] class UnifiedMemoryManager private[memory] (
   // We always maintain this invariant:
   assert(onHeapExecutionMemoryPool.poolSize + storageMemoryPool.poolSize == maxMemory)
 
+  val useStaticStorageMemory = conf.getBoolean("spark.unifiedMemory.useStaticStorageRegion", false)
+
   override def maxStorageMemory: Long = synchronized {
-    maxMemory - onHeapExecutionMemoryPool.memoryUsed
+    if (useStaticStorageMemory) {
+     storageRegionSize
+    } else {
+      maxMemory - onHeapExecutionMemoryPool.memoryUsed
+    }
   }
 
   /**
@@ -155,7 +161,12 @@ private[spark] class UnifiedMemoryManager private[memory] (
     if (numBytes > storageMemoryPool.memoryFree) {
       // There is not enough free memory in the storage pool, so try to borrow free memory from
       // the execution pool.
-      val memoryBorrowedFromExecution = Math.min(onHeapExecutionMemoryPool.memoryFree, numBytes)
+      var maxBorrowMemory = onHeapExecutionMemoryPool.memoryFree
+      if (useStaticStorageMemory &&
+        (storageRegionSize - storageMemoryPool.poolSize) < onHeapExecutionMemoryPool.memoryFree) {
+        maxBorrowMemory = storageRegionSize - storageMemoryPool.poolSize
+      }
+      val memoryBorrowedFromExecution = Math.min(maxBorrowMemory, numBytes)
       onHeapExecutionMemoryPool.decrementPoolSize(memoryBorrowedFromExecution)
       storageMemoryPool.incrementPoolSize(memoryBorrowedFromExecution)
     }
