@@ -28,7 +28,8 @@ class TestMemoryManager(conf: SparkConf)
   override private[memory] def acquireExecutionMemory(
       numBytes: Long,
       taskAttemptId: Long,
-      memoryMode: MemoryMode): Long = {
+      memoryMode: MemoryMode,
+      forceAcquire: Boolean = false): Long = {
     if (oomOnce) {
       oomOnce = false
       0
