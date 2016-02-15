@@ -433,6 +433,8 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     }
 
     public long spill() throws IOException {
+      spillCount++;
+      long start = System.currentTimeMillis();
       synchronized (this) {
         if (!(upstream instanceof UnsafeInMemorySorter.SortedIterator && nextUpstream == null
           && numRecords > 0)) {
@@ -477,6 +479,13 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
         released += inMemSorter.getMemoryUsage();
         inMemSorter.free();
         inMemSorter = null;
+
+        long end = System.currentTimeMillis();
+        spillTime += (end - start);
+        logger.info("Thread {} spent {} spill sort data to disk ({} so far)",
+                Thread.currentThread().getId(),
+                Utils.msDurationToString(end - start),
+                Utils.msDurationToString(spillTime));
         return released;
       }
     }

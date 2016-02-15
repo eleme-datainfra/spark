@@ -129,6 +129,7 @@ final class ShuffleExternalSorter extends MemoryConsumer {
    */
   private void writeSortedFile(boolean isLastFile) throws IOException {
 
+    long start = System.currentTimeMillis();
     final ShuffleWriteMetrics writeMetricsToUse;
 
     if (isLastFile) {
@@ -236,6 +237,16 @@ final class ShuffleExternalSorter extends MemoryConsumer {
       writeMetrics.incShuffleRecordsWritten(writeMetricsToUse.shuffleRecordsWritten());
       taskContext.taskMetrics().incDiskBytesSpilled(writeMetricsToUse.shuffleBytesWritten());
     }
+
+    long end = System.currentTimeMillis();
+    spillTime += (end - start);
+    logger.info("Thread {} spent {} spill sort data to disk ({} so far)",
+            Thread.currentThread().getId(),
+            Utils.msDurationToString(end - start),
+            Utils.msDurationToString(spillTime));
+
+    taskContext.taskMetrics().incSpillCount(1);
+    taskContext.taskMetrics().incSpillTime(end - start);
   }
 
   /**
@@ -253,18 +264,9 @@ final class ShuffleExternalSorter extends MemoryConsumer {
       spills.size(),
       spills.size() > 1 ? " times" : " time");
 
-    long start = System.currentTimeMillis();
     writeSortedFile(false);
-    long end = System.currentTimeMillis();
-    spillTime += (end - start);
-    logger.info("Thread {} spent {} spill sort data to disk ({} so far)",
-      Thread.currentThread().getId(),
-      Utils.msDurationToString(end - start),
-      Utils.msDurationToString(spillTime));
     final long spillSize = freeMemory();
     taskContext.taskMetrics().incMemoryBytesSpilled(spillSize);
-    taskContext.taskMetrics().incSpillCount(1);
-    taskContext.taskMetrics().incSpillTime(end - start);
     return spillSize;
   }
 
