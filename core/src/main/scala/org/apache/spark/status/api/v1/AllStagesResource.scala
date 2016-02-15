@@ -237,6 +237,8 @@ private[v1] object AllStagesResource {
       resultSerializationTime = internal.resultSerializationTime,
       memoryBytesSpilled = internal.memoryBytesSpilled,
       diskBytesSpilled = internal.diskBytesSpilled,
+      spillCount = internal.spillCount,
+      spillTime = internal.spillTime,
       inputMetrics = internal.inputMetrics.map { convertInputMetrics },
       outputMetrics = Option(internal.outputMetrics).flatten.map { convertOutputMetrics },
       shuffleReadMetrics = internal.shuffleReadMetrics.map { convertShuffleReadMetrics },

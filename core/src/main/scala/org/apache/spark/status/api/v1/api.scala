@@ -161,6 +161,8 @@ class TaskMetrics private[spark](
     val resultSerializationTime: Long,
     val memoryBytesSpilled: Long,
     val diskBytesSpilled: Long,
+    val spillCount: Int,
+    val spillTime: Long,
     val inputMetrics: Option[InputMetrics],
     val outputMetrics: Option[OutputMetrics],
     val shuffleReadMetrics: Option[ShuffleReadMetrics],
