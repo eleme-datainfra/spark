@@ -129,6 +129,7 @@ class NewHadoopRDD[K, V](
     val iter = new Iterator[(K, V)] {
       val split = theSplit.asInstanceOf[NewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
+      getPreferredLocations(theSplit).foreach(loc => logInfo(s"Input split preferred location:$loc"))
       val conf = getConf
 
       val inputMetrics = context.taskMetrics

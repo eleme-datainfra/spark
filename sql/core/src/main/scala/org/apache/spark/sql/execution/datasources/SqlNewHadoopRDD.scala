@@ -126,6 +126,7 @@ private[spark] class SqlNewHadoopRDD[V: ClassTag](
     val iter = new Iterator[V] {
       val split = theSplit.asInstanceOf[SqlNewHadoopPartition]
       logInfo("Input split: " + split.serializableHadoopSplit)
+      getPreferredLocations(theSplit).foreach(loc => logInfo(s"Input split preferred location:$loc"))
       val conf = getConf(isDriverSide = false)
 
       val inputMetrics = context.taskMetrics
