@@ -254,15 +254,6 @@ private[ui] class StagePage(parent: StagesTab) extends WebUIPage("stage") {
                   </span>
                 </li>
               }}
-              {if (stageData.hasBytesSpilled) {
-              <li>
-                <span data-toggle="tooltip"
-                      title={ToolTips.SPILL_COUNT} data-placement="right">
-                  <input type="checkbox" name={TaskDetailsClassNames.SPILL_COUNT}/>
-                  <span class="additional-metric-title">Spill Count</span>
-                </span>
-              </li>
-            }}
             </ul>
           </div>
         </div>
@@ -810,7 +801,6 @@ private[ui] case class TaskTableRowBytesSpilledData(
     memoryBytesSpilledReadable: String,
     diskBytesSpilledSortable: Long,
     diskBytesSpilledReadable: String,
-    spillCount: Int,
     spillTime: Long)
 
 /**
@@ -944,9 +934,6 @@ private[ui] class TaskDataSource(
     val diskBytesSpilledSortable = maybeDiskBytesSpilled.getOrElse(0L)
     val diskBytesSpilledReadable = maybeDiskBytesSpilled.map(Utils.bytesToString).getOrElse("")
 
-    val maybeSpillCount = metrics.map(_.spillCount)
-    val spillCount = maybeSpillCount.getOrElse(0)
-
     val maybeSpillTime = metrics.map(_.spillTime)
     val spillTime = maybeSpillTime.getOrElse(0L)
 
@@ -997,7 +984,6 @@ private[ui] class TaskDataSource(
           memoryBytesSpilledReadable,
           diskBytesSpilledSortable,
           diskBytesSpilledReadable,
-          spillCount,
           spillTime
         ))
       } else {
@@ -1201,17 +1187,6 @@ private[ui] class TaskDataSource(
           throw new IllegalArgumentException(
             "Cannot sort by Shuffle Spill (Disk) because of no spills")
         }
-      case "Spill Count" =>
-        if (hasBytesSpilled) {
-          new Ordering[TaskTableRowData] {
-            override def compare(x: TaskTableRowData, y: TaskTableRowData): Int =
-              Ordering.Int.compare(x.bytesSpilled.get.spillCount,
-                y.bytesSpilled.get.spillCount)
-          }
-        } else {
-          throw new IllegalArgumentException(
-            "Cannot sort by Sort Count because of no spills")
-        }
       case "Spill Time" =>
         if (hasBytesSpilled) {
           new Ordering[TaskTableRowData] {
@@ -1328,8 +1303,9 @@ private[ui] class TaskPagedTable(
           Nil
         }} ++
         {if (hasBytesSpilled) {
-          Seq(("Shuffle Spill (Memory)", ""), ("Shuffle Spill (Disk)", ""),
-            ("Spill Count", TaskDetailsClassNames.SPILL_COUNT), ("Spill Time", ""))
+          Seq(("Shuffle Spill (Memory)", ""),
+            ("Shuffle Spill (Disk)", ""),
+            ("Spill Time", ""))
         } else {
           Nil
         }} ++
@@ -1419,9 +1395,6 @@ private[ui] class TaskPagedTable(
       {if (task.bytesSpilled.nonEmpty) {
         <td>{task.bytesSpilled.get.memoryBytesSpilledReadable}</td>
         <td>{task.bytesSpilled.get.diskBytesSpilledReadable}</td>
-        <td class={TaskDetailsClassNames.SPILL_COUNT}>
-          {task.bytesSpilled.get.spillCount}
-        </td>
         <td>{UIUtils.formatDuration(task.bytesSpilled.get.spillTime)}</td>
       }}
       {errorMessageCell(task.error)}

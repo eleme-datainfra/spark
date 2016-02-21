@@ -49,7 +49,6 @@ case class ReferenceSort(
       val context = TaskContext.get()
       context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
       context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
-      context.taskMetrics().incSpillCount(sorter.spillCount)
       context.taskMetrics().incSpillTime(sorter.spillTime)
       context.internalMetricsToAccumulators(
         InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)

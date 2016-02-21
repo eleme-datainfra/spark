@@ -154,7 +154,6 @@ class CoGroupedRDD[K: ClassTag](
     }
     context.taskMetrics().incMemoryBytesSpilled(map.memoryBytesSpilled)
     context.taskMetrics().incDiskBytesSpilled(map.diskBytesSpilled)
-    context.taskMetrics().incSpillCount(map.spillCount)
     context.taskMetrics().incSpillTime(map.spillTime)
     context.internalMetricsToAccumulators(
       InternalAccumulator.PEAK_EXECUTION_MEMORY).add(map.peakMemoryUsedBytes)

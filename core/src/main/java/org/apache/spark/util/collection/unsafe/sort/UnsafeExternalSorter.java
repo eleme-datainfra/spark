@@ -207,7 +207,6 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
     // pages will currently be counted as memory spilled even though that space isn't actually
     // written to disk. This also counts the space needed to store the sorter's pointer array.
     taskContext.taskMetrics().incMemoryBytesSpilled(spillSize);
-    taskContext.taskMetrics().incSpillCount(1);
     taskContext.taskMetrics().incSpillTime(end - start);
 
     return spillSize;

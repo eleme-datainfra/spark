@@ -245,7 +245,6 @@ final class ShuffleExternalSorter extends MemoryConsumer {
             Utils.msDurationToString(end - start),
             Utils.msDurationToString(spillTime));
 
-    taskContext.taskMetrics().incSpillCount(1);
     taskContext.taskMetrics().incSpillTime(end - start);
   }
 

@@ -102,20 +102,12 @@ class TaskMetrics extends Serializable {
   private[spark] def decDiskBytesSpilled(value: Long): Unit = _diskBytesSpilled -= value
 
   /**
-    * Time this task spent spilling memory bytes to disk
+    * Time spent spilling memory bytes to disk
     */
   private var _spillTime: Long = _
   def spillTime: Long = _spillTime
   private[spark] def incSpillTime(value: Long): Unit = _spillTime += value
   private[spark] def decSpillTime(value: Long): Unit = _spillTime -= value
-
-  /**
-    * Number of spills
-    */
-  private var _spillCount: Int = _
-  def spillCount: Int = _spillCount
-  private[spark] def incSpillCount(value: Int): Unit = _spillCount += value
-  private[spark] def decSpillCount(value: Int): Unit = _spillCount -= value
 
   /**
    * If this task reads from a HadoopRDD or from persisted data, metrics on how much data was read

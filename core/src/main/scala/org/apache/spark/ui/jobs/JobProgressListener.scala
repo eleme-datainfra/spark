@@ -483,6 +483,10 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
     stageData.memoryBytesSpilled += memorySpillDelta
     execSummary.memoryBytesSpilled += memorySpillDelta
 
+    val spillTimeDelta =
+      taskMetrics.spillTime - oldMetrics.map(_.spillTime).getOrElse(0L)
+    stageData.spillTime += spillTimeDelta
+
     val timeDelta =
       taskMetrics.executorRunTime - oldMetrics.map(_.executorRunTime).getOrElse(0L)
     stageData.executorRunTime += timeDelta
@@ -497,8 +501,7 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
       val taskData = stageData.taskData.get(taskId)
       taskData.map { t =>
         if (!t.taskInfo.finished) {
-          updateAggregateMetrics(stageData, executorMetricsUpdate.execId, taskMetrics,
-            t.taskMetrics)
+          updateAggregateMetrics(stageData, executorMetricsUpdate.execId, taskMetrics, t.taskMetrics)
 
           // Overwrite task metrics
           t.taskMetrics = Some(taskMetrics)

@@ -87,6 +87,7 @@ private[spark] object UIData {
     var shuffleWriteRecords: Long = _
     var memoryBytesSpilled: Long = _
     var diskBytesSpilled: Long = _
+    var spillTime: Long = _
 
     var schedulingPool: String = ""
     var description: Option[String] = None
