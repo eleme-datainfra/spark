@@ -160,7 +160,7 @@ private[spark] abstract class MemoryManager(
   /**
    * Release N bytes of storage memory.
    */
-  def releaseStorageMemory(numBytes: Long): Unit = synchronized {
+  def releaseStorageMemory(numBytes: Long): Unit = {
     storageMemoryPool.releaseMemory(numBytes)
   }
 
