@@ -1042,7 +1042,6 @@ private[spark] class BlockManager(
         }
         var blockIsUpdated = false
         val level = info.level
-        pendingToRemove.put(blockId, Thread.currentThread().getId)
 
         // Drop to disk, if storage level requires
         if (level.useDisk && !diskStore.contains(blockId)) {
@@ -1055,6 +1054,7 @@ private[spark] class BlockManager(
           }
           blockIsUpdated = true
         }
+        pendingToRemove.put(blockId, Thread.currentThread().getId)
 
         // Actually drop from memory store
         val droppedMemorySize =
@@ -1085,8 +1085,8 @@ private[spark] class BlockManager(
 
   /**
    * Remove all blocks belonging to the given RDD.
- *
-   * @return The number of blocks removed.
+    *
+    * @return The number of blocks removed.
    */
   def removeRdd(rddId: Int): Int = {
     // TODO: Avoid a linear scan by creating another mapping of RDD.id to blocks.
