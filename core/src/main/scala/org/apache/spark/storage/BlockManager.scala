@@ -19,6 +19,7 @@ package org.apache.spark.storage
 
 import java.io._
 import java.nio.{ByteBuffer, MappedByteBuffer}
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.concurrent.duration._
@@ -163,6 +164,8 @@ private[spark] class BlockManager(
    * Executor.updateDependencies. When the BlockManager is initialized, user level jars hasn't been
    * loaded yet. */
   private lazy val compressionCodec: CompressionCodec = CompressionCodec.createCodec(conf)
+
+  private val pendingToRemove = new ConcurrentHashMap[BlockId, Long]()
 
   /**
    * Initializes the BlockManager with the given appId. This is not performed in the constructor as
@@ -1025,7 +1028,7 @@ private[spark] class BlockManager(
     val info = blockInfo.get(blockId).orNull
 
     // If the block has not already been dropped
-    if (info != null) {
+    if (info != null && !pendingToRemove.containsKey(blockId)) {
       info.synchronized {
         // required ? As of now, this will be invoked only for blocks which are ready
         // But in case this changes in future, adding for consistency sake.
@@ -1039,6 +1042,7 @@ private[spark] class BlockManager(
         }
         var blockIsUpdated = false
         val level = info.level
+        pendingToRemove.put(blockId, Thread.currentThread().getId)
 
         // Drop to disk, if storage level requires
         if (level.useDisk && !diskStore.contains(blockId)) {
@@ -1070,6 +1074,7 @@ private[spark] class BlockManager(
           // The block is completely gone from this node; forget it so we can put() it again later.
           blockInfo.remove(blockId)
         }
+        pendingToRemove.remove(blockId)
         if (blockIsUpdated) {
           return Some(status)
         }
@@ -1080,6 +1085,7 @@ private[spark] class BlockManager(
 
   /**
    * Remove all blocks belonging to the given RDD.
+ *
    * @return The number of blocks removed.
    */
   def removeRdd(rddId: Int): Int = {
@@ -1108,8 +1114,9 @@ private[spark] class BlockManager(
   def removeBlock(blockId: BlockId, tellMaster: Boolean = true): Unit = {
     logDebug(s"Removing block $blockId")
     val info = blockInfo.get(blockId).orNull
-    if (info != null) {
+    if (info != null && !pendingToRemove.containsKey(blockId)) {
       info.synchronized {
+        pendingToRemove.put(blockId, Thread.currentThread().getId)
         // Removals are idempotent in disk store and memory store. At worst, we get a warning.
         val removedFromMemory = memoryStore.remove(blockId)
         val removedFromDisk = diskStore.remove(blockId)
@@ -1120,6 +1127,7 @@ private[spark] class BlockManager(
             "the disk, memory, or external block store")
         }
         blockInfo.remove(blockId)
+        pendingToRemove.remove(blockId)
         if (tellMaster && info.tellMaster) {
           val status = getCurrentBlockStatus(blockId, info)
           reportBlockStatus(blockId, info, status)
@@ -1148,11 +1156,13 @@ private[spark] class BlockManager(
       val (id, info, time) = (entry.getKey, entry.getValue.value, entry.getValue.timestamp)
       if (time < cleanupTime && shouldDrop(id)) {
         info.synchronized {
+          pendingToRemove.put(id, Thread.currentThread().getId)
           val level = info.level
           if (level.useMemory) { memoryStore.remove(id) }
           if (level.useDisk) { diskStore.remove(id) }
           if (level.useOffHeap) { externalBlockStore.remove(id) }
           iterator.remove()
+          pendingToRemove.remove(id)
           logInfo(s"Dropped block $id")
         }
         val status = getCurrentBlockStatus(id, info)
