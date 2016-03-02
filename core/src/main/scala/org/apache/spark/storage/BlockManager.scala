@@ -1119,8 +1119,8 @@ private[spark] class BlockManager(
     logDebug(s"Removing block $blockId")
     val info = blockInfo.get(blockId).orNull
     if (info != null && !pendingToRemove.containsKey(blockId)) {
+      pendingToRemove.put(blockId, currentTaskAttemptId)
       info.synchronized {
-        pendingToRemove.put(blockId, currentTaskAttemptId)
         // Removals are idempotent in disk store and memory store. At worst, we get a warning.
         val removedFromMemory = memoryStore.remove(blockId)
         pendingToRemove.remove(blockId)
@@ -1159,13 +1159,13 @@ private[spark] class BlockManager(
       val entry = iterator.next()
       val (id, info, time) = (entry.getKey, entry.getValue.value, entry.getValue.timestamp)
       if (time < cleanupTime && shouldDrop(id)) {
+        pendingToRemove.put(id, currentTaskAttemptId)
         info.synchronized {
           val level = info.level
           if (level.useMemory) {
-            pendingToRemove.put(id, currentTaskAttemptId)
             memoryStore.remove(id)
-            pendingToRemove.remove(id)
           }
+          pendingToRemove.remove(id)
           if (level.useDisk) { diskStore.remove(id) }
           if (level.useOffHeap) { externalBlockStore.remove(id) }
           iterator.remove()
