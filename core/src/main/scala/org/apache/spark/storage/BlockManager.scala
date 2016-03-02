@@ -1060,6 +1060,7 @@ private[spark] class BlockManager(
         val droppedMemorySize =
           if (memoryStore.contains(blockId)) memoryStore.getSize(blockId) else 0L
         val blockIsRemoved = memoryStore.remove(blockId)
+        pendingToRemove.remove(blockId)
         if (blockIsRemoved) {
           blockIsUpdated = true
         } else {
@@ -1074,7 +1075,6 @@ private[spark] class BlockManager(
           // The block is completely gone from this node; forget it so we can put() it again later.
           blockInfo.remove(blockId)
         }
-        pendingToRemove.remove(blockId)
         if (blockIsUpdated) {
           return Some(status)
         }
@@ -1119,6 +1119,7 @@ private[spark] class BlockManager(
         pendingToRemove.put(blockId, Thread.currentThread().getId)
         // Removals are idempotent in disk store and memory store. At worst, we get a warning.
         val removedFromMemory = memoryStore.remove(blockId)
+        pendingToRemove.remove(blockId)
         val removedFromDisk = diskStore.remove(blockId)
         val removedFromExternalBlockStore =
           if (externalBlockStoreInitialized) externalBlockStore.remove(blockId) else false
@@ -1127,7 +1128,6 @@ private[spark] class BlockManager(
             "the disk, memory, or external block store")
         }
         blockInfo.remove(blockId)
-        pendingToRemove.remove(blockId)
         if (tellMaster && info.tellMaster) {
           val status = getCurrentBlockStatus(blockId, info)
           reportBlockStatus(blockId, info, status)
@@ -1156,13 +1156,15 @@ private[spark] class BlockManager(
       val (id, info, time) = (entry.getKey, entry.getValue.value, entry.getValue.timestamp)
       if (time < cleanupTime && shouldDrop(id)) {
         info.synchronized {
-          pendingToRemove.put(id, Thread.currentThread().getId)
           val level = info.level
-          if (level.useMemory) { memoryStore.remove(id) }
+          if (level.useMemory) {
+            pendingToRemove.put(id, Thread.currentThread().getId)
+            memoryStore.remove(id)
+            pendingToRemove.remove(id)
+          }
           if (level.useDisk) { diskStore.remove(id) }
           if (level.useOffHeap) { externalBlockStore.remove(id) }
           iterator.remove()
-          pendingToRemove.remove(id)
           logInfo(s"Dropped block $id")
         }
         val status = getCurrentBlockStatus(id, info)
