@@ -27,6 +27,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Random
 import scala.util.control.NonFatal
+import scala.collection.JavaConverters._
 
 import sun.nio.ch.DirectBuffer
 
@@ -1190,8 +1191,7 @@ private[spark] class BlockManager(
    */
   def releaseAllLocksForTask(taskAttemptId: Long): ArrayBuffer[BlockId] = {
     var selectLocks = ArrayBuffer[BlockId]()
-    val entries = pendingToRemove.entrySet().iterator()
-    for(entry: java.util.Map.Entry[BlockId, Long] <- entries) {
+    pendingToRemove.entrySet().asScala.foreach { entry =>
       if (entry.getValue == taskAttemptId) {
         pendingToRemove.remove(taskAttemptId)
         selectLocks += entry.getKey
