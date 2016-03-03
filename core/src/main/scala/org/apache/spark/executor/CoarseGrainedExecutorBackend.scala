@@ -63,10 +63,6 @@ private[spark] class CoarseGrainedExecutorBackend(
       // This is a very fast action so we can use "ThreadUtils.sameThread"
       case Success(msg) => Utils.tryLogNonFatalError {
         Option(self).foreach(_.send(msg)) // msg must be RegisterExecutorResponse
-        val hostname = Utils.localHostName
-        if (hostname != null && !hostname.isEmpty) {
-          executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
-        }
       }
       case Failure(e) => {
         logError(s"Cannot register with driver: $driverUrl", e)
@@ -84,7 +80,7 @@ private[spark] class CoarseGrainedExecutorBackend(
   override def receive: PartialFunction[Any, Unit] = {
     case RegisteredExecutor(hostname) =>
       logInfo("Successfully registered with driver")
-      if (executor == null) executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
+      executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
 
     case RegisterExecutorFailed(message) =>
       logError("Slave registration failed: " + message)
@@ -174,7 +170,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       // Create SparkEnv using properties we fetched from the driver.
       val driverConf = new SparkConf()
       for ((key, value) <- props) {
-        // this is required for SSL in standalone mode
+        // this is required for SSL in standalone mode68
         if (SparkConf.isExecutorStartupConf(key)) {
           driverConf.setIfMissing(key, value)
         } else {
