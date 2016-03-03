@@ -64,7 +64,7 @@ private[spark] class CoarseGrainedExecutorBackend(
       case Success(msg) => Utils.tryLogNonFatalError {
         Option(self).foreach(_.send(msg)) // msg must be RegisterExecutorResponse
         val hostname = Utils.localHostName
-        if (hostname != null && hostname.equals("")) {
+        if (hostname != null && !hostname.isEmpty) {
           executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
         }
       }
