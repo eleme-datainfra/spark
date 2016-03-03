@@ -1190,13 +1190,14 @@ private[spark] class BlockManager(
    */
   def releaseAllLocksForTask(taskAttemptId: Long): ArrayBuffer[BlockId] = {
     var selectLocks = ArrayBuffer[BlockId]()
-    val entries = pendingToRemove.entrySet()
+    val entries = pendingToRemove.entrySet().iterator()
     for(entry: java.util.Map.Entry[BlockId, Long] <- entries) {
       if (entry.getValue == taskAttemptId) {
         pendingToRemove.remove(taskAttemptId)
         selectLocks += entry.getKey
       }
     }
+    selectLocks
   }
 
   private def shouldCompress(blockId: BlockId): Boolean = {
