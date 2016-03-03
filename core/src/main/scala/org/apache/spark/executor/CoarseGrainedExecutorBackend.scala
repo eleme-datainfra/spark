@@ -63,8 +63,10 @@ private[spark] class CoarseGrainedExecutorBackend(
       // This is a very fast action so we can use "ThreadUtils.sameThread"
       case Success(msg) => Utils.tryLogNonFatalError {
         Option(self).foreach(_.send(msg)) // msg must be RegisterExecutorResponse
-        val hostname = hostPort.split(":")(0)
-        executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
+        val hostname = Utils.localHostName
+        if (hostname != null && hostname.equals("")) {
+          executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
+        }
       }
       case Failure(e) => {
         logError(s"Cannot register with driver: $driverUrl", e)
