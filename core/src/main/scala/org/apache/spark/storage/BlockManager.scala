@@ -1164,9 +1164,7 @@ private[spark] class BlockManager(
         pendingToRemove.put(id, currentTaskAttemptId)
         info.synchronized {
           val level = info.level
-          if (level.useMemory) {
-            memoryStore.remove(id)
-          }
+          if (level.useMemory) { memoryStore.remove(id) }
           pendingToRemove.remove(id)
           if (level.useDisk) { diskStore.remove(id) }
           if (level.useOffHeap) { externalBlockStore.remove(id) }
