@@ -68,7 +68,7 @@ private[spark] class BlockManager(
     val master: BlockManagerMaster,
     defaultSerializer: Serializer,
     val conf: SparkConf,
-    memoryManager: MemoryManager,
+    val memoryManager: MemoryManager,
     mapOutputTracker: MapOutputTracker,
     shuffleManager: ShuffleManager,
     blockTransferService: BlockTransferService,
@@ -1122,10 +1122,11 @@ private[spark] class BlockManager(
     if (info != null && !pendingToRemove.containsKey(blockId)) {
       pendingToRemove.put(blockId, currentTaskAttemptId)
       info.synchronized {
+        val level = info.level
         // Removals are idempotent in disk store and memory store. At worst, we get a warning.
-        val removedFromMemory = memoryStore.remove(blockId)
+        val removedFromMemory = if (level.useMemory) memoryStore.remove(blockId) else false
         pendingToRemove.remove(blockId)
-        val removedFromDisk = diskStore.remove(blockId)
+        val removedFromDisk = if (level.useDisk) diskStore.remove(blockId) else false
         val removedFromExternalBlockStore =
           if (externalBlockStoreInitialized) externalBlockStore.remove(blockId) else false
         if (!removedFromMemory && !removedFromDisk && !removedFromExternalBlockStore) {
