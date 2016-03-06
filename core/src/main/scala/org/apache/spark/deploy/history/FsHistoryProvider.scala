@@ -84,10 +84,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   // Mapping of application IDs to their metadata, in descending end time order. Apps are inserted
   // into the map in order, so the LinkedHashMap maintains the correct ordering.
   @volatile private var applications: mutable.LinkedHashMap[String, FsApplicationHistoryInfo]
-  = new mutable.LinkedHashMap()
-
-  // List of application logs to be deleted by event log cleaner.
-  private var attemptsToClean = new mutable.ListBuffer[FsApplicationAttemptInfo]
+    = new mutable.LinkedHashMap()
 
   /**
    * Return a runnable that performs the given operation on the event logs.
@@ -125,7 +122,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   }
 
   private[history] def startSafeModeCheckThread(
-                                                 errorHandler: Option[Thread.UncaughtExceptionHandler]): Thread = {
+      errorHandler: Option[Thread.UncaughtExceptionHandler]): Thread = {
     // Cannot probe anything while the FS is in safe mode, so spawn a new thread that will wait
     // for the FS to leave safe mode before enabling polling. This allows the main history server
     // UI to be shown (so that the user can see the HDFS status).
@@ -463,6 +460,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
    */
   private[history] def cleanLogs(): Unit = {
     try {
+      logInfo("Start cleaning log")
       val maxAge = conf.getTimeAsSeconds("spark.history.fs.cleaner.maxAge", "7d") * 1000
       val now = clock.getTimeMillis()
       val logs = fs.listStatus(new Path(logDir))
