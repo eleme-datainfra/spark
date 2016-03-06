@@ -18,19 +18,27 @@
 package org.apache.spark.scheduler
 
 import java.util.Properties
+import javax.annotation.Nullable
 
 import scala.collection.Map
 import scala.collection.mutable
 
-import org.apache.spark.{Logging, TaskEndReason}
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+
+import org.apache.spark.{Logging, SparkConf, TaskEndReason}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.cluster.ExecutorInfo
 import org.apache.spark.storage.{BlockManagerId, BlockUpdatedInfo}
+import org.apache.spark.ui.SparkUI
 import org.apache.spark.util.{Distribution, Utils}
 
 @DeveloperApi
-sealed trait SparkListenerEvent
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "Event")
+trait SparkListenerEvent {
+  /* Whether output this event to the event log */
+  protected[spark] def logEvent: Boolean = true
+}
 
 @DeveloperApi
 case class SparkListenerStageSubmitted(stageInfo: StageInfo, properties: Properties = null)
@@ -53,7 +61,8 @@ case class SparkListenerTaskEnd(
     taskType: String,
     reason: TaskEndReason,
     taskInfo: TaskInfo,
-    taskMetrics: TaskMetrics)
+    // may be null if the task has failed
+    @Nullable taskMetrics: TaskMetrics)
   extends SparkListenerEvent
 
 @DeveloperApi
@@ -129,6 +138,17 @@ case class SparkListenerApplicationEnd(time: Long) extends SparkListenerEvent
  * This event is not meant to be posted to listeners downstream.
  */
 private[spark] case class SparkListenerLogStart(sparkVersion: String) extends SparkListenerEvent
+
+/**
+  * Interface for creating history listeners defined in other modules like SQL, which are used to
+  * rebuild the history UI.
+  */
+private[spark] trait SparkHistoryListenerFactory {
+  /**
+    * Create listeners used to rebuild the history UI.
+    */
+  def createListeners(conf: SparkConf, sparkUI: SparkUI): Seq[SparkListener]
+}
 
 /**
  * :: DeveloperApi ::
@@ -223,6 +243,11 @@ trait SparkListener {
    * Called when the driver receives a block update info.
    */
   def onBlockUpdated(blockUpdated: SparkListenerBlockUpdated) { }
+
+  /**
+   * Called when other events like SQL-specific events are posted.
+   */
+  def onOtherEvent(event: SparkListenerEvent) { }
 }
 
 /**
