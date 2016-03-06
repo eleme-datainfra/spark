@@ -20,8 +20,6 @@ package org.apache.spark.executor
 import java.net.URL
 import java.nio.ByteBuffer
 
-import org.apache.hadoop.conf.Configuration
-
 import scala.collection.mutable
 import scala.util.{Failure, Success}
 
@@ -170,7 +168,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       // Create SparkEnv using properties we fetched from the driver.
       val driverConf = new SparkConf()
       for ((key, value) <- props) {
-        // this is required for SSL in standalone mode68
+        // this is required for SSL in standalone mode
         if (SparkConf.isExecutorStartupConf(key)) {
           driverConf.setIfMissing(key, value)
         } else {
