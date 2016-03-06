@@ -212,7 +212,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
     }
   }
 
-  override def remove(blockId: BlockId): Boolean = {
+  override def remove(blockId: BlockId): Boolean = memoryManager.synchronized {
     val entry = entries.synchronized { entries.remove(blockId) }
     if (entry != null) {
       memoryManager.releaseStorageMemory(entry.size)

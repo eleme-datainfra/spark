@@ -65,7 +65,7 @@ private[spark] class BlockManager(
     val master: BlockManagerMaster,
     defaultSerializer: Serializer,
     val conf: SparkConf,
-    memoryManager: MemoryManager,
+    val memoryManager: MemoryManager,
     mapOutputTracker: MapOutputTracker,
     shuffleManager: ShuffleManager,
     blockTransferService: BlockTransferService,
@@ -1027,6 +1027,9 @@ private[spark] class BlockManager(
     // If the block has not already been dropped
     if (info != null) {
       info.synchronized {
+        // scalastyle:off
+        println("t1 remove block " + blockId)
+        // scalastyle:on
         // required ? As of now, this will be invoked only for blocks which are ready
         // But in case this changes in future, adding for consistency sake.
         if (!info.waitForReady()) {
@@ -1110,9 +1113,14 @@ private[spark] class BlockManager(
     val info = blockInfo.get(blockId).orNull
     if (info != null) {
       info.synchronized {
+        val level = info.level
         // Removals are idempotent in disk store and memory store. At worst, we get a warning.
         val removedFromMemory = memoryStore.remove(blockId)
-        val removedFromDisk = diskStore.remove(blockId)
+        // scalastyle:off
+        if (removedFromMemory)
+          println("t2 remove block " + blockId)
+        // scalastyle:on
+        val removedFromDisk = if (level.useDisk) diskStore.remove(blockId) else false
         val removedFromExternalBlockStore =
           if (externalBlockStoreInitialized) externalBlockStore.remove(blockId) else false
         if (!removedFromMemory && !removedFromDisk && !removedFromExternalBlockStore) {
