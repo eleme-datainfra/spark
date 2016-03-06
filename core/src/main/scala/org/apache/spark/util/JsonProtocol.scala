@@ -724,7 +724,7 @@ private[spark] object JsonProtocol {
     metrics.setResultSerializationTime((json \ "Result Serialization Time").extract[Long])
     metrics.incMemoryBytesSpilled((json \ "Memory Bytes Spilled").extract[Long])
     metrics.incDiskBytesSpilled((json \ "Disk Bytes Spilled").extract[Long])
-    metrics.incSpillTime((json \ "Spill Time").extract[Long])
+    metrics.incSpillTime(Utils.jsonOption(json \ "Spill Time").map(v => v.extract[Long]).orElse(Some(0L)).get)
     metrics.setShuffleReadMetrics(
       Utils.jsonOption(json \ "Shuffle Read Metrics").map(shuffleReadMetricsFromJson))
     metrics.shuffleWriteMetrics =

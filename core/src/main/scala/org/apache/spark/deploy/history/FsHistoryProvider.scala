@@ -469,7 +469,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
       def shouldClean(attempt: FileStatus): Boolean = {
         val name = attempt.getPath.getName
         now - attempt.getModificationTime > maxAge && attempt.isFile &&
-          (name.startsWith("app-") || name.startsWith("local-") || name.contains("application_"))
+          (name.startsWith("app-") || name.startsWith("local-") || name.startsWith("application_"))
       }
 
       var attemptsToClean = new mutable.ListBuffer[FileStatus]
@@ -487,7 +487,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
           }
         } catch {
           case e: AccessControlException =>
-            logInfo(s"No permission to delete ${attempt.getPath.toString}, ignoring.")
+            logWarning(s"No permission to delete ${attempt.getPath.toString}, ignoring.")
           case t: IOException =>
             logError(s"IOException in cleaning ${attempt.getPath.toString}", t)
         }
