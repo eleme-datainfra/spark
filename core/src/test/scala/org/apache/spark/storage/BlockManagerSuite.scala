@@ -446,6 +446,8 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
 
     t1.start()
     t2.start()
+    t1.join()
+    t2.join()
   }
 
   test("correct BlockResult returned from get() calls") {
