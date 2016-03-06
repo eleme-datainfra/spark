@@ -332,9 +332,9 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   }
 
   override def writeEventLogs(
-                               appId: String,
-                               attemptId: Option[String],
-                               zipStream: ZipOutputStream): Unit = {
+      appId: String,
+      attemptId: Option[String],
+      zipStream: ZipOutputStream): Unit = {
 
     /**
      * This method compresses the files passed in, and writes the compressed data out into the
@@ -595,11 +595,11 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
     }
 
     val codec = try {
-      codecName.map { c => CompressionCodec.createCodec(conf, c) }
-    } catch {
-      case e: Exception =>
-        throw new IllegalArgumentException(s"Unknown compression codec $codecName.")
-    }
+        codecName.map { c => CompressionCodec.createCodec(conf, c) }
+      } catch {
+        case e: Exception =>
+          throw new IllegalArgumentException(s"Unknown compression codec $codecName.")
+      }
 
     val in = new BufferedInputStream(fs.open(eventLogPath))
     codec.map(_.compressedInputStream(in)).getOrElse(in)
