@@ -1192,7 +1192,7 @@ private[spark] class BlockManager(
     var selectLocks = ArrayBuffer[BlockId]()
     pendingToRemove.entrySet().asScala.foreach { entry =>
       if (entry.getValue == taskAttemptId) {
-        pendingToRemove.remove(taskAttemptId)
+        pendingToRemove.remove(entry.getKey)
         selectLocks += entry.getKey
       }
     }
