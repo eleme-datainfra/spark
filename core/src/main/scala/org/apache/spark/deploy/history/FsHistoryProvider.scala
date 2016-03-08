@@ -199,7 +199,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
             case 0 =>
               None
             case _ =>
-              attemptId.map(id => logs.find(log => log.getPath.getName.contains("_" + id)).get)
+              attemptId.map(tid => logs.find(log => log.getPath.getName.contains(appId + "_" + tid)).get)
           }
           if(log != None) {
             getSparkUI(log.get.getPath.getName, appId, attemptId)
