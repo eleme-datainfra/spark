@@ -67,6 +67,7 @@ private[spark] class CoarseGrainedExecutorBackend(
         System.exit(1)
       }
     }(ThreadUtils.sameThread)
+    executor = new Executor(executorId, Utils.localHostName(), env, userClassPath, isLocal = false)
   }
 
   def extractLogUrls: Map[String, String] = {
@@ -78,7 +79,6 @@ private[spark] class CoarseGrainedExecutorBackend(
   override def receive: PartialFunction[Any, Unit] = {
     case RegisteredExecutor(hostname) =>
       logInfo("Successfully registered with driver")
-      executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
 
     case RegisterExecutorFailed(message) =>
       logError("Slave registration failed: " + message)
