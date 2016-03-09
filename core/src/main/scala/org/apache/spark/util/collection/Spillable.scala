@@ -131,9 +131,8 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
    * @param size number of bytes spilled
    */
   @inline private def logSpillage(size: Long) {
-    val threadId = Thread.currentThread().getId
-    logInfo("Thread %d spilling in-memory map of %s to disk (%d time%s so far)"
-      .format(threadId, org.apache.spark.util.Utils.bytesToString(size),
+    logInfo("Task %d spilling in-memory map of %s to disk (%d time%s so far)"
+      .format(taskMemoryManager.taskAttemptId, org.apache.spark.util.Utils.bytesToString(size),
         spillCount, if (spillCount > 1) "s" else ""))
   }
 
@@ -143,9 +142,8 @@ private[spark] abstract class Spillable[C](taskMemoryManager: TaskMemoryManager)
     * @param time time of spill spend
     */
   @inline private def logSpillTime(time: Long) {
-    val threadId = Thread.currentThread().getId
-    logInfo("Thread %d spilling in-memory map to disk spent %s (%s so far)"
-      .format(threadId,
+    logInfo("Task %d spilling in-memory map to disk spent %s (%s so far)"
+      .format(taskMemoryManager.taskAttemptId,
         org.apache.spark.util.Utils.msDurationToString(time),
         org.apache.spark.util.Utils.msDurationToString(spillTime)))
   }
