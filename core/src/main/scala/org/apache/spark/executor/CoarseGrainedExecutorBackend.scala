@@ -52,6 +52,7 @@ private[spark] class CoarseGrainedExecutorBackend(
 
   override def onStart() {
     logInfo("Connecting to driver: " + driverUrl)
+    executor = new Executor(executorId, Utils.localHostName(), env, userClassPath, isLocal = false)
     rpcEnv.asyncSetupEndpointRefByURI(driverUrl).flatMap { ref =>
       // This is a very fast action so we can use "ThreadUtils.sameThread"
       driver = Some(ref)
@@ -67,7 +68,6 @@ private[spark] class CoarseGrainedExecutorBackend(
         System.exit(1)
       }
     }(ThreadUtils.sameThread)
-    executor = new Executor(executorId, Utils.localHostName(), env, userClassPath, isLocal = false)
   }
 
   def extractLogUrls: Map[String, String] = {

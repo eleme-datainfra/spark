@@ -483,6 +483,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
           if (fs.exists(path)) {
             fs.delete(path, true)
           }
+          applications.filter(app => app._2.attempts.exists(x => x.logPath.endsWith(path.toString))).remove(_)
         } catch {
           case e: AccessControlException =>
             logWarning(s"No permission to delete ${attempt.getPath.toString}, ignoring.")
@@ -490,7 +491,6 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
             logError(s"IOException in cleaning ${attempt.getPath.toString}", t)
         }
       }
-
     } catch {
       case t: Exception => logError("Exception in cleaning logs", t)
     }
