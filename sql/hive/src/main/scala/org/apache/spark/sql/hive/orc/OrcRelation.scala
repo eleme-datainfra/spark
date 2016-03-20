@@ -208,7 +208,13 @@ private[sql] class OrcRelation(
   }
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
-    SparkHadoopUtil.get.getConfigurationFromJobContext(job) match {
+    val jobConf = SparkHadoopUtil.get.getConfigurationFromJobContext(job)
+    parameters.foreach { p =>
+      if (p._1.startsWith("orc.") && jobConf.get(p._1) != null) {
+        jobConf.set(p._1, p._2)
+      }
+    }
+    jobConf match {
       case conf: JobConf =>
         conf.setOutputFormat(classOf[OrcOutputFormat])
       case conf =>
