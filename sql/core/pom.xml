@@ -37,6 +37,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.facebook.presto</groupId>
+      <artifactId>presto-orc</artifactId>
+      <version>0.143</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.binary.version}</artifactId>
       <version>${project.version}</version>
