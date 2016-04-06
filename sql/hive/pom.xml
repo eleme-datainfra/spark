@@ -62,7 +62,7 @@
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-test-tags_${scala.binary.version}</artifactId>
     </dependency>
-<!--
+
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
@@ -72,17 +72,16 @@
       <artifactId>protobuf-java</artifactId>
       <version>${protobuf.version}</version>
     </dependency>
--->
+
     <dependency>
       <groupId>${hive.group}</groupId>
       <artifactId>hive-cli</artifactId>
     </dependency>
-<!--
+
     <dependency>
       <groupId>${hive.group}</groupId>
       <artifactId>hive-common</artifactId>
     </dependency>
--->
     <dependency>
       <groupId>${hive.group}</groupId>
       <artifactId>hive-exec</artifactId>
@@ -94,16 +93,15 @@
       <groupId>${hive.group}</groupId>
       <artifactId>hive-metastore</artifactId>
     </dependency>
-    <!--
-        <dependency>
+    <dependency>
           <groupId>${hive.group}</groupId>
           <artifactId>hive-serde</artifactId>
-        </dependency>
-        <dependency>
+    </dependency>
+    <dependency>
           <groupId>${hive.group}</groupId>
           <artifactId>hive-shims</artifactId>
-        </dependency>
-    -->
+    </dependency>
+
     <!-- hive-serde already depends on avro, but this brings in customized config of avro deps from parent -->
     <dependency>
       <groupId>org.apache.avro</groupId>
