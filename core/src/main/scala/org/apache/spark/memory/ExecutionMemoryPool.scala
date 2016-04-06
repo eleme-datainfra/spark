@@ -23,7 +23,7 @@ import org.apache.spark.util.Utils
 
 import scala.collection.mutable
 
-import org.apache.spark.Logging
+import org.apache.spark.{SparkEnv, Logging}
 
 /**
  * Implements policies and bookkeeping for sharing a adjustable-sized pool of memory between tasks.
@@ -83,7 +83,6 @@ private[memory] class ExecutionMemoryPool(
    *                           size is variable in certain cases. For instance, in unified
    *                           memory management, the execution pool can be expanded by evicting
    *                           cached blocks, thereby shrinking the storage pool.
-   *
    * @return the number of bytes granted to the task.
    */
   private[memory] def acquireMemory(
@@ -109,7 +108,14 @@ private[memory] class ExecutionMemoryPool(
     // memory to give it (we always let each task get at least 1 / (2 * numActiveTasks)).
     // TODO: simplify this to limit each task to its own slot
     while (true) {
-      val numActiveTasks = memoryForTask.keys.size
+      val conf = SparkEnv.get.conf
+      var numActiveTasks = 0
+      val useStaticMemory = conf.getBoolean("spark.memory.useStaticMemoryForTask.", false)
+      if (useStaticMemory) {
+        numActiveTasks = conf.getInt("spark.executor.cores", 1)
+      } else {
+        numActiveTasks = memoryForTask.keys.size
+      }
       val curMem = memoryForTask(taskAttemptId)
 
       // In every iteration of this loop, we should first try to reclaim any borrowed execution
@@ -189,6 +195,7 @@ private[memory] class ExecutionMemoryPool(
 
   /**
    * Release all memory for the given task and mark it as inactive (e.g. when a task ends).
+ *
    * @return the number of bytes freed.
    */
   def releaseAllMemoryForTask(taskAttemptId: Long): Long = lock.synchronized {
