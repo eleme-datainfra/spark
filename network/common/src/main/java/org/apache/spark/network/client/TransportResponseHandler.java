@@ -103,12 +103,13 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
    * uncaught exception or pre-mature connection termination.
    */
   private void failOutstandingRequests(Throwable cause) {
-    for (Map.Entry<StreamChunkId, ChunkReceivedCallback> entry : outstandingFetches.entrySet()) {
+/*    for (Map.Entry<StreamChunkId, ChunkReceivedCallback> entry : outstandingFetches.entrySet()) {
       entry.getValue().onFailure(entry.getKey().chunkIndex, cause);
     }
     for (Map.Entry<Long, RpcResponseCallback> entry : outstandingRpcs.entrySet()) {
       entry.getValue().onFailure(cause);
-    }
+    }*/
+    logger.warn(cause.getMessage());
 
     // It's OK if new fetches appear, as they will fail immediately.
     outstandingFetches.clear();
@@ -119,7 +120,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
   public void channelUnregistered() {
     if (numOutstandingRequests() > 0) {
       String remoteAddress = NettyUtils.getRemoteAddress(channel);
-      logger.error("Still have {} requests outstanding when connection from {} is closed",
+      logger.warn("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
       failOutstandingRequests(new IOException("Connection from " + remoteAddress + " closed"));
     }
@@ -129,7 +130,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
   public void exceptionCaught(Throwable cause) {
     if (numOutstandingRequests() > 0) {
       String remoteAddress = NettyUtils.getRemoteAddress(channel);
-      logger.error("Still have {} requests outstanding when connection from {} is closed",
+      logger.warn("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
       failOutstandingRequests(cause);
     }
