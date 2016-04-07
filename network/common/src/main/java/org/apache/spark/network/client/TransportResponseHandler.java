@@ -103,13 +103,12 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
    * uncaught exception or pre-mature connection termination.
    */
   private void failOutstandingRequests(Throwable cause) {
-/*    for (Map.Entry<StreamChunkId, ChunkReceivedCallback> entry : outstandingFetches.entrySet()) {
+    for (Map.Entry<StreamChunkId, ChunkReceivedCallback> entry : outstandingFetches.entrySet()) {
       entry.getValue().onFailure(entry.getKey().chunkIndex, cause);
     }
     for (Map.Entry<Long, RpcResponseCallback> entry : outstandingRpcs.entrySet()) {
       entry.getValue().onFailure(cause);
-    }*/
-    logger.warn(cause.getMessage());
+    }
 
     // It's OK if new fetches appear, as they will fail immediately.
     outstandingFetches.clear();

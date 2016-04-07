@@ -142,7 +142,7 @@ class NettyBlockTransferService(conf: SparkConf, securityManager: SecurityManage
           result.success((): Unit)
         }
         override def onFailure(e: Throwable): Unit = {
-          logError(s"Error while uploading block $blockId", e)
+          logWarning(s"Error while uploading block $blockId", e)
           result.failure(e)
         }
       })
