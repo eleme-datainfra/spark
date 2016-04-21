@@ -40,6 +40,12 @@ class MessageWithHeader extends AbstractReferenceCounted implements FileRegion {
   private final long bodyLength;
   private long totalBytesTransferred;
 
+  /**
+   * When the write buffer size is larger than this limit, I/O will be done in chunks of this size.
+   * The size should not be too large as it will waste underlying memory copy. e.g. If network
+   * available buffer is smaller than this limit, the data cannot be sent within one single write
+   * operation while it still will make memory copy with this size.
+   */
   private static final int NIO_BUFFER_LIMIT = 256 * 1024;
 
   MessageWithHeader(ByteBuf header, Object body, long bodyLength) {
@@ -107,7 +113,7 @@ class MessageWithHeader extends AbstractReferenceCounted implements FileRegion {
   private int copyByteBuf(ByteBuf buf, WritableByteChannel target) throws IOException {
     ByteBuffer buffer = buf.nioBuffer();
     int written = (buffer.remaining() <= NIO_BUFFER_LIMIT) ?
-        target.write(buffer) : writeNioBuffer(target, buffer);
+      target.write(buffer) : writeNioBuffer(target, buffer);
     buf.skipBytes(written);
     return written;
   }
@@ -117,6 +123,7 @@ class MessageWithHeader extends AbstractReferenceCounted implements FileRegion {
       ByteBuffer buf) throws IOException {
     int originalLimit = buf.limit();
     int ret = 0;
+
     try {
       int ioSize = Math.min(buf.remaining(), NIO_BUFFER_LIMIT);
       buf.limit(buf.position() + ioSize);
@@ -124,6 +131,7 @@ class MessageWithHeader extends AbstractReferenceCounted implements FileRegion {
     } finally {
       buf.limit(originalLimit);
     }
+
     return ret;
   }
 }
