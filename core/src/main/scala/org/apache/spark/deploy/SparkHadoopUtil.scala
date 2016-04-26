@@ -48,7 +48,7 @@ import org.apache.spark.{Logging, SparkConf, SparkException}
  */
 @DeveloperApi
 class SparkHadoopUtil extends Logging {
-  private val sparkConf = new SparkConf()
+  val sparkConf = new SparkConf()
   val conf: Configuration = newConfiguration(sparkConf)
   UserGroupInformation.setConfiguration(conf)
 

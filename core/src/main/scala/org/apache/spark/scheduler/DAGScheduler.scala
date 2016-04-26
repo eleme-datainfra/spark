@@ -576,9 +576,8 @@ class DAGScheduler(
       // Return immediately if the job is running 0 tasks
       return new JobWaiter[U](this, jobId, 0, resultHandler)
     }
-
-    val user = Option(System.getProperty("SPARK_USER")).getOrElse("")
-    properties.setProperty("user", user)
+    
+    properties.setProperty("user", Utils.getCurrentUserName())
 
     assert(partitions.size > 0)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
@@ -648,8 +647,7 @@ class DAGScheduler(
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     val partitions = (0 until rdd.partitions.length).toArray
     val jobId = nextJobId.getAndIncrement()
-    val user = Option(System.getProperty("SPARK_USER")).getOrElse("")
-    properties.setProperty("user", user)
+    properties.setProperty("user", Utils.getCurrentUserName())
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions, callSite, listener, SerializationUtils.clone(properties)))
     listener.awaitResult()    // Will throw an exception if the job fails

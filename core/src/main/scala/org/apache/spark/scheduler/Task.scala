@@ -91,7 +91,9 @@ private[spark] abstract class Task[T](
       kill(interruptThread = false)
     }
     try {
-      if (user != null && user.trim != "") {
+      val useProxyUser =
+        SparkHadoopUtil.get.sparkConf.getBoolean("spark.proxyUser.enabled", false)
+      if (useProxyUser && user != null && !user.isEmpty) {
         val proxyUser = UserGroupInformation.createRemoteUser(user)
         val currentUser = UserGroupInformation.getCurrentUser()
         SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
