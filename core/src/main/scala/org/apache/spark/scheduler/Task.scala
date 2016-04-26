@@ -19,6 +19,10 @@ package org.apache.spark.scheduler
 
 import java.io.{ByteArrayOutputStream, DataInputStream, DataOutputStream}
 import java.nio.ByteBuffer
+import java.security.PrivilegedExceptionAction
+
+import org.apache.hadoop.security.UserGroupInformation
+import org.apache.spark.deploy.SparkHadoopUtil
 
 import scala.collection.mutable.HashMap
 
@@ -46,6 +50,7 @@ import org.apache.spark.util.Utils
  * @param partitionId index of the number in the RDD
  */
 private[spark] abstract class Task[T](
+    val user: String,
     val stageId: Int,
     val stageAttemptId: Int,
     val partitionId: Int,
@@ -86,7 +91,16 @@ private[spark] abstract class Task[T](
       kill(interruptThread = false)
     }
     try {
-      (runTask(context), context.collectAccumulators())
+      if (user != null && user.trim != "") {
+        val proxyUser = UserGroupInformation.createRemoteUser(user)
+        val currentUser = UserGroupInformation.getCurrentUser()
+        SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
+        proxyUser.doAs(new PrivilegedExceptionAction[(T, AccumulatorUpdates)] {
+          def run: (T, AccumulatorUpdates) = (runTask(context), context.collectAccumulators())
+        })
+      } else {
+        (runTask(context), context.collectAccumulators())
+      }
     } catch {
       case e: Throwable =>
         // Catch all errors; run task failure callbacks, and rethrow the exception.

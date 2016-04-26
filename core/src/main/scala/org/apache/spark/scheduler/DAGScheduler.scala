@@ -577,6 +577,9 @@ class DAGScheduler(
       return new JobWaiter[U](this, jobId, 0, resultHandler)
     }
 
+    val user = Option(System.getProperty("SPARK_USER")).getOrElse("")
+    properties.setProperty("user", user)
+
     assert(partitions.size > 0)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     val waiter = new JobWaiter(this, jobId, partitions.size, resultHandler)
@@ -1018,13 +1021,14 @@ class DAGScheduler(
         return
     }
 
+    val user = if (properties == null) "" else properties.getProperty("user")
     val tasks: Seq[Task[_]] = try {
       stage match {
         case stage: ShuffleMapStage =>
           partitionsToCompute.map { id =>
             val locs = taskIdToLocations(id)
             val part = stage.rdd.partitions(id)
-            new ShuffleMapTask(stage.id, stage.latestInfo.attemptId,
+            new ShuffleMapTask(user, stage.id, stage.latestInfo.attemptId,
               taskBinary, part, locs, stage.internalAccumulators)
           }
 
@@ -1034,7 +1038,7 @@ class DAGScheduler(
             val p: Int = stage.partitions(id)
             val part = stage.rdd.partitions(p)
             val locs = taskIdToLocations(id)
-            new ResultTask(stage.id, stage.latestInfo.attemptId,
+            new ResultTask(user, stage.id, stage.latestInfo.attemptId,
               taskBinary, part, locs, id, stage.internalAccumulators)
           }
       }

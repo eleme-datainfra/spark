@@ -40,6 +40,7 @@ import org.apache.spark.rdd.RDD
  *                 input RDD's partitions).
  */
 private[spark] class ResultTask[T, U](
+    user: String,
     stageId: Int,
     stageAttemptId: Int,
     taskBinary: Broadcast[Array[Byte]],
@@ -47,7 +48,7 @@ private[spark] class ResultTask[T, U](
     locs: Seq[TaskLocation],
     val outputId: Int,
     internalAccumulators: Seq[Accumulator[Long]])
-  extends Task[U](stageId, stageAttemptId, partition.index, internalAccumulators)
+  extends Task[U](user, stageId, stageAttemptId, partition.index, internalAccumulators)
   with Serializable {
 
   @transient private[this] val preferredLocs: Seq[TaskLocation] = {
