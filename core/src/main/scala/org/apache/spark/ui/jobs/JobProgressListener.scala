@@ -280,8 +280,10 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
       jobData <- jobIdToData.get(jobId)
     ) {
       jobData.numActiveStages -= 1
-      if (stage.failureReason.isEmpty && stageData.schedulingPool != "") {
-        jobData.completedStageIndices.add(stage.stageId)
+      if (stage.failureReason.isEmpty) {
+        if (stageData.schedulingPool != "") {
+          jobData.completedStageIndices.add(stage.stageId)
+        }
       } else {
         jobData.numFailedStages += 1
       }
