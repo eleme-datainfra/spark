@@ -15,28 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler
-
-import java.io.{ObjectInputStream, ObjectOutputStream, IOException}
-
-import org.apache.spark.TaskContext
+package org.apache.spark.util
 
 /**
- * A Task implementation that fails to serialize.
+ * Extractor Object for pulling out the root cause of an error.
+ * If the error contains no cause, it will return the error itself.
+ *
+ * Usage:
+ * try {
+ *   ...
+ * } catch {
+ *   case CausedBy(ex: CommitDeniedException) => ...
+ * }
  */
-private[spark] class NotSerializableFakeTask(myId: Int, stageId: Int)
-  extends Task[Array[Byte]]("", stageId, 0, 0, Seq.empty) {
+private[spark] object CausedBy {
 
-  override def runTask(context: TaskContext): Array[Byte] = Array.empty[Byte]
-  override def preferredLocations: Seq[TaskLocation] = Seq[TaskLocation]()
-
-  @throws(classOf[IOException])
-  private def writeObject(out: ObjectOutputStream): Unit = {
-    if (stageId == 0) {
-      throw new IllegalStateException("Cannot serialize")
-    }
+  def unapply(e: Throwable): Option[Throwable] = {
+    Option(e.getCause).flatMap(cause => unapply(cause)).orElse(Some(e))
   }
-
-  @throws(classOf[IOException])
-  private def readObject(in: ObjectInputStream): Unit = {}
 }

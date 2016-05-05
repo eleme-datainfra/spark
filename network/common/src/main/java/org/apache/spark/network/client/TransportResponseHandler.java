@@ -119,7 +119,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
   public void channelUnregistered() {
     if (numOutstandingRequests() > 0) {
       String remoteAddress = NettyUtils.getRemoteAddress(channel);
-      logger.error("Still have {} requests outstanding when connection from {} is closed",
+      logger.warn("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
       failOutstandingRequests(new IOException("Connection from " + remoteAddress + " closed"));
     }
@@ -129,7 +129,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
   public void exceptionCaught(Throwable cause) {
     if (numOutstandingRequests() > 0) {
       String remoteAddress = NettyUtils.getRemoteAddress(channel);
-      logger.error("Still have {} requests outstanding when connection from {} is closed",
+      logger.warn("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
       failOutstandingRequests(cause);
     }

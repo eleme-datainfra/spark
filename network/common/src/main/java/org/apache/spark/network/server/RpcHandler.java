@@ -87,7 +87,7 @@ public abstract class RpcHandler {
 
     @Override
     public void onFailure(Throwable e) {
-      logger.error("Error response provided for one-way RPC.", e);
+      logger.warn("Error response provided for one-way RPC.", e);
     }
 
   }

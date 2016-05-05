@@ -39,18 +39,19 @@ import org.apache.spark.shuffle.ShuffleWriter
  * @param locs preferred task execution locations for locality scheduling
  */
 private[spark] class ShuffleMapTask(
+    user: String,
     stageId: Int,
     stageAttemptId: Int,
     taskBinary: Broadcast[Array[Byte]],
     partition: Partition,
     @transient private var locs: Seq[TaskLocation],
     internalAccumulators: Seq[Accumulator[Long]])
-  extends Task[MapStatus](stageId, stageAttemptId, partition.index, internalAccumulators)
+  extends Task[MapStatus](user, stageId, stageAttemptId, partition.index, internalAccumulators)
   with Logging {
 
   /** A constructor used only in test suites. This does not require passing in an RDD. */
   def this(partitionId: Int) {
-    this(0, 0, null, new Partition { override def index: Int = 0 }, null, null)
+    this("", 0, 0, null, new Partition { override def index: Int = 0 }, null, null)
   }
 
   @transient private val preferredLocs: Seq[TaskLocation] = {
