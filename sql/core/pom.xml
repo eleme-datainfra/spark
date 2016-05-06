@@ -39,12 +39,12 @@
     <dependency>
       <groupId>com.facebook.presto</groupId>
       <artifactId>presto-orc</artifactId>
-      <version>0.143</version>
+      <version>0.146</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.presto</groupId>
       <artifactId>presto-hive</artifactId>
-      <version>0.143</version>
+      <version>0.146</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>

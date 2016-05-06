@@ -53,6 +53,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.joda.time.DateTimeZone;
+import parquet.schema.OriginalType;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class UnsafeRowOrcRecordReader extends RecordReader<Void, UnsafeRow> {
    * Batch of unsafe rows that we assemble and the current index we've returned. Everytime this
    * batch is used up (batchIdx == numBatched), we populated the batch.
    */
-  private UnsafeRow[] rows = new UnsafeRow[64];
+  private UnsafeRow[] rows = new UnsafeRow[1024];
   private int batchIdx = 0;
   private int numBatched = 0;
 
@@ -85,21 +86,6 @@ public class UnsafeRowOrcRecordReader extends RecordReader<Void, UnsafeRow> {
    * Used to write variable length columns. Same length as `rows`.
    */
   private UnsafeRowWriter[] rowWriters = null;
-  /**
-   * True if the row contains variable length fields.
-   */
-  private boolean containsVarLenFields;
-
-  /**
-   * The number of bytes in the fixed length portion of the row.
-   */
-  private int fixedSizeBytes;
-
-  /**
-   * For each request column, the reader to read this column.
-   * columnsReaders[i] populated the UnsafeRow's attribute at i.
-   */
-  private ColumnReader[] columnReaders;
 
   /**
    * The number of rows that have been returned.
@@ -167,7 +153,7 @@ public class UnsafeRowOrcRecordReader extends RecordReader<Void, UnsafeRow> {
         throw new IOException("Error open split " + inputSplit.toString(), e.getCause());
       }
       throw new IOException(format("Error opening Hive split %s (offset=%s, length=%s): %s",
-          path, ((FileSplit) inputSplit).getStart(), inputSplit.getLength(), e.getMessage());
+          path, ((FileSplit) inputSplit).getStart(), inputSplit.getLength(), e.getMessage()));
     }
 
     AggregatedMemoryContext systemMemoryUsage = new AggregatedMemoryContext();
@@ -194,8 +180,6 @@ public class UnsafeRowOrcRecordReader extends RecordReader<Void, UnsafeRow> {
       OrcRecordReader recordReader = reader.createRecordReader(
           includedColumns.build(),
           predicate,
-          fileSplit.getStart(),
-          fileSplit.getLength(),
           hiveStorageTimeZone,
           systemMemoryUsage);
     } finally {
@@ -242,304 +226,8 @@ public class UnsafeRowOrcRecordReader extends RecordReader<Void, UnsafeRow> {
     int num = (int)Math.min(rows.length, totalCountLoadedSoFar - rowsReturned);
     rowsReturned += num;
 
-    if (containsVarLenFields) {
-      for (int i = 0; i < rowWriters.length; ++i) {
-        rowWriters[i].holder().resetTo(fixedSizeBytes);
-      }
-    }
-
-    for (int i = 0; i < columnReaders.length; ++i) {
-      switch (columnReaders[i].descriptor.getType()) {
-        case BOOLEAN:
-          decodeBooleanBatch(i, num);
-          break;
-        case INT32:
-          if (originalTypes[i] == OriginalType.DECIMAL) {
-            decodeIntAsDecimalBatch(i, num);
-          } else {
-            decodeIntBatch(i, num);
-          }
-          break;
-        case INT64:
-          Preconditions.checkState(originalTypes[i] == null
-              || originalTypes[i] == OriginalType.DECIMAL,
-              "Unexpected original type: " + originalTypes[i]);
-          decodeLongBatch(i, num);
-          break;
-        case FLOAT:
-          decodeFloatBatch(i, num);
-          break;
-        case DOUBLE:
-          decodeDoubleBatch(i, num);
-          break;
-        case BINARY:
-          decodeBinaryBatch(i, num);
-          break;
-        case FIXED_LEN_BYTE_ARRAY:
-          Preconditions.checkState(originalTypes[i] == OriginalType.DECIMAL,
-              "Unexpected original type: " + originalTypes[i]);
-          decodeFixedLenArrayAsDecimalBatch(i, num);
-          break;
-        case INT96:
-          throw new IOException("Unsupported " + columnReaders[i].descriptor.getType());
-      }
-      numBatched = num;
-      batchIdx = 0;
-    }
-
-    // Update the total row lengths if the schema contained variable length. We did not maintain
-    // this as we populated the columns.
-    if (containsVarLenFields) {
-      for (int i = 0; i < numBatched; ++i) {
-        rows[i].setTotalSize(rowWriters[i].holder().totalSize());
-      }
-    }
+    reco
 
     return true;
-  }
-
-  private void decodeBooleanBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        rows[n].setBoolean(col, columnReaders[col].nextBoolean());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeIntBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        rows[n].setInt(col, columnReaders[col].nextInt());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeIntAsDecimalBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        // Since this is stored as an INT, it is always a compact decimal. Just set it as a long.
-        rows[n].setLong(col, columnReaders[col].nextInt());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeLongBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        rows[n].setLong(col, columnReaders[col].nextLong());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeFloatBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        rows[n].setFloat(col, columnReaders[col].nextFloat());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeDoubleBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        rows[n].setDouble(col, columnReaders[col].nextDouble());
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeBinaryBatch(int col, int num) throws IOException {
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        ByteBuffer bytes = columnReaders[col].nextBinary().toByteBuffer();
-        int len = bytes.limit() - bytes.position();
-        if (originalTypes[col] == OriginalType.UTF8) {
-          UTF8String str = UTF8String.fromBytes(bytes.array(), bytes.position(), len);
-          rowWriters[n].write(col, str);
-        } else {
-          rowWriters[n].write(col, bytes.array(), bytes.position(), len);
-        }
-        rows[n].setNotNullAt(col);
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  private void decodeFixedLenArrayAsDecimalBatch(int col, int num) throws IOException {
-    PrimitiveType type = requestedSchema.getFields().get(col).asPrimitiveType();
-    int precision = type.getDecimalMetadata().getPrecision();
-    int scale = type.getDecimalMetadata().getScale();
-    Preconditions.checkState(precision <= CatalystSchemaConverter.MAX_PRECISION_FOR_INT64(),
-        "Unsupported precision.");
-
-    for (int n = 0; n < num; ++n) {
-      if (columnReaders[col].next()) {
-        Binary v = columnReaders[col].nextBinary();
-        // Constructs a `Decimal` with an unscaled `Long` value if possible.
-        long unscaled = CatalystRowConverter.binaryToUnscaledLong(v);
-        rows[n].setDecimal(col, Decimal.apply(unscaled, precision, scale), precision);
-      } else {
-        rows[n].setNullAt(col);
-      }
-    }
-  }
-
-  /**
-   *
-   * Decoder to return values from a single column.
-   */
-  private static final class ColumnReader {
-    /**
-     * Total number of values read.
-     */
-    private long valuesRead;
-
-    /**
-     * value that indicates the end of the current page. That is,
-     * if valuesRead == endOfPageValueCount, we are at the end of the page.
-     */
-    private long endOfPageValueCount;
-
-    /**
-     * The dictionary, if this column has dictionary encoding.
-     */
-    private final Dictionary dictionary;
-
-    /**
-     * If true, the current page is dictionary encoded.
-     */
-    private boolean useDictionary;
-
-    /**
-     * Maximum definition level for this column.
-     */
-    private final int maxDefLevel;
-
-    /**
-     * Repetition/Definition/Value readers.
-     */
-    private IntIterator repetitionLevelColumn;
-    private IntIterator definitionLevelColumn;
-    private ValuesReader dataColumn;
-
-    /**
-     * Total number of values in this column (in this row group).
-     */
-    private final long totalValueCount;
-
-    /**
-     * Total values in the current page.
-     */
-    private int pageValueCount;
-
-    private final PageReader pageReader;
-    private final ColumnDescriptor descriptor;
-
-    public ColumnReader(ColumnDescriptor descriptor, PageReader pageReader)
-        throws IOException {
-      this.descriptor = descriptor;
-      this.pageReader = pageReader;
-      this.maxDefLevel = descriptor.getMaxDefinitionLevel();
-
-      DictionaryPage dictionaryPage = pageReader.readDictionaryPage();
-      if (dictionaryPage != null) {
-        try {
-          this.dictionary = dictionaryPage.getEncoding().initDictionary(descriptor, dictionaryPage);
-          this.useDictionary = true;
-        } catch (IOException e) {
-          throw new IOException("could not decode the dictionary for " + descriptor, e);
-        }
-      } else {
-        this.dictionary = null;
-        this.useDictionary = false;
-      }
-      this.totalValueCount = pageReader.getTotalValueCount();
-      if (totalValueCount == 0) {
-        throw new IOException("totalValueCount == 0");
-      }
-    }
-
-    /**
-     * TODO: Hoist the useDictionary branch to decode*Batch and make the batch page aligned.
-     */
-    public boolean nextBoolean() {
-      if (!useDictionary) {
-        return dataColumn.readBoolean();
-      } else {
-        return dictionary.decodeToBoolean(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    public int nextInt() {
-      if (!useDictionary) {
-        return dataColumn.readInteger();
-      } else {
-        return dictionary.decodeToInt(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    public long nextLong() {
-      if (!useDictionary) {
-        return dataColumn.readLong();
-      } else {
-        return dictionary.decodeToLong(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    public float nextFloat() {
-      if (!useDictionary) {
-        return dataColumn.readFloat();
-      } else {
-        return dictionary.decodeToFloat(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    public double nextDouble() {
-      if (!useDictionary) {
-        return dataColumn.readDouble();
-      } else {
-        return dictionary.decodeToDouble(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    public Binary nextBinary() {
-      if (!useDictionary) {
-        return dataColumn.readBytes();
-      } else {
-        return dictionary.decodeToBinary(dataColumn.readValueDictionaryId());
-      }
-    }
-
-    /**
-     * Advances to the next value. Returns true if the value is non-null.
-     */
-    private boolean next() throws IOException {
-      if (valuesRead >= endOfPageValueCount) {
-        if (valuesRead >= totalValueCount) {
-          // How do we get here? Throw end of stream exception?
-          return false;
-        }
-        readPage();
-      }
-      ++valuesRead;
-      // TODO: Don't read for flat schemas
-      //repetitionLevel = repetitionLevelColumn.nextInt();
-      return definitionLevelColumn.nextInt() == maxDefLevel;
-    }
-
-
-
   }
 }
