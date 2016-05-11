@@ -48,26 +48,6 @@ private[orc] object OrcFilters extends Logging {
     case _ => false
   }
 
-  def buildPredicate(expression: Filter): Option[TupleDomain] = {
-    expression match {
-      case And(left, right) =>
-        // At here, it is not safe to just convert one side if we do not understand the
-        // other side. Here is an example used to explain the reason.
-        // Let's say we have NOT(a = 2 AND b in ('1')) and we do not understand how to
-        // convert b in ('1'). If we only convert a = 2, we will end up with a filter
-        // NOT(a = 2), which will generate wrong results.
-        // Pushing one side of AND down is only safe to do at the top level.
-        // You can see ParquetRelation's initializeLocalJobFunc method as an example.
-        for {
-          _ <- buildPredicate(left)
-          _ <- buildPredicate(right)
-          lhs <- buildPredicate(left)
-          rhs <- buildPredicate(right)
-        } yield rhs
-      case _ => None
-    }
-  }
-
   private def buildSearchArgument(expression: Filter, builder: Builder): Option[Builder] = {
     def newBuilder = SearchArgumentFactory.newBuilder()
 
