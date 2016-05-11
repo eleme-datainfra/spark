@@ -332,6 +332,10 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "When true, enable filter pushdown for ORC files.")
 
+  val FASTER_ORC_READER_ENABLED = booleanConf("spark.sql.orc.useFasterOrcReader",
+    defaultValue = Some(false),
+    doc = "When true, use presto orc reader for ORC files.")
+
   val HIVE_VERIFY_PARTITION_PATH = booleanConf("spark.sql.hive.verifyPartitionPath",
     defaultValue = Some(false),
     doc = "<TODO>")
@@ -526,6 +530,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
   private[spark] def parquetFilterPushDown: Boolean = getConf(PARQUET_FILTER_PUSHDOWN_ENABLED)
 
   private[spark] def orcFilterPushDown: Boolean = getConf(ORC_FILTER_PUSHDOWN_ENABLED)
+
+  private[spark] def useFasterOrcReader: Boolean = getConf(FASTER_ORC_READER_ENABLED)
 
   private[spark] def verifyPartitionPath: Boolean = getConf(HIVE_VERIFY_PARTITION_PATH)
 

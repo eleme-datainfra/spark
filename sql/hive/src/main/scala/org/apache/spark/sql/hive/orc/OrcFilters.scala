@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.hive.orc
 
+import com.facebook.presto.spi.predicate.TupleDomain
 import org.apache.hadoop.hive.common.`type`.{HiveChar, HiveDecimal, HiveVarchar}
 import org.apache.hadoop.hive.ql.io.sarg.{SearchArgumentFactory, SearchArgument}
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument.Builder
@@ -40,15 +41,43 @@ private[orc] object OrcFilters extends Logging {
     } yield builder.build()
   }
 
+  def createPredicate(filters: Array[Filter]): Option[TupleDomain] = {
+    for {
+      // Combines all filters with `And`s to produce a single conjunction predicate
+      conjunction <- filters.reduceOption(And)
+      tupleDomain <- buildPredicate(conjunction)
+    } yield tupleDomain
+  }
+
+  def isSearchableLiteral(value: Any): Boolean = value match {
+    // These are types recognized by the `SearchArgumentImpl.BuilderImpl.boxLiteral()` method.
+    case _: String | _: Long | _: Double | _: Byte | _: Short | _: Integer | _: Float => true
+    case _: DateWritable | _: HiveDecimal | _: HiveChar | _: HiveVarchar => true
+    case _ => false
+  }
+
+  def buildPredicate(expression: Filter): Option[TupleDomain] = {
+    expression match {
+      case And(left, right) =>
+        // At here, it is not safe to just convert one side if we do not understand the
+        // other side. Here is an example used to explain the reason.
+        // Let's say we have NOT(a = 2 AND b in ('1')) and we do not understand how to
+        // convert b in ('1'). If we only convert a = 2, we will end up with a filter
+        // NOT(a = 2), which will generate wrong results.
+        // Pushing one side of AND down is only safe to do at the top level.
+        // You can see ParquetRelation's initializeLocalJobFunc method as an example.
+        for {
+          _ <- buildPredicate(left)
+          _ <- buildPredicate(right)
+          lhs <- buildPredicate(left)
+          rhs <- buildPredicate(right)
+        } yield rhs
+      case _ => None
+    }
+  }
+
   private def buildSearchArgument(expression: Filter, builder: Builder): Option[Builder] = {
     def newBuilder = SearchArgumentFactory.newBuilder()
-
-    def isSearchableLiteral(value: Any): Boolean = value match {
-      // These are types recognized by the `SearchArgumentImpl.BuilderImpl.boxLiteral()` method.
-      case _: String | _: Long | _: Double | _: Byte | _: Short | _: Integer | _: Float => true
-      case _: DateWritable | _: HiveDecimal | _: HiveChar | _: HiveVarchar => true
-      case _ => false
-    }
 
     // lian: I probably missed something here, and had to end up with a pretty weird double-checking
     // pattern when converting `And`/`Or`/`Not` filters.

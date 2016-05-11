@@ -40,10 +40,39 @@
       <groupId>com.facebook.presto</groupId>
       <artifactId>presto-orc</artifactId>
       <version>0.146</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.facebook.presto.hive</groupId>
+          <artifactId>hive-apache</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.facebook.hive</groupId>
+          <artifactId>hive-dwrf</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.facebook.hive</groupId>
+          <artifactId>hive-dwrf-shims</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.facebook.presto</groupId>
       <artifactId>presto-hive</artifactId>
+      <version>0.146</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.facebook.hive</groupId>
+          <artifactId>hive-dwrf</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.facebook.hive</groupId>
+          <artifactId>hive-dwrf-shims</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.facebook.presto</groupId>
+      <artifactId>presto-main</artifactId>
       <version>0.146</version>
     </dependency>
     <dependency>

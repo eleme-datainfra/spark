@@ -19,31 +19,39 @@ package org.apache.spark.sql.hive.orc
 
 import java.util.Properties
 
+import com.facebook.presto.`type`.TypeRegistry
+import com.facebook.presto.hive.{HiveColumnHandle, HiveType}
+import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
+import com.facebook.presto.spi.`type`.Type
 import com.google.common.base.Objects
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
-import org.apache.hadoop.hive.ql.io.orc.{OrcInputFormat, OrcOutputFormat, OrcSerde, OrcSplit, OrcStruct}
+import org.apache.hadoop.hive.ql.io.orc._
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector
 import org.apache.hadoop.hive.serde2.typeinfo.{StructTypeInfo, TypeInfoUtils}
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapred.{InputFormat => MapRedInputFormat, JobConf, OutputFormat => MapRedOutputFormat, RecordWriter, Reporter}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.{InputFormat, Job, TaskAttemptContext}
 
 import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.mapred.SparkHadoopMapRedUtil
-import org.apache.spark.rdd.{HadoopRDD, RDD}
+import org.apache.spark.rdd.{SqlNewHadoopRDD, HadoopRDD, RDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.execution.datasources.PartitionSpec
 import org.apache.spark.sql.hive.{HiveContext, HiveInspectors, HiveMetastoreTypes, HiveShim}
-import org.apache.spark.sql.sources.{Filter, _}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.util.SerializableConfiguration
+import org.apache.spark.util.{Utils, SerializableConfiguration}
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 private[sql] class DefaultSource extends HadoopFsRelationProvider with DataSourceRegister {
 
@@ -204,7 +212,7 @@ private[sql] class OrcRelation(
       inputPaths: Array[FileStatus],
       broadcastedConf: Broadcast[SerializableConfiguration]): RDD[InternalRow] = {
     val output = StructType(requiredColumns.map(dataSchema(_))).toAttributes
-    OrcTableScan(output, this, filters, inputPaths).execute()
+    OrcTableScan(output, this, filters, inputPaths, broadcastedConf).execute()
   }
 
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
@@ -239,7 +247,8 @@ private[orc] case class OrcTableScan(
     attributes: Seq[Attribute],
     @transient relation: OrcRelation,
     filters: Array[Filter],
-    @transient inputPaths: Array[FileStatus])
+    @transient inputPaths: Array[FileStatus],
+    broadcastedConf: Broadcast[SerializableConfiguration])
   extends Logging
   with HiveInspectors {
 
@@ -252,6 +261,34 @@ private[orc] case class OrcTableScan(
     val ids = output.map(a => relation.dataSchema.fieldIndex(a.name): Integer)
     val (sortedIds, sortedNames) = ids.zip(attributes.map(_.name)).sorted.unzip
     HiveShim.appendReadColumns(conf, sortedIds, sortedNames)
+  }
+
+  private def addIncludeColumnsInfo(
+      output: Seq[Attribute],
+      relation: OrcRelation): SerializableColumnInfo = {
+    val typeManager = new TypeRegistry()
+    // val includedColumns = new java.util.HashMap[Integer, Type]()
+    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
+    var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+    output.foreach { a =>
+      val fieldIndex = relation.dataSchema.fieldIndex(a.name)
+      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
+      val hiveType = HiveType.valueOf(mType)
+      val pType = typeManager.getType(hiveType.getTypeSignature)
+      // includedColumns.put(fieldIndex, pType)
+      columnReferences.add(new ColumnReference(
+        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
+        fieldIndex,
+        pType))
+      outputAttrs += ((fieldIndex, a.dataType, pType))
+    }
+    SerializableColumnInfo(outputAttrs.toArray, columnReferences)
+  }
+
+  private def mapDataTypeToType(dataType: DataType, typeManager: TypeRegistry): Type = {
+    val mType = HiveMetastoreTypes.toMetastoreType(dataType)
+    val hiveType = HiveType.valueOf(mType)
+    typeManager.getType(hiveType.getTypeSignature)
   }
 
   // Transform all given raw `Writable`s into `InternalRow`s.
@@ -298,39 +335,54 @@ private[orc] case class OrcTableScan(
     val job = new Job(sqlContext.sparkContext.hadoopConfiguration)
     val conf = SparkHadoopUtil.get.getConfigurationFromJobContext(job)
 
-    // Tries to push down filters if ORC filter push-down is enabled
-    if (sqlContext.conf.orcFilterPushDown) {
-      OrcFilters.createFilter(filters).foreach { f =>
-        conf.set(OrcTableScan.SARG_PUSHDOWN, f.toKryo)
-        conf.setBoolean(ConfVars.HIVEOPTINDEXFILTER.varname, true)
-      }
-    }
-
-    // Sets requested columns
-    addColumnIds(attributes, relation, conf)
-
     if (inputPaths.isEmpty) {
       // the input path probably be pruned, return an empty RDD.
       return sqlContext.sparkContext.emptyRDD[InternalRow]
     }
+
     FileInputFormat.setInputPaths(job, inputPaths.map(_.getPath): _*)
 
-    val inputFormatClass =
-      classOf[OrcInputFormat]
+
+
+    if (sqlContext.conf.useFasterOrcReader) {
+      Utils.withDummyCallSite(sqlContext.sparkContext) {
+        val includedColumnsInfo = addIncludeColumnsInfo(attributes, relation)
+        val inputFormatClass = classOf[OrcNewInputFormat]
+          .asInstanceOf[Class[_ <: InputFormat[NullWritable, InternalRow]]]
+        new FasterOrcRDD[InternalRow](
+          sqlContext,
+          broadcastedConf,
+          includedColumnsInfo,
+          inputFormatClass,
+          classOf[InternalRow])
+      }
+    } else {
+      val inputFormatClass = classOf[OrcInputFormat]
         .asInstanceOf[Class[_ <: MapRedInputFormat[NullWritable, Writable]]]
+      // Tries to push down filters if ORC filter push-down is enabled
+      if (sqlContext.conf.orcFilterPushDown) {
+        OrcFilters.createFilter(filters).foreach { f =>
+          conf.set(OrcTableScan.SARG_PUSHDOWN, f.toKryo)
+          conf.setBoolean(ConfVars.HIVEOPTINDEXFILTER.varname, true)
+        }
+      }
 
-    val rdd = sqlContext.sparkContext.hadoopRDD(
-      conf.asInstanceOf[JobConf],
-      inputFormatClass,
-      classOf[NullWritable],
-      classOf[Writable]
-    ).asInstanceOf[HadoopRDD[NullWritable, Writable]]
+      // Sets requested columns
+      addColumnIds(attributes, relation, conf)
 
-    val wrappedConf = new SerializableConfiguration(conf)
+      val rdd = sqlContext.sparkContext.hadoopRDD(
+        conf.asInstanceOf[JobConf],
+        inputFormatClass,
+        classOf[NullWritable],
+        classOf[Writable]
+      ).asInstanceOf[HadoopRDD[NullWritable, Writable]]
 
-    rdd.mapPartitionsWithInputSplit { case (split: OrcSplit, iterator) =>
-      val writableIterator = iterator.map(_._2)
-      fillObject(split.getPath.toString, wrappedConf.value, writableIterator, attributes)
+      val wrappedConf = new SerializableConfiguration(conf)
+
+      rdd.mapPartitionsWithInputSplit { case (split: OrcSplit, iterator) =>
+        val writableIterator = iterator.map(_._2)
+        fillObject(split.getPath.toString, wrappedConf.value, writableIterator, attributes)
+      }
     }
   }
 }
