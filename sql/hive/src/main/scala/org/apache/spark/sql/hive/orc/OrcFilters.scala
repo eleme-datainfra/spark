@@ -41,14 +41,6 @@ private[orc] object OrcFilters extends Logging {
     } yield builder.build()
   }
 
-  def createPredicate(filters: Array[Filter]): Option[TupleDomain] = {
-    for {
-      // Combines all filters with `And`s to produce a single conjunction predicate
-      conjunction <- filters.reduceOption(And)
-      tupleDomain <- buildPredicate(conjunction)
-    } yield tupleDomain
-  }
-
   def isSearchableLiteral(value: Any): Boolean = value match {
     // These are types recognized by the `SearchArgumentImpl.BuilderImpl.boxLiteral()` method.
     case _: String | _: Long | _: Double | _: Byte | _: Short | _: Integer | _: Float => true

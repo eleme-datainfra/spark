@@ -139,8 +139,9 @@ class FasterOrcRecordReader(
           || e.isInstanceOf[FileNotFoundException]) {
           throw new IOException("Error open split " + inputSplit.toString, e.getCause)
         }
-        throw new IOException(format("Error opening Hive split %s (offset=%s, length=%s): %s",
-          path, (inputSplit.asInstanceOf[FileSplit]).getStart, inputSplit.getLength, e.getMessage))
+        throw new IOException(s"Error opening Hive split $path " +
+          s"(offset=${(inputSplit.asInstanceOf[FileSplit]).getStart}, " +
+          s"length=${inputSplit.getLength}): ${e.getMessage}")
       }
     }
 
