@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.hive.orc
 
-import com.facebook.presto.spi.predicate.TupleDomain
 import org.apache.hadoop.hive.common.`type`.{HiveChar, HiveDecimal, HiveVarchar}
 import org.apache.hadoop.hive.ql.io.sarg.{SearchArgumentFactory, SearchArgument}
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument.Builder

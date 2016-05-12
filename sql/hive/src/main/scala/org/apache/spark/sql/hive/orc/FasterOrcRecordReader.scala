@@ -22,12 +22,15 @@ import com.facebook.presto.hive.orc.HdfsOrcDataSource
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
 import com.facebook.presto.orc._
 import com.facebook.presto.orc.memory.AggregatedMemoryContext
-import com.facebook.presto.orc.metadata.{OrcMetadataReader, MetadataReader}
+import com.facebook.presto.orc.metadata.{DwrfMetadataReader, MetadataReader}
 import com.facebook.presto.spi.`type`.Type
 import com.facebook.presto.spi.block.Block
 import com.facebook.presto.spi.predicate.TupleDomain
 import io.airlift.units.DataSize
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, FSDataInputStream, Path}
+import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions
+import org.apache.hadoop.hive.ql.io.orc.ReaderImpl
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.hadoop.mapreduce.RecordReader
@@ -45,7 +48,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.TimeZone
 import com.google.common.base.Strings.nullToEmpty
-import java.lang.String.format
 import scala.collection.JavaConverters._
 
 
@@ -116,47 +118,74 @@ class FasterOrcRecordReader(
   /**
     * Implementation of RecordReader API.
     */
-  def initialize(inputSplit: InputSplit, taskAttemptContext: TaskAttemptContext) {
+  def initialize(inputSplit: InputSplit, taskAttemptContext: TaskAttemptContext): Unit = {
     val fileSplit: FileSplit = inputSplit.asInstanceOf[FileSplit]
-    var orcDataSource: OrcDataSource = null
     val path: Path = fileSplit.getPath
-    val metadataReader: MetadataReader = new OrcMetadataReader
+    val conf = SparkHadoopUtil.get.getConfigurationFromJobContext(taskAttemptContext)
+    initialize(path, conf)
+  }
+
+  def initialize(path: Path, conf: Configuration): Unit = {
+
+    var orcDataSource: OrcDataSource = null
+    val metadataReader: MetadataReader = new DwrfMetadataReader
     val maxMergeDistance: DataSize = new DataSize(1, DataSize.Unit.MEGABYTE)
     val maxBufferSize: DataSize = new DataSize(8, DataSize.Unit.MEGABYTE)
     val streamBufferSize: DataSize = new DataSize(8, DataSize.Unit.MEGABYTE)
     val hiveStorageTimeZone: DateTimeZone = DateTimeZone.forTimeZone(
       TimeZone.getTimeZone(TimeZone.getDefault.getID))
+
+    var orcReader: ReaderImpl = null
     try {
-      val conf = SparkHadoopUtil.get.getConfigurationFromJobContext(taskAttemptContext)
       val fileSystem = path.getFileSystem(conf)
       val size = fileSystem.getFileStatus(path).getLen
-      val inputStream = fileSystem.open(path)
-      orcDataSource = new HdfsOrcDataSource(path.toString, size, maxMergeDistance,
-        maxBufferSize, streamBufferSize, inputStream)
+      var inputStream: FSDataInputStream = null
+      if (fileSystem.isDirectory(path)) {
+        val childPaths = fileSystem.listStatus(path)
+        val childPath = childPaths(2).getPath
+        inputStream = fileSystem.open(childPath)
+        orcDataSource = new HdfsOrcDataSource(childPath.toString, size, maxMergeDistance,
+          maxBufferSize, streamBufferSize, inputStream)
+        orcReader = new ReaderImpl(childPath, new ReaderOptions(conf))
+      } else {
+        inputStream = fileSystem.open(path)
+        orcDataSource = new HdfsOrcDataSource(path.toString, size, maxMergeDistance,
+          maxBufferSize, streamBufferSize, inputStream)
+        orcReader = new ReaderImpl(path, new ReaderOptions(conf))
+      }
     } catch {
       case e: Exception => {
         if ((nullToEmpty(e.getMessage).trim == "Filesystem closed")
           || e.isInstanceOf[FileNotFoundException]) {
-          throw new IOException("Error open split " + inputSplit.toString, e.getCause)
+          throw new IOException("Error open split " + path.toString, e.getCause)
         }
-        throw new IOException(s"Error opening Hive split $path " +
-          s"(offset=${(inputSplit.asInstanceOf[FileSplit]).getStart}, " +
-          s"length=${inputSplit.getLength}): ${e.getMessage}")
+        throw new IOException(s"Error opening Hive split $path ")
       }
     }
 
     val systemMemoryUsage: AggregatedMemoryContext = new AggregatedMemoryContext
 
-    val reader: OrcReader = new OrcReader(orcDataSource, metadataReader,
-      maxMergeDistance, maxBufferSize)
+    // val reader: OrcReader = new OrcReader(orcDataSource, metadataReader,
+    //  maxMergeDistance, maxBufferSize)
 
     val effectivePredicate: TupleDomain[HiveColumnHandle] = TupleDomain.all()
     val predicate = new TupleDomainOrcPredicate[HiveColumnHandle](effectivePredicate,
       columnReferences)
     val columns = output.map(x => (x._1: Integer, x._3)).toMap.asJava
 
-    recordReader = reader.createRecordReader(columns, predicate,
-      hiveStorageTimeZone, systemMemoryUsage)
+    // readFooter()
+
+    // recordReader = new OrcRecordReader(
+    //  columns,
+    //  predicate,
+    //  orcReader.getNumberOfRows,
+    //  OrcUtils.toStripeInformation(orcReader.getStripes),
+
+
+    // )
+
+    // recordReader = reader.createRecordReader(columns, predicate,
+    //  hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
 
     /**
@@ -183,6 +212,10 @@ class FasterOrcRecordReader(
       rowWriters(i).initialize(rows(i), holder, output.size)
       rows(i).pointTo(holder.buffer, Platform.BYTE_ARRAY_OFFSET, output.size, holder.buffer.length)
     }
+  }
+
+  def readFooter(fs: FileSystem, path: Path): Unit = {
+
   }
 
   def nextKeyValue: Boolean = {

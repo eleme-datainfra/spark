@@ -19,14 +19,24 @@ package org.apache.spark.sql.hive.orc
 
 import java.io.File
 
+import com.facebook.presto.`type`.TypeRegistry
+import com.facebook.presto.hive.{HiveType, HiveColumnHandle}
+import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
+import com.facebook.presto.spi.`type`.Type
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.ql.io.orc.CompressionKind
+import org.apache.spark.sql.hive.HiveMetastoreTypes
+import org.apache.spark.sql.types._
 import org.scalatest.BeforeAndAfterAll
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.hive.test.TestHive._
 import org.apache.spark.sql.hive.test.TestHive.implicits._
+
+import scala.collection.mutable
 
 case class AllDataTypesWithNonPrimitiveType(
     stringField: String,
@@ -66,6 +76,43 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       checkAnswer(
         sqlContext.read.orc(file),
         data.toDF().collect())
+    }
+  }
+
+  test("Read/write All Types by new reader") {
+    val data = (0 to 100000).map { i =>
+      (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(i))
+    }
+    val types = Array((0, StringType), (1, IntegerType), (2, FloatType), (3, DoubleType),
+      (4, ShortType), (5, ByteType), (6, BooleanType), (7, DecimalType.USER_DEFAULT))
+    val typeManager = new TypeRegistry()
+    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
+    var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+    types.foreach { t =>
+      val dataType = t._2.asInstanceOf[DataType]
+      val mType = HiveMetastoreTypes.toMetastoreType(dataType)
+      val hiveType = HiveType.valueOf(mType)
+      val pType = typeManager.getType(hiveType.getTypeSignature)
+      // includedColumns.put(fieldIndex, pType)
+      columnReferences.add(new ColumnReference(
+        new HiveColumnHandle("", t._1.toString, hiveType, hiveType.getTypeSignature, t._1, false),
+        t._1,
+        pType))
+        outputAttrs += ((t._1, dataType, pType))
+      }
+
+    withOrcFile(data) { file =>
+      try {
+        val reader = new FasterOrcRecordReader(outputAttrs.toArray, columnReferences)
+        reader.initialize(new Path(file), new Configuration())
+        while(reader.nextKeyValue) {
+          val row = reader.getCurrentValue
+        }
+      } catch {
+        case e: Exception =>
+          e.printStackTrace()
+      }
+
     }
   }
 
