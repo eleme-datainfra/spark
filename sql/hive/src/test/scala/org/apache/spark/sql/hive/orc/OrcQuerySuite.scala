@@ -80,7 +80,7 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
   }
 
   test("Read/write All Types by new reader") {
-    val data = (0 to 100000).map { i =>
+    val data = (0 to 1000).map { i =>
       (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(i))
     }
     val types = Array((0, StringType), (1, IntegerType), (2, FloatType), (3, DoubleType),

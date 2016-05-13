@@ -22,7 +22,7 @@ import com.facebook.presto.hive.orc.HdfsOrcDataSource
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
 import com.facebook.presto.orc._
 import com.facebook.presto.orc.memory.AggregatedMemoryContext
-import com.facebook.presto.orc.metadata.{DwrfMetadataReader, MetadataReader}
+import com.facebook.presto.orc.metadata.{OrcMetadataReader, MetadataReader}
 import com.facebook.presto.spi.`type`.Type
 import com.facebook.presto.spi.block.Block
 import com.facebook.presto.spi.predicate.TupleDomain
@@ -128,7 +128,7 @@ class FasterOrcRecordReader(
   def initialize(path: Path, conf: Configuration): Unit = {
 
     var orcDataSource: OrcDataSource = null
-    val metadataReader: MetadataReader = new DwrfMetadataReader
+    val metadataReader: MetadataReader = new OrcMetadataReader
     val maxMergeDistance: DataSize = new DataSize(1, DataSize.Unit.MEGABYTE)
     val maxBufferSize: DataSize = new DataSize(8, DataSize.Unit.MEGABYTE)
     val streamBufferSize: DataSize = new DataSize(8, DataSize.Unit.MEGABYTE)
@@ -144,14 +144,14 @@ class FasterOrcRecordReader(
         val childPaths = fileSystem.listStatus(path)
         val childPath = childPaths(2).getPath
         inputStream = fileSystem.open(childPath)
-        orcDataSource = new HdfsOrcDataSource(childPath.toString, size, maxMergeDistance,
-          maxBufferSize, streamBufferSize, inputStream)
-        orcReader = new ReaderImpl(childPath, new ReaderOptions(conf))
+        orcDataSource = new HdfsOrcDataSource(childPath.toString, childPaths(2).getLen,
+          maxMergeDistance, maxBufferSize, streamBufferSize, inputStream)
+        // orcReader = new ReaderImpl(childPath, new ReaderOptions(conf))
       } else {
         inputStream = fileSystem.open(path)
         orcDataSource = new HdfsOrcDataSource(path.toString, size, maxMergeDistance,
           maxBufferSize, streamBufferSize, inputStream)
-        orcReader = new ReaderImpl(path, new ReaderOptions(conf))
+        // orcReader = new ReaderImpl(path, new ReaderOptions(conf))
       }
     } catch {
       case e: Exception => {
@@ -165,27 +165,16 @@ class FasterOrcRecordReader(
 
     val systemMemoryUsage: AggregatedMemoryContext = new AggregatedMemoryContext
 
-    // val reader: OrcReader = new OrcReader(orcDataSource, metadataReader,
-    //  maxMergeDistance, maxBufferSize)
+    val reader: OrcReader = new OrcReader(orcDataSource, metadataReader,
+      maxMergeDistance, maxBufferSize)
 
     val effectivePredicate: TupleDomain[HiveColumnHandle] = TupleDomain.all()
     val predicate = new TupleDomainOrcPredicate[HiveColumnHandle](effectivePredicate,
       columnReferences)
     val columns = output.map(x => (x._1: Integer, x._3)).toMap.asJava
 
-    // readFooter()
-
-    // recordReader = new OrcRecordReader(
-    //  columns,
-    //  predicate,
-    //  orcReader.getNumberOfRows,
-    //  OrcUtils.toStripeInformation(orcReader.getStripes),
-
-
-    // )
-
-    // recordReader = reader.createRecordReader(columns, predicate,
-    //  hiveStorageTimeZone, systemMemoryUsage)
+    recordReader = reader.createRecordReader(columns, predicate,
+      hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
 
     /**
@@ -214,9 +203,6 @@ class FasterOrcRecordReader(
     }
   }
 
-  def readFooter(fs: FileSystem, path: Path): Unit = {
-
-  }
 
   def nextKeyValue: Boolean = {
     if (batchIdx >= numBatched) {

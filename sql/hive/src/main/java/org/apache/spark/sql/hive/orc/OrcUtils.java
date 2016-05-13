@@ -18,26 +18,31 @@
 package org.apache.spark.sql.hive.orc;
 
 
-import org.apache.hadoop.hive.ql.io.orc.OrcProto;
-import com.facebook.presto.orc.metadata.StripeInformation;
+
+import com.facebook.presto.orc.metadata.*;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Ints;
 
+
+
+
 import javax.annotation.Nullable;
 import java.util.List;
+
 
 public class OrcUtils {
 
     public static List<StripeInformation> toStripeInformation(
-        List<OrcProto.StripeInformation> types) {
+        List<org.apache.hadoop.hive.ql.io.orc.StripeInformation> types) {
         return ImmutableList.copyOf(Iterables.transform(types,
-            new Function<OrcProto.StripeInformation, StripeInformation>() {
+            new Function<org.apache.hadoop.hive.ql.io.orc.StripeInformation, StripeInformation>() {
                 @Nullable
                 @Override
                 public StripeInformation apply(
-                    @Nullable OrcProto.StripeInformation stripeInformation) {
+                    @Nullable
+                    org.apache.hadoop.hive.ql.io.orc.StripeInformation stripeInformation) {
                     return toStripeInformation(stripeInformation);
                 }
             }
@@ -45,8 +50,7 @@ public class OrcUtils {
     }
 
     private static StripeInformation toStripeInformation(
-        OrcProto.StripeInformation stripeInformation)
-    {
+        org.apache.hadoop.hive.ql.io.orc.StripeInformation stripeInformation) {
         return new StripeInformation(
             Ints.checkedCast(stripeInformation.getNumberOfRows()),
             stripeInformation.getOffset(),

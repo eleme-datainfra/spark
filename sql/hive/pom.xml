@@ -36,37 +36,6 @@
   </properties>
 
   <dependencies>
-    <dependency>
-      <groupId>com.facebook.presto</groupId>
-      <artifactId>presto-orc</artifactId>
-      <version>0.146</version>
-      <exclusions>
-        <exclusion>
-          <groupId>com.facebook.presto.hive</groupId>
-          <artifactId>hive-apache</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-jdk14</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.facebook.presto</groupId>
-      <artifactId>presto-hive</artifactId>
-      <version>0.146</version>
-      <exclusions>
-        <exclusion>
-          <groupId>com.facebook.presto.hive</groupId>
-          <artifactId>hive-apache</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.facebook.presto</groupId>
-      <artifactId>presto-main</artifactId>
-      <version>0.146</version>
-    </dependency>
 
     <!-- Added for Hive Parquet SerDe -->
     <dependency>
