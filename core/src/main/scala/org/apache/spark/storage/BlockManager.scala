@@ -21,7 +21,6 @@ import java.io._
 import java.nio.{ByteBuffer, MappedByteBuffer}
 import java.util.concurrent.ConcurrentHashMap
 
-
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -167,8 +166,8 @@ private[spark] class BlockManager(
    * loaded yet. */
   private lazy val compressionCodec: CompressionCodec = CompressionCodec.createCodec(conf)
 
-  // Removing blocks
-  private val pendingToRemove = new ConcurrentHashMap[BlockId, Long]()
+  // Blocks are removing by another thread
+  val pendingToRemove = new ConcurrentHashMap[BlockId, Long]()
 
   private val NON_TASK_WRITER = -1024L
 
@@ -1033,56 +1032,58 @@ private[spark] class BlockManager(
     val info = blockInfo.get(blockId).orNull
 
     // If the block has not already been dropped
-    if (info != null && !pendingToRemove.containsKey(blockId)) {
-      info.synchronized {
-        // required ? As of now, this will be invoked only for blocks which are ready
-        // But in case this changes in future, adding for consistency sake.
-        if (!info.waitForReady()) {
-          // If we get here, the block write failed.
-          logWarning(s"Block $blockId was marked as failure. Nothing to drop")
-          return None
-        } else if (blockInfo.get(blockId).isEmpty) {
-          logWarning(s"Block $blockId was already dropped.")
-          return None
-        }
-        var blockIsUpdated = false
-        val level = info.level
-
-        // Drop to disk, if storage level requires
-        if (level.useDisk && !diskStore.contains(blockId)) {
-          logInfo(s"Writing block $blockId to disk")
-          data() match {
-            case Left(elements) =>
-              diskStore.putArray(blockId, elements, level, returnValues = false)
-            case Right(bytes) =>
-              diskStore.putBytes(blockId, bytes, level)
+    if (info != null && pendingToRemove.putIfAbsent(blockId, currentTaskAttemptId) == 0L) {
+      try {
+        info.synchronized {
+          // required ? As of now, this will be invoked only for blocks which are ready
+          // But in case this changes in future, adding for consistency sake.
+          if (!info.waitForReady()) {
+            // If we get here, the block write failed.
+            logWarning(s"Block $blockId was marked as failure. Nothing to drop")
+            return None
+          } else if (blockInfo.get(blockId).isEmpty) {
+            logWarning(s"Block $blockId was already dropped.")
+            return None
           }
-          blockIsUpdated = true
-        }
-        pendingToRemove.put(blockId, currentTaskAttemptId)
+          var blockIsUpdated = false
+          val level = info.level
 
-        // Actually drop from memory store
-        val droppedMemorySize =
-          if (memoryStore.contains(blockId)) memoryStore.getSize(blockId) else 0L
-        val blockIsRemoved = memoryStore.remove(blockId)
+          // Drop to disk, if storage level requires
+          if (level.useDisk && !diskStore.contains(blockId)) {
+            logInfo(s"Writing block $blockId to disk")
+            data() match {
+              case Left(elements) =>
+                diskStore.putArray(blockId, elements, level, returnValues = false)
+              case Right(bytes) =>
+                diskStore.putBytes(blockId, bytes, level)
+            }
+            blockIsUpdated = true
+          }
+
+          // Actually drop from memory store
+          val droppedMemorySize =
+            if (memoryStore.contains(blockId)) memoryStore.getSize(blockId) else 0L
+          val blockIsRemoved = memoryStore.remove(blockId)
+          if (blockIsRemoved) {
+            blockIsUpdated = true
+          } else {
+            logWarning(s"Block $blockId could not be dropped from memory as it does not exist")
+          }
+
+          val status = getCurrentBlockStatus(blockId, info)
+          if (info.tellMaster) {
+            reportBlockStatus(blockId, info, status, droppedMemorySize)
+          }
+          if (!level.useDisk) {
+            // The block is completely gone from this node;forget it so we can put() it again later.
+            blockInfo.remove(blockId)
+          }
+          if (blockIsUpdated) {
+            return Some(status)
+          }
+        }
+      } finally {
         pendingToRemove.remove(blockId)
-        if (blockIsRemoved) {
-          blockIsUpdated = true
-        } else {
-          logWarning(s"Block $blockId could not be dropped from memory as it does not exist")
-        }
-
-        val status = getCurrentBlockStatus(blockId, info)
-        if (info.tellMaster) {
-          reportBlockStatus(blockId, info, status, droppedMemorySize)
-        }
-        if (!level.useDisk) {
-          // The block is completely gone from this node; forget it so we can put() it again later.
-          blockInfo.remove(blockId)
-        }
-        if (blockIsUpdated) {
-          return Some(status)
-        }
       }
     }
     None
@@ -1119,6 +1120,29 @@ private[spark] class BlockManager(
   def removeBlock(blockId: BlockId, tellMaster: Boolean = true): Unit = {
     logDebug(s"Removing block $blockId")
     val info = blockInfo.get(blockId).orNull
+    if (info != null && pendingToRemove.putIfAbsent(blockId, currentTaskAttemptId) == 0L) {
+      try {
+        info.synchronized {
+          val level = info.level
+          // Removals are idempotent in disk store and memory store. At worst, we get a warning.
+          val removedFromMemory = if (level.useMemory) memoryStore.remove(blockId) else false
+          val removedFromDisk = if (level.useDisk) diskStore.remove(blockId) else false
+          val removedFromExternalBlockStore =
+            if (externalBlockStoreInitialized) externalBlockStore.remove(blockId) else false
+          if (!removedFromMemory && !removedFromDisk && !removedFromExternalBlockStore) {
+            logWarning(s"Block $blockId could not be removed as it was not found in either " +
+              "the disk, memory, or external block store")
+          }
+          blockInfo.remove(blockId)
+          val status = getCurrentBlockStatus(blockId, info)
+          if (tellMaster && info.tellMaster) {
+            reportBlockStatus(blockId, info, status)
+          }
+          Option(TaskContext.get()).foreach { tc =>
+            val metrics = tc.taskMetrics()
+            val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
+            metrics.updatedBlocks = Some(lastUpdatedBlocks ++ Seq((blockId, status)))
+          }
     if (info != null && !pendingToRemove.containsKey(blockId)) {
       pendingToRemove.put(blockId, currentTaskAttemptId)
       info.synchronized {
@@ -1143,6 +1167,8 @@ private[spark] class BlockManager(
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ Seq((blockId, status)))
         }
+      } finally {
+        pendingToRemove.remove(blockId)
       }
     } else {
       // The block has already been removed; do nothing.
@@ -1165,6 +1191,19 @@ private[spark] class BlockManager(
     while (iterator.hasNext) {
       val entry = iterator.next()
       val (id, info, time) = (entry.getKey, entry.getValue.value, entry.getValue.timestamp)
+      if (time < cleanupTime && shouldDrop(id) &&
+        pendingToRemove.putIfAbsent(id, currentTaskAttemptId) == 0L) {
+        try {
+          info.synchronized {
+            val level = info.level
+            if (level.useMemory) { memoryStore.remove(id) }
+            if (level.useDisk) { diskStore.remove(id) }
+            if (level.useOffHeap) { externalBlockStore.remove(id) }
+            iterator.remove()
+            logInfo(s"Dropped block $id")
+          }
+        } finally {
+          pendingToRemove.remove(id)
       if (time < cleanupTime && shouldDrop(id)) {
         pendingToRemove.put(id, currentTaskAttemptId)
         info.synchronized {
@@ -1180,6 +1219,32 @@ private[spark] class BlockManager(
         reportBlockStatus(id, info, status)
       }
     }
+  }
+
+  private def currentTaskAttemptId: Long = {
+    Option(TaskContext.get()).map(_.taskAttemptId()).getOrElse(NON_TASK_WRITER)
+  }
+
+  def getBlockInfo(blockId: BlockId): BlockInfo = {
+    blockInfo.get(blockId).orNull
+  }
+
+  /**
+   * Release all lock held by the given task, clearing that task's pin bookkeeping
+   * structures and updating the global pin counts. This method should be called at the
+   * end of a task (either by a task completion handler or in `TaskRunner.run()`).
+   *
+   * @return the ids of blocks whose pins were released
+   */
+  def releaseAllLocksForTask(taskAttemptId: Long): ArrayBuffer[BlockId] = {
+    var selectLocks = ArrayBuffer[BlockId]()
+    pendingToRemove.entrySet().asScala.foreach { entry =>
+      if (entry.getValue == taskAttemptId) {
+        pendingToRemove.remove(entry.getKey)
+        selectLocks += entry.getKey
+      }
+    }
+    selectLocks
   }
 
   private def currentTaskAttemptId: Long = {

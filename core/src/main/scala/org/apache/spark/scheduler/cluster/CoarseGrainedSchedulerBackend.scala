@@ -179,6 +179,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
         context.reply(true)
 
       case RemoveExecutor(executorId, reason) =>
+        // We will remove the executor's state and cannot restore it. However, the connection
+        // between the driver and the executor may be still alive so that the executor won't exit
+        // automatically, so try to tell the executor to stop itself. See SPARK-13519.
+        executorDataMap.get(executorId).foreach(_.executorEndpoint.send(StopExecutor))
         removeExecutor(executorId, reason)
         context.reply(true)
 
@@ -263,7 +267,14 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           scheduler.executorLost(executorId, if (killed) ExecutorKilled else reason)
           listenerBus.post(
             SparkListenerExecutorRemoved(System.currentTimeMillis(), executorId, reason.toString))
-        case None => logInfo(s"Asked to remove non-existent executor $executorId")
+        case None =>
+          // SPARK-15262: If an executor is still alive even after the scheduler has removed
+          // its metadata, we may receive a heartbeat from that executor and tell its block
+          // manager to reregister itself. If that happens, the block manager master will know
+          // about the executor, but the scheduler will not. Therefore, we should remove the
+          // executor from the block manager when we hit this case.
+          scheduler.sc.env.blockManager.master.removeExecutor(executorId)
+          logInfo(s"Asked to remove non-existent executor $executorId")
       }
     }
 
