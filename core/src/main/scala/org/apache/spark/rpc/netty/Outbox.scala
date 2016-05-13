@@ -237,10 +237,6 @@ private[netty] class Outbox(nettyEnv: NettyRpcEnv, val address: RpcAddress) {
   }
 
   private def closeClient(): Unit = synchronized {
-    // Not sure if `client.close` is idempotent. Just for safety.
-    if (client != null) {
-      client.close()
-    }
     client = null
   }
 
