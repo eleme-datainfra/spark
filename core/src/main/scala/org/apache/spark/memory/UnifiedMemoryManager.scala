@@ -90,7 +90,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
       taskAttemptId: Long,
       memoryMode: MemoryMode,
       forceAcquire: Boolean = false): Long = synchronized {
-    assert(onHeapExecutionMemoryPool.poolSize + storageMemoryPool.poolSize == maxMemory)
+    assertInvariant()
     assert(numBytes >= 0)
     memoryMode match {
       case MemoryMode.ON_HEAP =>
