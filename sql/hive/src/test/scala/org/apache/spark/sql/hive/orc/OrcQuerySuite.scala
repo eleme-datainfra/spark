@@ -80,11 +80,12 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
   }
 
   test("Read/write All Types by new reader") {
-    val data = (0 to 1000).map { i =>
-      (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(i))
+    val data = (0 to 20).map { i =>
+      (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(1.1),
+        new DateType())
     }
-    val types = Array((0, StringType), (1, IntegerType), (2, FloatType), (3, DoubleType),
-      (4, ShortType), (5, ByteType), (6, BooleanType), (7, DecimalType.USER_DEFAULT))
+    val types = Array((0, StringType), (1, IntegerType), (2, LongType), (3, FloatType),
+      (4, DoubleType), (5, ShortType), (6, ByteType), (7, BooleanType), (8, DecimalType(17, 3)))
     val typeManager = new TypeRegistry()
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
     var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]

@@ -256,7 +256,7 @@ class FasterOrcRecordReader(
         block = recordReader.readBlock(output(col)._3, output(col)._1)
 
         for (row <- 0 until numBatched) {
-          if (!block.isNull(row)) {
+          if (block.isNull(row)) {
             rows(row).setNullAt(col)
           } else {
             output(col)._2 match {
@@ -275,23 +275,22 @@ class FasterOrcRecordReader(
                 rows(row).setBoolean(col, block.getByte(row, 0) != 0)
 
               case ByteType =>
-                rows(row).setByte(col, block.getByte(col, 0))
+                rows(row).setByte(col, block.getByte(row, 0))
 
               case DateType =>
-                rows(row).setInt(col, block.getLong(col, 0).toInt)
+                rows(row).setInt(col, block.getLong(row, 0).toInt)
 
-              case t @ DecimalType() =>
-                val dType = t.asInstanceOf[DecimalType]
+              case dt: DecimalType =>
                 rows(row).setDecimal(
                   col,
-                  Decimal.apply(block.getLong(row, 0), dType.precision, dType.scale),
-                  dType.precision)
+                  Decimal.apply(block.getLong(row, 0), dt.precision, dt.scale),
+                  dt.precision)
 
               case DoubleType =>
                 rows(row).setDouble(col, block.getDouble(row, 0))
 
               case FloatType =>
-                rows(row).setFloat(col, block.getFloat(row, 0))
+                rows(row).setFloat(col, block.getDouble(row, 0).toFloat)
 
               case IntegerType =>
                 rows(row).setInt(col, block.getInt(row, 0))
@@ -303,11 +302,11 @@ class FasterOrcRecordReader(
               case ShortType =>
                 rows(row).setShort(col, block.getShort(row, 0))
 
-              case MapType(keyType, valueType, valueContainsNull) =>
-              case ArrayType(elementType, containsNull) =>
-              case StructType(fields) =>
+              case dt: MapType =>
+              case dt: ArrayType =>
+              case dt: StructType =>
               case _ =>
-                throw new SparkException("Unsupport Type " + output(col)._2)
+                throw new SparkException("Unsupported Type " + output(col)._2)
             }
           }
         }
@@ -316,7 +315,9 @@ class FasterOrcRecordReader(
       // Update the total row lengths if the schema contained variable length. We did not maintain
       // this as we populated the columns.
       if (containsVarLenFields) {
-
+        for (i <- 0 until rowWriters.length) {
+          rows(i).setTotalSize(rowWriters(i).holder.totalSize)
+        }
       }
 
     } catch {
