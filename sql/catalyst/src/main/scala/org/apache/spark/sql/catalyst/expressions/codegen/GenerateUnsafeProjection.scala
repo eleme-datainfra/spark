@@ -31,7 +31,7 @@ import org.apache.spark.sql.types._
  */
 object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafeProjection] {
 
-  /** Returns true iff we support this data type. */
+  /** Returns true if we support this data type. */
   def canSupport(dataType: DataType): Boolean = dataType match {
     case NullType => true
     case t: AtomicType => true

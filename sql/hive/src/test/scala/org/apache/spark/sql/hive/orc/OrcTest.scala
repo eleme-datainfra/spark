@@ -37,7 +37,7 @@ private[sql] trait OrcTest extends SQLTestUtils with TestHiveSingleton {
       (data: Seq[T])
       (f: String => Unit): Unit = {
     withTempPath { file =>
-      sparkContext.parallelize(data).toDF().write.orc(file.getCanonicalPath)
+      sparkContext.parallelize(data, 1).toDF().write.orc(file.getCanonicalPath)
       f(file.getCanonicalPath)
     }
   }

@@ -26,7 +26,10 @@ import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
-import org.apache.hadoop.hive.ql.io.orc.CompressionKind
+import org.apache.hadoop.hive.ql.io.orc.{OrcStruct, OrcInputFormat, CompressionKind}
+import org.apache.hadoop.io.NullWritable
+import org.apache.hadoop.mapred.{Reporter, JobConf, FileSplit}
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.hive.HiveMetastoreTypes
 import org.apache.spark.sql.types._
 import org.scalatest.BeforeAndAfterAll
@@ -80,9 +83,8 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
   }
 
   test("Read/write All Types by new reader") {
-    val data = (0 to 20).map { i =>
-      (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(1.1),
-        new DateType())
+    val data = (0 to 1000000).map { i =>
+      (s"$i", i, i.toLong, i.toFloat, i.toDouble, i.toShort, i.toByte, i % 2 == 0, BigDecimal(1.1))
     }
     val types = Array((0, StringType), (1, IntegerType), (2, LongType), (3, FloatType),
       (4, DoubleType), (5, ShortType), (6, ByteType), (7, BooleanType), (8, DecimalType(17, 3)))
@@ -94,21 +96,49 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       val mType = HiveMetastoreTypes.toMetastoreType(dataType)
       val hiveType = HiveType.valueOf(mType)
       val pType = typeManager.getType(hiveType.getTypeSignature)
-      // includedColumns.put(fieldIndex, pType)
       columnReferences.add(new ColumnReference(
         new HiveColumnHandle("", t._1.toString, hiveType, hiveType.getTypeSignature, t._1, false),
+
         t._1,
         pType))
         outputAttrs += ((t._1, dataType, pType))
       }
 
     withOrcFile(data) { file =>
+      val inputFormatClass = classOf[OrcInputFormat]
+      val conf = new Configuration()
+      println(file)
+      val filePath = new Path(file)
+      val jobConf = new JobConf(conf)
+      val fs = filePath.getFileSystem(conf)
+      val fileStatus = fs.listStatus(filePath)(1)
+      var start = System.currentTimeMillis()
+      println("file size: " + fileStatus.getLen)
+      val oldOrcRecordReader = inputFormatClass.newInstance().getRecordReader(
+        new FileSplit(fileStatus.getPath, 0L, fileStatus.getLen, jobConf),
+        jobConf,
+        Reporter.NULL
+        )
+
+      val value: OrcStruct = oldOrcRecordReader.createValue()
+
+      while(oldOrcRecordReader.next(NullWritable.get(), value)) {
+      }
+      var end = System.currentTimeMillis()
+      println("old orc reader:" + (end - start) / 1000 + " ms")
+
       try {
+
         val reader = new FasterOrcRecordReader(outputAttrs.toArray, columnReferences)
         reader.initialize(new Path(file), new Configuration())
+        var row: UnsafeRow = null
+        start = System.currentTimeMillis()
         while(reader.nextKeyValue) {
-          val row = reader.getCurrentValue
+
         }
+        println(reader.getProgress)
+        end = System.currentTimeMillis()
+        println("new orc reader:" + (end - start) + " ms")
       } catch {
         case e: Exception =>
           e.printStackTrace()

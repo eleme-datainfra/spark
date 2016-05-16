@@ -135,23 +135,20 @@ class FasterOrcRecordReader(
     val hiveStorageTimeZone: DateTimeZone = DateTimeZone.forTimeZone(
       TimeZone.getTimeZone(TimeZone.getDefault.getID))
 
-    var orcReader: ReaderImpl = null
     try {
       val fileSystem = path.getFileSystem(conf)
       val size = fileSystem.getFileStatus(path).getLen
       var inputStream: FSDataInputStream = null
       if (fileSystem.isDirectory(path)) {
         val childPaths = fileSystem.listStatus(path)
-        val childPath = childPaths(2).getPath
+        val childPath = childPaths(1).getPath
         inputStream = fileSystem.open(childPath)
-        orcDataSource = new HdfsOrcDataSource(childPath.toString, childPaths(2).getLen,
+        orcDataSource = new HdfsOrcDataSource(childPath.toString, childPaths(1).getLen,
           maxMergeDistance, maxBufferSize, streamBufferSize, inputStream)
-        // orcReader = new ReaderImpl(childPath, new ReaderOptions(conf))
       } else {
         inputStream = fileSystem.open(path)
         orcDataSource = new HdfsOrcDataSource(path.toString, size, maxMergeDistance,
           maxBufferSize, streamBufferSize, inputStream)
-        // orcReader = new ReaderImpl(path, new ReaderOptions(conf))
       }
     } catch {
       case e: Exception => {
@@ -237,6 +234,7 @@ class FasterOrcRecordReader(
     }
 
     try {
+      batchIdx = 0
       numBatched = recordReader.nextBatch
       if (numBatched <= 0) {
         close()

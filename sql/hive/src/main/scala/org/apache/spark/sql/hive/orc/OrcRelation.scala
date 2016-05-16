@@ -342,8 +342,6 @@ private[orc] case class OrcTableScan(
 
     FileInputFormat.setInputPaths(job, inputPaths.map(_.getPath): _*)
 
-
-
     if (sqlContext.conf.useFasterOrcReader) {
       Utils.withDummyCallSite(sqlContext.sparkContext) {
         val includedColumnsInfo = addIncludeColumnsInfo(attributes, relation)
