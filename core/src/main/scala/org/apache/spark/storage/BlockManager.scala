@@ -1091,8 +1091,7 @@ private[spark] class BlockManager(
 
   /**
    * Remove all blocks belonging to the given RDD.
-    *
-    * @return The number of blocks removed.
+   * @return The number of blocks removed.
    */
   def removeRdd(rddId: Int): Int = {
     // TODO: Avoid a linear scan by creating another mapping of RDD.id to blocks.
@@ -1143,29 +1142,6 @@ private[spark] class BlockManager(
             val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
             metrics.updatedBlocks = Some(lastUpdatedBlocks ++ Seq((blockId, status)))
           }
-    if (info != null && !pendingToRemove.containsKey(blockId)) {
-      pendingToRemove.put(blockId, currentTaskAttemptId)
-      info.synchronized {
-        val level = info.level
-        // Removals are idempotent in disk store and memory store. At worst, we get a warning.
-        val removedFromMemory = if (level.useMemory) memoryStore.remove(blockId) else false
-        pendingToRemove.remove(blockId)
-        val removedFromDisk = if (level.useDisk) diskStore.remove(blockId) else false
-        val removedFromExternalBlockStore =
-          if (externalBlockStoreInitialized) externalBlockStore.remove(blockId) else false
-        if (!removedFromMemory && !removedFromDisk && !removedFromExternalBlockStore) {
-          logWarning(s"Block $blockId could not be removed as it was not found in either " +
-            "the disk, memory, or external block store")
-        }
-        blockInfo.remove(blockId)
-        val status = getCurrentBlockStatus(blockId, info)
-        if (tellMaster && info.tellMaster) {
-          reportBlockStatus(blockId, info, status)
-        }
-        Option(TaskContext.get()).foreach { tc =>
-          val metrics = tc.taskMetrics()
-          val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
-          metrics.updatedBlocks = Some(lastUpdatedBlocks ++ Seq((blockId, status)))
         }
       } finally {
         pendingToRemove.remove(blockId)
@@ -1204,16 +1180,6 @@ private[spark] class BlockManager(
           }
         } finally {
           pendingToRemove.remove(id)
-      if (time < cleanupTime && shouldDrop(id)) {
-        pendingToRemove.put(id, currentTaskAttemptId)
-        info.synchronized {
-          val level = info.level
-          if (level.useMemory) { memoryStore.remove(id) }
-          pendingToRemove.remove(id)
-          if (level.useDisk) { diskStore.remove(id) }
-          if (level.useOffHeap) { externalBlockStore.remove(id) }
-          iterator.remove()
-          logInfo(s"Dropped block $id")
         }
         val status = getCurrentBlockStatus(id, info)
         reportBlockStatus(id, info, status)
@@ -1227,28 +1193,6 @@ private[spark] class BlockManager(
 
   def getBlockInfo(blockId: BlockId): BlockInfo = {
     blockInfo.get(blockId).orNull
-  }
-
-  /**
-   * Release all lock held by the given task, clearing that task's pin bookkeeping
-   * structures and updating the global pin counts. This method should be called at the
-   * end of a task (either by a task completion handler or in `TaskRunner.run()`).
-   *
-   * @return the ids of blocks whose pins were released
-   */
-  def releaseAllLocksForTask(taskAttemptId: Long): ArrayBuffer[BlockId] = {
-    var selectLocks = ArrayBuffer[BlockId]()
-    pendingToRemove.entrySet().asScala.foreach { entry =>
-      if (entry.getValue == taskAttemptId) {
-        pendingToRemove.remove(entry.getKey)
-        selectLocks += entry.getKey
-      }
-    }
-    selectLocks
-  }
-
-  private def currentTaskAttemptId: Long = {
-    Option(TaskContext.get()).map(_.taskAttemptId()).getOrElse(NON_TASK_WRITER)
   }
 
   /**
