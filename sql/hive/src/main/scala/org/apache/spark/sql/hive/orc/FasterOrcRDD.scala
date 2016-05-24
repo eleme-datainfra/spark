@@ -17,18 +17,24 @@
 
 package org.apache.spark.sql.hive.orc
 
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.{ExecutorCompletionService, Callable, Executors}
 
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
 import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
+import org.apache.hadoop.util.StringUtils
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
+import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
+import OrcUtil.StripeSplit
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
 import org.apache.spark.broadcast.Broadcast
@@ -37,11 +43,11 @@ import org.apache.spark.rdd._
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 private[orc] case class SerializableColumnInfo(
     @transient var output: Array[(Int, DataType, Type)],
-    // @transient var columns: java.util.Map[Integer, Type],
     @transient var columnReferences: java.util.List[ColumnReference[HiveColumnHandle]])
   extends Serializable
 
@@ -55,6 +61,21 @@ private[orc] class FasterOrcRDD[V: ClassTag](
     with SparkHadoopMapReduceUtil
     with Logging {
 
+  def this(
+      sqlContext: SQLContext,
+      jobConf: Configuration,
+      columnInfo: SerializableColumnInfo,
+      inputFormatClass: Class[_ <: InputFormat[NullWritable, V]],
+      valueClass: Class[V]) {
+
+    this(sqlContext,
+      sqlContext.sparkContext.broadcast(jobConf),
+      columnInfo,
+      inputFormatClass,
+      valueClass
+    )
+  }
+
   private val jobTrackerId: String = {
     val formatter = new SimpleDateFormat("yyyyMMddHHmm")
     formatter.format(new Date())
@@ -67,22 +88,65 @@ private[orc] class FasterOrcRDD[V: ClassTag](
     * be called once, so it is safe to implement a time-consuming computation in it.
     */
   override protected def getPartitions: Array[Partition] = {
-    val conf: Configuration = broadcastedConf.value.value
-    val newJob = new Job(conf)
-    val inputFormat = inputFormatClass.newInstance
-    inputFormat match {
-      case configurable: Configurable =>
-        configurable.setConf(conf)
-      case _ =>
+    val jobConf: Configuration = broadcastedConf.value.value
+    if (sqlContext.conf.useStripeBasedSplitStrategy) {
+      val inputPaths = OrcUtil.getInputPaths(jobConf)
+      var result: Array[Partition] = null
+      var splits: Seq[StripeSplit] = null
+
+      if (inputPaths.size <= 10) {
+        val exec = Executors.newFixedThreadPool(inputPaths.size)
+        val completionService = new ExecutorCompletionService[Array[StripeSplit]](exec)
+        inputPaths.foreach { path =>
+          completionService.submit(new Callable[Array[StripeSplit]] {
+            override def call(): Array[StripeSplit] = {
+              OrcUtil.getSplit(broadcastedConf, path)
+            }
+          })
+        }
+
+        splits = new ArrayBuffer[StripeSplit]()
+        for (i <- 0 until inputPaths.size) {
+          splits ++= completionService.take().get()
+        }
+
+        result = new Array[Partition](splits.size)
+        exec.shutdown()
+      } else {
+        val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
+          OrcUtil.getSplit(broadcastedConf, path)
+        }.collect().flatten
+        result = new Array[Partition](splits.size)
+      }
+
+      for (i <- 0 until splits.size) {
+        result(i) = new NewHadoopPartition(id, i,
+          new FileSplit(new Path(splits(i).path),
+            splits(i).offset,
+            splits(i).length,
+            splits(i).hosts))
+      }
+      result
+
+    } else {
+      val inputFormat = inputFormatClass.newInstance
+      inputFormat match {
+        case configurable: Configurable =>
+          configurable.setConf(jobConf)
+        case _ =>
+      }
+
+      val jobContext = newJobContext(jobConf, jobId)
+      val rawSplits = inputFormat.getSplits(jobContext).toArray
+      val result = new Array[Partition](rawSplits.size)
+
+      for (i <- 0 until rawSplits.size) {
+        result(i) =
+          new NewHadoopPartition(id, i, rawSplits(i).asInstanceOf[InputSplit with Writable])
+      }
+      result
     }
-    val jobContext = newJobContext(conf, jobId)
-    val rawSplits = inputFormat.getSplits(jobContext).toArray
-    val result = new Array[Partition](rawSplits.size)
-    for (i <- 0 until rawSplits.size) {
-      result(i) =
-        new NewHadoopPartition(id, i, rawSplits(i).asInstanceOf[InputSplit with Writable])
-    }
-    result
+
   }
 
   /**
@@ -130,7 +194,6 @@ private[orc] class FasterOrcRDD[V: ClassTag](
         */
       if (sqlContext.conf.useFasterOrcReader) {
         val orcReader = new FasterOrcRecordReader(columnInfo.output, columnInfo.columnReferences)
-          // columnInfo.columns, columnInfo.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
           hadoopAttemptContext)) {
           orcReader.close()

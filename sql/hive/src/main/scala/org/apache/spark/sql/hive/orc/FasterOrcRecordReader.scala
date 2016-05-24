@@ -38,11 +38,12 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.spark.SparkException
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.{MutableRow, UnsafeRow}
 import org.apache.spark.sql.catalyst.expressions.codegen.{BufferHolder, UnsafeRowWriter}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.Platform
-import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import org.joda.time.DateTimeZone
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -53,32 +54,12 @@ import scala.collection.JavaConverters._
 
 class FasterOrcRecordReader(
     output: Array[(Int, DataType, Type)],
-    // includedColumns: java.util.Map[Integer, Type],
     columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
-  extends RecordReader[NullWritable, UnsafeRow] {
+  extends RecordReader[NullWritable, InternalRow] {
 
-  /**
-    * Batch of unsafe rows that we assemble and the current index we've returned. Everytime this
-    * batch is used up (batchIdx == numBatched), we populated the batch.
-    */
-  private var rows: Array[UnsafeRow] = new Array[UnsafeRow](1024)
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
-
-  /**
-    * Used to write variable length columns. Same length as `rows`.
-    */
-  private var rowWriters: Array[UnsafeRowWriter] = null
-
-  /**
-    * The number of bytes in the fixed length portion of the row.
-    */
-  private var fixedSizeBytes: Int = 0
-
-  /**
-    * True if the row contains variable length fields.
-    */
-  private var containsVarLenFields = false
+  private val columns = new Array[Block](output.size)
 
   /**
     * The number of rows that have been returned.
@@ -174,30 +155,6 @@ class FasterOrcRecordReader(
       hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
 
-    /**
-      * Initialize rows and rowWriters. These objects are reused across all rows in the relation.
-      */
-    var rowByteSize: Int = UnsafeRow.calculateBitSetWidthInBytes(output.size)
-    rowByteSize += 8 * output.size
-    fixedSizeBytes = rowByteSize
-    var numVarLenFields = 0
-    output.foreach { x =>
-      if (!x._2.isInstanceOf[NumericType] && !x._2.isInstanceOf[BooleanType]) {
-        numVarLenFields += 1
-      }
-    }
-
-    rowByteSize += numVarLenFields * DEFAULT_VAR_LEN_SIZE
-    containsVarLenFields = numVarLenFields > 0
-
-    rowWriters = new Array[UnsafeRowWriter](rows.length)
-    for (i <- 0 until rows.length) {
-      rows(i) = new UnsafeRow
-      rowWriters(i) = new UnsafeRowWriter
-      val holder: BufferHolder = new BufferHolder(rowByteSize)
-      rowWriters(i).initialize(rows(i), holder, output.size)
-      rows(i).pointTo(holder.buffer, Platform.BYTE_ARRAY_OFFSET, output.size, holder.buffer.length)
-    }
   }
 
 
@@ -209,8 +166,8 @@ class FasterOrcRecordReader(
     return true
   }
 
-  def getCurrentValue: UnsafeRow = {
-    return rows(batchIdx - 1)
+  def getCurrentValue: InternalRow = {
+    BlockRow.getRow(batchIdx)
   }
 
   def getProgress: Float = {
@@ -224,6 +181,7 @@ class FasterOrcRecordReader(
   def close: Unit = {
     recordReader.close()
   }
+
 
   /**
     * Decodes a batch of values into `rows`. This function is the hot path.
@@ -242,87 +200,120 @@ class FasterOrcRecordReader(
       }
 
       rowsReturned += numBatched
-      if (containsVarLenFields) {
-        for (i <- 0 until rowWriters.size) {
-          rowWriters(i).holder.resetTo(fixedSizeBytes)
-        }
+
+      for (col <- 0 until output.size) {
+        columns(col) = recordReader.readBlock(output(col)._3, output(col)._1)
       }
 
-      var block: Block = null
-      var length: Int = 0
-      for(col <- 0 until output.size) {
-        block = recordReader.readBlock(output(col)._3, output(col)._1)
-
-        for (row <- 0 until numBatched) {
-          if (block.isNull(row)) {
-            rows(row).setNullAt(col)
-          } else {
-            output(col)._2 match {
-              case BinaryType =>
-                length = block.getLength(row)
-                rowWriters(row).write(col, block.getSlice(row, 0, length).getBytes)
-                rows(row).setNotNullAt(col)
-
-              case StringType =>
-                length = block.getLength(row)
-                rowWriters(row).write(col,
-                  UTF8String.fromBytes(block.getSlice(row, 0, length).getBytes, 0, length))
-                rows(row).setNotNullAt(col)
-
-              case BooleanType =>
-                rows(row).setBoolean(col, block.getByte(row, 0) != 0)
-
-              case ByteType =>
-                rows(row).setByte(col, block.getByte(row, 0))
-
-              case DateType =>
-                rows(row).setInt(col, block.getLong(row, 0).toInt)
-
-              case dt: DecimalType =>
-                rows(row).setDecimal(
-                  col,
-                  Decimal.apply(block.getLong(row, 0), dt.precision, dt.scale),
-                  dt.precision)
-
-              case DoubleType =>
-                rows(row).setDouble(col, block.getDouble(row, 0))
-
-              case FloatType =>
-                rows(row).setFloat(col, block.getDouble(row, 0).toFloat)
-
-              case IntegerType =>
-                rows(row).setInt(col, block.getInt(row, 0))
-
-              case TimestampType =>
-              case LongType =>
-                rows(row).setLong(col, block.getLong(row, 0))
-
-              case ShortType =>
-                rows(row).setShort(col, block.getShort(row, 0))
-
-              case dt: MapType =>
-              case dt: ArrayType =>
-              case dt: StructType =>
-              case _ =>
-                throw new SparkException("Unsupported Type " + output(col)._2)
-            }
-          }
-        }
-      }
-
-      // Update the total row lengths if the schema contained variable length. We did not maintain
-      // this as we populated the columns.
-      if (containsVarLenFields) {
-        for (i <- 0 until rowWriters.length) {
-          rows(i).setTotalSize(rowWriters(i).holder.totalSize)
-        }
-      }
-
-    } catch {
-      case e: Exception =>
-        throw e
+      return true
     }
-    return true
+  }
+
+  object BlockRow {
+    var row: BlockRow = new BlockRow(0)
+    def getRow(batchIdx: Int): BlockRow = {
+      row.setBatchIndex(batchIdx)
+      row
+    }
+  }
+
+  class BlockRow(var batchIdx: Int) extends MutableRow {
+    var length = 0
+
+    def setBatchIndex(batchIdx: Int): Unit = {
+      this.batchIdx = batchIdx
+    }
+
+    override def setNullAt(i: Int): Unit = {
+      throw new UnsupportedOperationException("Operation is not supported!")
+    }
+
+    override def update(i: Int, value: Any): Unit = {
+      throw new UnsupportedOperationException("Operation is not supported!")
+    }
+
+    /** Returns true if there are any NULL values in this row. */
+    override def anyNull: Boolean = {
+      !columns.filter(b => b.isNull(batchIdx - 1)).isEmpty
+    }
+
+    /**
+      * Make a copy of the current [[InternalRow]] object.
+      */
+    override def copy(): InternalRow = {
+      throw new UnsupportedOperationException("Operation is not supported!")
+    }
+
+    override def numFields: Int = output.size
+
+    override def getUTF8String(ordinal: Int): UTF8String = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      UTF8String.fromBytes(columns(ordinal).getSlice(batchIdx - 1, 0, length).getBytes)
+    }
+
+    override def get(ordinal: Int, dataType: DataType): Object = {
+      throw new UnsupportedOperationException("Unsupported data type " + dataType.simpleString)
+    }
+
+    override def getBinary(ordinal: Int): Array[Byte] = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).getBytes
+    }
+
+    override def getDouble(ordinal: Int): Double = {
+      columns(ordinal).getDouble(batchIdx - 1, 0)
+    }
+
+    override def getArray(ordinal: Int): ArrayData = {
+      null
+    }
+
+    override def getInterval(ordinal: Int): CalendarInterval = {
+      null
+    }
+
+    override def getFloat(ordinal: Int): Float = {
+      columns(ordinal).getDouble(batchIdx - 1, 0).toFloat
+    }
+
+    override def getLong(ordinal: Int): Long = {
+      columns(ordinal).getLong(batchIdx - 1, 0)
+    }
+
+    override def getMap(ordinal: Int): MapData = {
+      null
+    }
+
+    override def getByte(ordinal: Int): Byte = {
+      columns(ordinal).getByte(batchIdx - 1, 0)
+    }
+
+    override def getDecimal(ordinal: Int, precision: Int, scale: Int): Decimal = {
+      Decimal.apply(columns(ordinal).getLong(batchIdx - 1, 0), precision, scale)
+    }
+
+    override def getBoolean(ordinal: Int): Boolean = {
+      columns(ordinal).getByte(batchIdx - 1, 0) != 0
+    }
+
+    override def getShort(ordinal: Int): Short = {
+      columns(ordinal).getShort(batchIdx - 1, 0)
+    }
+
+    override def getStruct(ordinal: Int, numFields: Int): InternalRow = {
+      // columns(ordinal).getSlice()
+      null
+    }
+
+    override def getInt(ordinal: Int): Int = {
+      columns(ordinal).getInt(batchIdx - 1, 0)
+    }
+
+    override def isNullAt(ordinal: Int): Boolean = {
+      columns(ordinal).isNull(batchIdx - 1)
+    }
   }
 
 }
+
+

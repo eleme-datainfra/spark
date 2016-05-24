@@ -111,35 +111,16 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       val jobConf = new JobConf(conf)
       val fs = filePath.getFileSystem(conf)
       val fileStatus = fs.listStatus(filePath)(1)
-      var start = System.currentTimeMillis()
-      // scalastyle:off
-      println("file size: " + fileStatus.getLen)
-      // scalastyle:on
-      val oldOrcRecordReader = inputFormatClass.newInstance().getRecordReader(
-        new FileSplit(fileStatus.getPath, 0L, fileStatus.getLen, jobConf),
-        jobConf,
-        Reporter.NULL
-        )
-
-      val value: OrcStruct = oldOrcRecordReader.createValue()
-
-      while(oldOrcRecordReader.next(NullWritable.get(), value)) {
-      }
-      var end = System.currentTimeMillis()
-      // scalastyle:off
-      println("old orc reader:" + (end - start) / 1000 + " ms")
-      // scalastyle:on
 
       try {
 
         val reader = new FasterOrcRecordReader(outputAttrs.toArray, columnReferences)
         reader.initialize(new Path(file), new Configuration())
-        var row: UnsafeRow = null
-        start = System.currentTimeMillis()
+        var start = System.currentTimeMillis()
         while(reader.nextKeyValue) {
 
         }
-        end = System.currentTimeMillis()
+        var end = System.currentTimeMillis()
         // scalastyle:off
         println("new orc reader:" + (end - start) + " ms")
         // scalastyle:on
