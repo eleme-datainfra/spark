@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.hive.orc
 
+import java.util
+
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.hive.orc.HdfsOrcDataSource
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
@@ -24,8 +26,9 @@ import com.facebook.presto.orc._
 import com.facebook.presto.orc.memory.AggregatedMemoryContext
 import com.facebook.presto.orc.metadata.{OrcMetadataReader, MetadataReader}
 import com.facebook.presto.spi.`type`.Type
-import com.facebook.presto.spi.block.Block
+import com.facebook.presto.spi.block.{ArrayBlock, BlockEncoding, BlockBuilder, Block}
 import com.facebook.presto.spi.predicate.TupleDomain
+import io.airlift.slice.Slice
 import io.airlift.units.DataSize
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, FSDataInputStream, Path}
@@ -217,6 +220,114 @@ class FasterOrcRecordReader(
     }
   }
 
+  class MutableBlock(block: Block) extends Block {
+
+    override def getLength(i: Int): Int = {
+      block.getLength(i)
+    }
+
+    override def getSlice(position: Int, offset: Int, length: Int): Slice = {
+      block.getSlice(position, offset, length)
+    }
+
+    override def getPositionCount: Int = {
+      block.getPositionCount
+    }
+
+    override def bytesEqual(position: Int, offset: Int, otherSlice: Slice,
+                            otherOffset: Int, length: Int): Boolean = {
+      block.bytesEqual(position, offset, otherSlice, otherOffset, length)
+    }
+
+    override def getDouble(position: Int, offset: Int): Double = {
+      block.getDouble(position, offset)
+    }
+
+    override def copyPositions(list: util.List[Integer]): Block = {
+      block.copyPositions(list)
+    }
+
+    override def assureLoaded(): Unit = {
+      block.assureLoaded()
+    }
+
+    override def getSizeInBytes: Int = {
+      block.getSizeInBytes
+    }
+
+    override def writePositionTo(position: Int, blockBuilder: BlockBuilder): Unit = {
+      block.writePositionTo(position, blockBuilder)
+    }
+
+    override def hash(position: Int, offset: Int, length: Int): Long = {
+      block.hash(position, offset, length)
+    }
+
+    override def copyRegion(position: Int, length: Int): Block = {
+      block.copyRegion(position, length)
+    }
+
+    override def getRetainedSizeInBytes: Int = {
+      block.getRetainedSizeInBytes
+    }
+
+    override def getFloat(position: Int, offset: Int): Float = {
+      block.getFloat(position, offset)
+    }
+
+    override def getLong(position: Int, offset: Int): Long = {
+      block.getLong(position, offset)
+    }
+
+    override def getEncoding: BlockEncoding = {
+      block.getEncoding
+    }
+
+    override def getSingleValueBlock(position: Int): Block = {
+      block.getSingleValueBlock(position)
+    }
+
+    override def compareTo(position: Int, offset: Int, length: Int, otherBlock: Block,
+                           otherPosition: Int, otherOffset: Int, otherLength: Int): Int = {
+      block.compareTo(position, offset, length, otherBlock, otherPosition, otherOffset, otherLength)
+    }
+
+    override def getByte(position: Int, offset: Int): Byte = {
+      block.getByte(position, offset)
+    }
+
+    override def getShort(position: Int, offset: Int): Short = {
+      block.getShort(position, offset)
+    }
+
+    override def bytesCompare(position: Int, offset: Int, length: Int,
+                              otherSlice: Slice, otherOffset: Int, otherLength: Int): Int = {
+      block.bytesCompare(position, offset, length, otherSlice, otherOffset, otherLength)
+    }
+
+    override def isNull(postion: Int): Boolean = {
+      block.isNull(postion)
+    }
+
+    override def getRegion(position: Int, offset: Int): Block = {
+      block.getRegion(position, offset)
+    }
+
+    override def writeBytesTo(position: Int, offset: Int, length: Int,
+                              blockBuilder: BlockBuilder): Unit = {
+      block.writeBytesTo(position, offset, length, blockBuilder)
+    }
+
+    override def getInt(position: Int, offset: Int): Int = {
+      block.getInt(position, offset)
+    }
+
+    override def equals(position: Int, offset: Int, otherBlock: Block,
+                        otherPosition: Int, otherOffset: Int, length: Int): Boolean = {
+      block.equals(position, offset, otherBlock, otherPosition, otherOffset, length)
+    }
+  }
+
   class BlockRow(var batchIdx: Int) extends MutableRow {
     var length = 0
 
@@ -224,11 +335,11 @@ class FasterOrcRecordReader(
       this.batchIdx = batchIdx
     }
 
-    override def setNullAt(i: Int): Unit = {
+    override def setNullAt(ordinal: Int): Unit = {
       throw new UnsupportedOperationException("Operation is not supported!")
     }
 
-    override def update(i: Int, value: Any): Unit = {
+    override def update(ordinal: Int, value: Any): Unit = {
       throw new UnsupportedOperationException("Operation is not supported!")
     }
 
@@ -301,7 +412,6 @@ class FasterOrcRecordReader(
     }
 
     override def getStruct(ordinal: Int, numFields: Int): InternalRow = {
-      // columns(ordinal).getSlice()
       null
     }
 
