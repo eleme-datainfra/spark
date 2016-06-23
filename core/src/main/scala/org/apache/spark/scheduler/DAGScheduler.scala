@@ -150,7 +150,7 @@ class DAGScheduler(
   // Stages that must be resubmitted due to fetch failures
   private[scheduler] val failedStages = new HashSet[Stage]
 
-  @volatile private[scheduler] val activeJobs = new HashSet[ActiveJob]
+  @volatile private[scheduler] var activeJobs = new HashSet[ActiveJob]
 
   /**
    * Contains the locations that each RDD's partitions are cached on.  This map's keys are RDD ids
