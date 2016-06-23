@@ -22,7 +22,7 @@ import scala.language.implicitConversions
 import java.io._
 import java.lang.reflect.Constructor
 import java.net.URI
-import java.util._
+import java.util.{Timer, Arrays, Properties, UUID, TimerTask}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
