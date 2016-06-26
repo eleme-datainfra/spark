@@ -1019,9 +1019,6 @@ private[spark] class Client(
    */
   def run(): Unit = {
     this.appId = submitApplication()
-    // scalastyle:off println
-    println(s"ApplicationId is ${appId}")
-    // scalastyle:on println
     if (!launcherBackend.isConnected() && fireAndForget) {
       val report = getApplicationReport(appId)
       val state = report.getYarnApplicationState
