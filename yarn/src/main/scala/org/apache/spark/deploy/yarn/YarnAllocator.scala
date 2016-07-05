@@ -37,7 +37,7 @@ import org.apache.spark.{Logging, SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.yarn.YarnSparkHadoopUtil._
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpointRef}
 import org.apache.spark.scheduler.{ExecutorExited, ExecutorLossReason}
-import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.RemoveExecutor
+import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveLastAllocatedExecutorId, RemoveExecutor}
 import org.apache.spark.util.ThreadUtils
 
 /**
@@ -83,7 +83,7 @@ private[yarn] class YarnAllocator(
 
   @volatile private var numExecutorsRunning = 0
   // Used to generate a unique ID per executor
-  private var executorIdCounter = 0
+  private var executorIdCounter = driverRef.askWithRetry[Int](RetrieveLastAllocatedExecutorId)
   @volatile private var numExecutorsFailed = 0
 
   @volatile private var targetNumExecutors =
