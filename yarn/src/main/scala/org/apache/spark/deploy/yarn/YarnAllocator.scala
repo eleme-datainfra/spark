@@ -113,8 +113,10 @@ private[yarn] class YarnAllocator(
     math.max((memoryOverheadFactor * executorMemory).toInt, MEMORY_OVERHEAD_MIN))
   // Number of cores per executor.
   protected val executorCores = args.executorCores
+  protected val realExecutorCores = sparkConf.getInt("spark.yarn.executor.vcores", executorCores)
   // Resource capability requested for each executors
-  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead, executorCores)
+  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead,
+    realExecutorCores)
 
   private val launcherPool = ThreadUtils.newDaemonCachedThreadPool(
     "ContainerLauncher",
