@@ -156,24 +156,16 @@ private[netty] class NettyRpcEnv(
   }
 
   private def postToOutbox(receiver: NettyRpcEndpointRef, message: OutboxMessage): Unit = {
-    if (receiver.client != null && receiver.client.isActive) {
+    if (receiver.client != null) {
       message.sendWith(receiver.client)
     } else {
-      val address = if (receiver.address != null) {
-          receiver.address
-        } else if (receiver.client != null) {
-          val remoteAddress = receiver.client.getSocketAddress.asInstanceOf[InetSocketAddress]
-          RpcAddress(remoteAddress.getHostName, remoteAddress.getPort)
-        } else {
-          null
-        }
-      require(address != null,
+      require(receiver.address != null,
         "Cannot send message to client endpoint with no listen address.")
       val targetOutbox = {
-        val outbox = outboxes.get(address)
+        val outbox = outboxes.get(receiver.address)
         if (outbox == null) {
-          val newOutbox = new Outbox(this, address)
-          val oldOutbox = outboxes.putIfAbsent(address, newOutbox)
+          val newOutbox = new Outbox(this, receiver.address)
+          val oldOutbox = outboxes.putIfAbsent(receiver.address, newOutbox)
           if (oldOutbox == null) {
             newOutbox
           } else {
@@ -185,7 +177,7 @@ private[netty] class NettyRpcEnv(
       }
       if (stopped.get) {
         // It's possible that we put `targetOutbox` after stopping. So we need to clean it.
-        outboxes.remove(address)
+        outboxes.remove(receiver.address)
         targetOutbox.stop()
       } else {
         targetOutbox.send(message)
