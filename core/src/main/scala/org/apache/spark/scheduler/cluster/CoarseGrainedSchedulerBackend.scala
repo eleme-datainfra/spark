@@ -358,6 +358,16 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     }
   }
 
+  protected def reset(): Unit = synchronized {
+    numPendingExecutors = 0
+    executorsPendingToRemove.clear()
+    executorDataMap.toMap.foreach { case (eid, _) =>
+      driverEndpoint.askWithRetry[Boolean](
+        RemoveExecutor(eid, SlaveLost("Stale executor after cluster manager re-registered."))
+      )
+    }
+  }
+
   override def reviveOffers() {
     driverEndpoint.send(ReviveOffers)
   }
@@ -403,7 +413,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
   /**
    * Request an additional number of executors from the cluster manager.
-   * @return whether the request is acknowledged.
+    *
+    * @return whether the request is acknowledged.
    */
   final override def requestExecutors(numAdditionalExecutors: Int): Boolean = synchronized {
     if (numAdditionalExecutors < 0) {
@@ -423,7 +434,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
-   * @param numExecutors The total number of executors we'd like to have. The cluster manager
+    *
+    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
    *                     we'd want to be allocated.
@@ -469,7 +481,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
   /**
    * Request that the cluster manager kill the specified executors.
-   * @return whether the kill request is acknowledged.
+    *
+    * @return whether the kill request is acknowledged.
    */
   final override def killExecutors(executorIds: Seq[String]): Boolean = synchronized {
     killExecutors(executorIds, replace = false, force = false)
@@ -519,7 +532,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
   /**
    * Kill the given list of executors through the cluster manager.
-   * @return whether the kill request is acknowledged.
+    *
+    * @return whether the kill request is acknowledged.
    */
   protected def doKillExecutors(executorIds: Seq[String]): Boolean = false
 
