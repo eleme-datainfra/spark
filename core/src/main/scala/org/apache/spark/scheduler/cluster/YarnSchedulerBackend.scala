@@ -242,7 +242,6 @@ private[spark] abstract class YarnSchedulerBackend(
     }
 
     override def onStart(): Unit = {
-      super.onStart()
       logInfo("YarnSchedulerEndpoint start")
     }
 

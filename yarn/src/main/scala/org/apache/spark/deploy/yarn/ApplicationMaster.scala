@@ -663,6 +663,10 @@ private[spark] class ApplicationMaster(
         finish(FinalApplicationStatus.SUCCEEDED, ApplicationMaster.EXIT_SUCCESS)
       }
     }
+
+    override def onStop(): Unit = {
+      logInfo("ApplicationMasterEndpoint stopped")
+    }
   }
 
 }
