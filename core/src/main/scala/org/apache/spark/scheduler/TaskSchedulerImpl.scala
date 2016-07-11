@@ -569,6 +569,9 @@ private[spark] class TaskSchedulerImpl(
       return
     }
     while (!backend.isReady) {
+      if (sc.stopped.get()) {
+        throw new IllegalStateException("Spark context stopped while waiting for backend")
+      }
       synchronized {
         this.wait(100)
       }
