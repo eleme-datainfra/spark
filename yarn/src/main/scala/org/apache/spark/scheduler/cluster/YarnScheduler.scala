@@ -25,6 +25,10 @@ import org.apache.spark._
 import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.util.Utils
 
+import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.concurrent.duration._
+import ExecutionContext.Implicits.global
+
 private[spark] class YarnScheduler(sc: SparkContext) extends TaskSchedulerImpl(sc) {
 
   // RackResolver logs an INFO message whenever it resolves a rack, which is way too often.
@@ -35,6 +39,17 @@ private[spark] class YarnScheduler(sc: SparkContext) extends TaskSchedulerImpl(s
   // By default, rack is unknown
   override def getRackForHost(hostPort: String): Option[String] = {
     val host = Utils.parseHostPort(hostPort)._1
-    Option(RackResolver.resolve(sc.hadoopConfiguration, host).getNetworkLocation)
+    if (sc.getConf.getBoolean("spark.getRackForhost.async", false)) {
+      val rack = Future {
+        RackResolver.resolve(sc.hadoopConfiguration, host).getNetworkLocation
+      }
+      try {
+        Option(Await.result(rack, 1.seconds))
+      } catch {
+        case e: Exception => None
+      }
+    } else {
+      Option(RackResolver.resolve(sc.hadoopConfiguration, host).getNetworkLocation)
+    }
   }
 }
