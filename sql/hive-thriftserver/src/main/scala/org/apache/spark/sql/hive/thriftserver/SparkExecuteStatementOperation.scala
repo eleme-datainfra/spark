@@ -187,7 +187,7 @@ private[hive] class SparkExecuteStatementOperation(
   }
 
   private def execute(): Unit = {
-    if (confOverlay.containsKey(SparkContext.SPARK_JOB_GROUP_ID)) {
+    if (confOverlay != null && confOverlay.containsKey(SparkContext.SPARK_JOB_GROUP_ID)) {
       statementId = confOverlay.get(SparkContext.SPARK_JOB_GROUP_ID)
     } else {
       statementId = UUID.randomUUID().toString
