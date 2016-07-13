@@ -395,7 +395,11 @@ private[sql] class ParquetRelation(
      * Refreshes `FileStatus`es, footers, partition spec, and table schema.
      */
     def refresh(): Unit = {
-      val currentLeafStatuses = cachedLeafStatuses()
+      val currentLeafStatuses = if (sqlContext.conf.parquetUseHiveMetadataFirst) {
+        mutable.LinkedHashSet().empty
+      } else {
+        cachedLeafStatuses()
+      }
 
       // Check if cachedLeafStatuses is changed or not
       val leafStatusesChanged = (cachedLeaves == null) ||
