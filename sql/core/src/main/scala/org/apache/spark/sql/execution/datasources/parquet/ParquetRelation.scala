@@ -417,19 +417,28 @@ private[sql] class ParquetRelation(
           leaves.filter(_.getPath.getName == ParquetFileWriter.PARQUET_COMMON_METADATA_FILE)
 
         dataSchema = {
-          val dataSchema0 = maybeDataSchema
-            .orElse(readSchema())
-            .orElse(maybeMetastoreSchema)
-            .getOrElse(throw new AnalysisException(
-              s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
-                paths.mkString("\n\t")))
+          if (sqlContext.conf.parquetUseHiveMetadataFirst) {
+            maybeDataSchema
+              .orElse(maybeMetastoreSchema)
+              .orElse(readSchema())
+              .getOrElse(throw new AnalysisException(
+                s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
+                  paths.mkString("\n\t")))
+          } else {
+            val dataSchema0 = maybeDataSchema
+              .orElse(readSchema())
+              .orElse(maybeMetastoreSchema)
+              .getOrElse(throw new AnalysisException(
+                s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
+                  paths.mkString("\n\t")))
 
-          // If this Parquet relation is converted from a Hive Metastore table, must reconcile case
-          // case insensitivity issue and possible schema mismatch (probably caused by schema
-          // evolution).
-          maybeMetastoreSchema
-            .map(ParquetRelation.mergeMetastoreParquetSchema(_, dataSchema0))
-            .getOrElse(dataSchema0)
+            // If this Parquet relation is converted from a Hive Metastore table, must reconcile case
+            // case insensitivity issue and possible schema mismatch (probably caused by schema
+            // evolution).
+            maybeMetastoreSchema
+              .map(ParquetRelation.mergeMetastoreParquetSchema(_, dataSchema0))
+              .getOrElse(dataSchema0)
+          }
         }
       }
     }
