@@ -340,6 +340,10 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "<TODO>")
 
+  val CACHE_FILE_PATH = booleanConf("spark.sql.hive.cacheFilePath",
+    defaultValue = Some(false),
+    doc = "<TODO>")
+
   val HIVE_METASTORE_PARTITION_PRUNING = booleanConf("spark.sql.hive.metastorePartitionPruning",
     defaultValue = Some(false),
     doc = "When true, some predicates will be pushed down into the Hive metastore so that " +
@@ -534,6 +538,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
   private[spark] def orcFilterPushDown: Boolean = getConf(ORC_FILTER_PUSHDOWN_ENABLED)
 
   private[spark] def verifyPartitionPath: Boolean = getConf(HIVE_VERIFY_PARTITION_PATH)
+
+  private[spark] def cacheFileStatus: Boolean = getConf(CACHE_FILE_PATH)
 
   private[spark] def metastorePartitionPruning: Boolean = getConf(HIVE_METASTORE_PARTITION_PRUNING)
 
