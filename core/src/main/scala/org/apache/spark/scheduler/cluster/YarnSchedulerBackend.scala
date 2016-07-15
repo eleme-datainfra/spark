@@ -218,8 +218,13 @@ private[spark] abstract class YarnSchedulerBackend(
       }
     }
 
+    override def onStart(): Unit = {
+      logInfo("YarnScheduler Endpoint started.")
+    }
+
     override def onStop(): Unit = {
       askAmThreadPool.shutdownNow()
+      logInfo("YarnScheduler Endpoint stopped.")
     }
   }
 }
