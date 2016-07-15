@@ -585,7 +585,10 @@ abstract class HadoopFsRelation private[sql](
   def userDefinedPartitionColumns: Option[StructType] = None
 
   private[sql] def refresh(): Unit = {
-    fileStatusCache.refresh()
+    if (sqlContext.conf.parquetCacheMetadata) {
+      fileStatusCache.refresh()
+    }
+
     if (sqlContext.conf.partitionDiscoveryEnabled()) {
       _partitionSpec = discoverPartitions()
     }
