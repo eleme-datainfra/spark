@@ -17,15 +17,18 @@
 
 package org.apache.spark.sql.hive.thriftserver.server
 
+import java.util.concurrent.{Executors, TimeUnit}
 import java.util.{Map => JMap}
-import scala.collection.mutable.Map
 
+import scala.collection.mutable.Map
+import scala.collection.JavaConverters._
 import org.apache.hive.service.cli._
 import org.apache.hive.service.cli.operation.{ExecuteStatementOperation, Operation, OperationManager}
 import org.apache.hive.service.cli.session.HiveSession
 import org.apache.spark.Logging
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.hive.thriftserver.{SparkExecuteStatementOperation, ReflectionUtils}
+import org.apache.spark.sql.hive.thriftserver.{ReflectionUtils, SparkExecuteStatementOperation}
+import org.apache.spark.ui.jobs.UIData.JobUIData
 
 /**
  * Executes queries using Spark SQL, and maintains a list of handles to active queries.
@@ -38,6 +41,31 @@ private[thriftserver] class SparkSQLOperationManager()
 
   val sessionToActivePool = Map[SessionHandle, String]()
   val sessionToContexts = Map[SessionHandle, HiveContext]()
+
+  val DEFAULT_JOB_INFO = new JobUIData()
+  Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(new Runnable {
+    override def run(): Unit = {
+      if (handleToOperation.size() == 0) {
+        return
+      }
+      val jobInfos = handleToOperation.values().asScala
+        .map(op => sessionToContexts(op.getParentSession.getSessionHandle).sparkContext)
+        .flatMap(context =>
+          context.jobProgressListener.activeJobs.values
+            .map(jobInfo => (jobInfo.jobGroup.getOrElse(""), jobInfo))
+        ).toMap
+
+      handleToOperation.values().asScala
+        .foreach(operation => {
+          val jobInfo = jobInfos.getOrElse(
+            operation.asInstanceOf[SparkExecuteStatementOperation].statementId, DEFAULT_JOB_INFO)
+          if (jobInfo != DEFAULT_JOB_INFO) {
+            operation.getOperationLog.writeOperationLog(
+              s"${jobInfo.numCompletedTasks}, ${jobInfo.numSkippedTasks}, ${jobInfo.numTasks}")
+          }
+        })
+    }
+  }, 0, 3, TimeUnit.SECONDS)
 
   override def newExecuteStatementOperation(
       parentSession: HiveSession,
