@@ -297,6 +297,10 @@ private[spark] object SQLConf {
     defaultValue = Some(true),
     doc = "Turns on caching of Parquet schema metadata. Can speed up querying of static data.")
 
+  val PARQUET_USE_HIVEMETADATA_FIRST = booleanConf("spark.sql.parquet.useHiveMetadataFirst",
+    defaultValue = Some(false),
+    doc = "Use hive metastore first.")
+
   val PARQUET_COMPRESSION = enumConf("spark.sql.parquet.compression.codec",
     valueConverter = v => v.toLowerCase,
     validValues = Set("uncompressed", "snappy", "gzip", "lzo"),
@@ -510,6 +514,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
   private[spark] def parquetCompressionCodec: String = getConf(PARQUET_COMPRESSION)
 
   private[spark] def parquetCacheMetadata: Boolean = getConf(PARQUET_CACHE_METADATA)
+
+  private[spark] def parquetUseHiveMetadataFirst: Boolean = getConf(PARQUET_USE_HIVEMETADATA_FIRST)
 
   private[spark] def columnBatchSize: Int = getConf(COLUMN_BATCH_SIZE)
 

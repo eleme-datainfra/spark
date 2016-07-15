@@ -334,7 +334,7 @@ private[sql] class ParquetRelation(
 
         val cacheMetadata = useMetadataCache
 
-        @transient val cachedStatuses = inputFiles.map { f =>
+        @transient lazy val cachedStatuses = inputFiles.map { f =>
           // In order to encode the authority of a Path containing special characters such as '/'
           // (which does happen in some S3N credentials), we need to use the string returned by the
           // URI of the path to create a new Path.
@@ -342,7 +342,7 @@ private[sql] class ParquetRelation(
           new FileStatus(
             f.getLen, f.isDir, f.getReplication, f.getBlockSize, f.getModificationTime,
             f.getAccessTime, f.getPermission, f.getOwner, f.getGroup, pathWithEscapedAuthority)
-        }.toSeq
+        }
 
         private def escapePathUserInfo(path: Path): Path = {
           val uri = path.toUri
@@ -355,7 +355,7 @@ private[sql] class ParquetRelation(
         override def getPartitions: Array[SparkPartition] = {
           val inputFormat = new ParquetInputFormat[InternalRow] {
             override def listStatus(jobContext: JobContext): JList[FileStatus] = {
-              if (cacheMetadata) cachedStatuses.asJava else super.listStatus(jobContext)
+              if (cacheMetadata) cachedStatuses.toSeq.asJava else super.listStatus(jobContext)
             }
           }
 
@@ -395,7 +395,12 @@ private[sql] class ParquetRelation(
      * Refreshes `FileStatus`es, footers, partition spec, and table schema.
      */
     def refresh(): Unit = {
-      val currentLeafStatuses = cachedLeafStatuses()
+      val currentLeafStatuses: mutable.LinkedHashSet[FileStatus] =
+        if (sqlContext.conf.parquetUseHiveMetadataFirst) {
+          mutable.LinkedHashSet().empty
+        } else {
+          cachedLeafStatuses()
+        }
 
       // Check if cachedLeafStatuses is changed or not
       val leafStatusesChanged = (cachedLeaves == null) ||
@@ -417,19 +422,28 @@ private[sql] class ParquetRelation(
           leaves.filter(_.getPath.getName == ParquetFileWriter.PARQUET_COMMON_METADATA_FILE)
 
         dataSchema = {
-          val dataSchema0 = maybeDataSchema
-            .orElse(readSchema())
-            .orElse(maybeMetastoreSchema)
-            .getOrElse(throw new AnalysisException(
-              s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
-                paths.mkString("\n\t")))
+          if (sqlContext.conf.parquetUseHiveMetadataFirst) {
+            maybeDataSchema
+              .orElse(maybeMetastoreSchema)
+              .orElse(readSchema())
+              .getOrElse(throw new AnalysisException(
+                s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
+                  paths.mkString("\n\t")))
+          } else {
+            val dataSchema0 = maybeDataSchema
+              .orElse(readSchema())
+              .orElse(maybeMetastoreSchema)
+              .getOrElse(throw new AnalysisException(
+                s"Failed to discover schema of Parquet file(s) in the following location(s):\n" +
+                  paths.mkString("\n\t")))
 
-          // If this Parquet relation is converted from a Hive Metastore table, must reconcile case
-          // case insensitivity issue and possible schema mismatch (probably caused by schema
-          // evolution).
-          maybeMetastoreSchema
-            .map(ParquetRelation.mergeMetastoreParquetSchema(_, dataSchema0))
-            .getOrElse(dataSchema0)
+            // If this Parquet relation is converted from a Hive Metastore table, must reconcile case
+            // case insensitivity issue and possible schema mismatch (probably caused by schema
+            // evolution).
+            maybeMetastoreSchema
+              .map(ParquetRelation.mergeMetastoreParquetSchema(_, dataSchema0))
+              .getOrElse(dataSchema0)
+          }
         }
       }
     }
