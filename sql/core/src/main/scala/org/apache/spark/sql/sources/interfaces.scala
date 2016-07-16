@@ -471,13 +471,11 @@ abstract class HadoopFsRelation private[sql](
     }
 
     def refresh(): Unit = {
-      if (sqlContext.conf.cacheFileStatus) {
-        val files = listLeafFiles(paths)
-        leafFiles.clear()
-        leafDirToChildrenFiles.clear()
-        leafFiles ++= files.map(f => f.getPath -> f)
-        leafDirToChildrenFiles ++= files.toArray.groupBy(_.getPath.getParent)
-      }
+      val files = listLeafFiles(paths)
+      leafFiles.clear()
+      leafDirToChildrenFiles.clear()
+      leafFiles ++= files.map(f => f.getPath -> f)
+      leafDirToChildrenFiles ++= files.toArray.groupBy(_.getPath.getParent)
     }
   }
 
@@ -645,9 +643,13 @@ abstract class HadoopFsRelation private[sql](
       filters: Array[Filter],
       inputPaths: Array[String],
       broadcastedConf: Broadcast[SerializableConfiguration]): RDD[InternalRow] = {
+
+    logInfo(s"Input paths size: ${inputPaths.length}")
+    if (inputPaths == 1) {
+      logInfo(inputPaths.mkString(" "))
+    }
     val inputStatuses = inputPaths.flatMap { input =>
       val path = new Path(input)
-
       // First assumes `input` is a directory path, and tries to get all files contained in it.
       fileStatusCache.leafDirToChildrenFiles.getOrElse(
         path,

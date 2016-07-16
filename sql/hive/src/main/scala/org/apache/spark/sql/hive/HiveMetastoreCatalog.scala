@@ -462,6 +462,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
     }
 
     val result = if (metastoreRelation.hiveQlTable.isPartitioned) {
+      logInfo("Convert partition parquet table to ParquetRelation.")
       val partitionSchema = StructType.fromAttributes(metastoreRelation.partitionKeys)
       val partitionColumnDataTypes = partitionSchema.map(_.dataType)
       // We're converting the entire table into ParquetRelation, so predicates to Hive metastore
@@ -487,6 +488,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
 
       parquetRelation
     } else {
+      logInfo("Convert non-partitioned parquet table to ParquetRelation.")
       val paths = Seq(metastoreRelation.hiveQlTable.getDataLocation.toString)
 
       val cached = getCached(tableIdentifier, paths, metastoreSchema, None)

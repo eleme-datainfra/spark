@@ -459,7 +459,9 @@ private[hive] class ClientWrapper(
       hTable: HiveTable,
       predicates: Seq[Expression]): Seq[HivePartition] = withHiveState {
     val qlTable = toQlTable(hTable)
-    shim.getPartitionsByFilter(client, qlTable, predicates).map(toHivePartition)
+    val partitions = shim.getPartitionsByFilter(client, qlTable, predicates).map(toHivePartition)
+    logInfo(s"Get ${partitions.length} partitions from hive metastore.")
+    partitions
   }
 
   override def listTables(dbName: String): Seq[String] = withHiveState {
