@@ -82,7 +82,7 @@ private[sql] object DataSourceStrategy extends Strategy with Logging {
 
       val selectedPartitions = prunePartitions(partitionFilters, t.partitionSpec).toArray
       if (t.sqlContext.conf.partitionPruning) {
-        t.paths = selectedPartitions.map(_.path)
+        t.paths = () => selectedPartitions.map(_.path)
       }
       logInfo {
         val total = t.partitionSpec.partitions.length
