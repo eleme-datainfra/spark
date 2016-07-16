@@ -102,7 +102,7 @@ private[sql] class ParquetOutputWriter(path: String, context: TaskAttemptContext
 }
 
 private[sql] class ParquetRelation(
-    override val paths: Array[String],
+    override var paths: Array[String],
     private val maybeDataSchema: Option[StructType],
     // This is for metastore conversion.
     private val maybePartitionSpec: Option[PartitionSpec],

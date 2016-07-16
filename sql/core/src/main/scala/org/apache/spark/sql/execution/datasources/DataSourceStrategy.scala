@@ -81,7 +81,9 @@ private[sql] object DataSourceStrategy extends Strategy with Logging {
         filters.toSet -- partitionFilters.toSet -- pushedFilters.toSet
 
       val selectedPartitions = prunePartitions(partitionFilters, t.partitionSpec).toArray
-
+      if (t.sqlContext.conf.partitionPruning) {
+        t.paths = selectedPartitions.map(_.path)
+      }
       logInfo {
         val total = t.partitionSpec.partitions.length
         val selected = selectedPartitions.length
@@ -160,7 +162,7 @@ private[sql] object DataSourceStrategy extends Strategy with Logging {
     val confBroadcast =
       relation.sqlContext.sparkContext.broadcast(new SerializableConfiguration(sharedHadoopConf))
     val partitionColumnNames = partitionColumns.fieldNames.toSet
-
+    logInfo(s"Build scan for ${partitions.length} partitions.")
     // Now, we create a scan builder, which will be used by pruneFilterProject. This scan builder
     // will union all partitions and attach partition values if needed.
     val scanBuilder = {

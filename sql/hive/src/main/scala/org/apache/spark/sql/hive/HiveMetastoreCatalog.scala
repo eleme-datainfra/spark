@@ -445,6 +445,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
             }
 
           if (useCached) {
+            logInfo(s"Get ${tableIdentifier.name}LogicPlan from cache")
             Some(logical)
           } else {
             // If the cached relation is not updated, we invalidate it right away.
@@ -799,8 +800,10 @@ private[hive] case class MetastoreRelation
 
   def getHiveQlPartitions(predicates: Seq[Expression] = Nil): Seq[Partition] = {
     val rawPartitions = if (sqlContext.conf.metastorePartitionPruning) {
+      logInfo("Metastore partition pruning.")
       table.getPartitions(predicates)
     } else {
+      logInfo("Get all table partitions.")
       allPartitions
     }
 

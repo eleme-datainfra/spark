@@ -340,7 +340,7 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "<TODO>")
 
-  val CACHE_FILE_PATH = booleanConf("spark.sql.hive.cacheFilePath",
+  val HIVE_PARTITION_PRUNING_BY_CODE = booleanConf("spark.sql.hive.PartitionPruningByCode",
     defaultValue = Some(false),
     doc = "<TODO>")
 
@@ -539,7 +539,7 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
 
   private[spark] def verifyPartitionPath: Boolean = getConf(HIVE_VERIFY_PARTITION_PATH)
 
-  private[spark] def cacheFileStatus: Boolean = getConf(CACHE_FILE_PATH)
+  private[spark] def partitionPruning: Boolean = getConf(HIVE_PARTITION_PRUNING_BY_CODE)
 
   private[spark] def metastorePartitionPruning: Boolean = getConf(HIVE_METASTORE_PARTITION_PRUNING)
 

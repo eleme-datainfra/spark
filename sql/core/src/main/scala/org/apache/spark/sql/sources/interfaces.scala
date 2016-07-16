@@ -438,6 +438,7 @@ abstract class HadoopFsRelation private[sql](
     var leafDirToChildrenFiles = mutable.Map.empty[Path, Array[FileStatus]]
 
     private def listLeafFiles(paths: Array[String]): mutable.LinkedHashSet[FileStatus] = {
+      logInfo(Thread.currentThread().getStackTrace.map(_.toString).mkString(","))
       if (paths.length >= sqlContext.conf.parallelPartitionDiscoveryThreshold) {
         HadoopFsRelation.listLeafFilesInParallel(paths, hadoopConf, sqlContext.sparkContext)
       } else {
@@ -581,9 +582,7 @@ abstract class HadoopFsRelation private[sql](
   def userDefinedPartitionColumns: Option[StructType] = None
 
   private[sql] def refresh(): Unit = {
-    if (sqlContext.conf.cacheFileStatus) {
-      fileStatusCache.refresh()
-    }
+    fileStatusCache.refresh()
 
     if (sqlContext.conf.partitionDiscoveryEnabled()) {
       _partitionSpec = discoverPartitions()
@@ -645,8 +644,8 @@ abstract class HadoopFsRelation private[sql](
       broadcastedConf: Broadcast[SerializableConfiguration]): RDD[InternalRow] = {
 
     logInfo(s"Input paths size: ${inputPaths.length}")
-    if (inputPaths == 1) {
-      logInfo(inputPaths.mkString(" "))
+    if (inputPaths.length == 1) {
+      logInfo(s"Input path: ${inputPaths.head}")
     }
     val inputStatuses = inputPaths.flatMap { input =>
       val path = new Path(input)

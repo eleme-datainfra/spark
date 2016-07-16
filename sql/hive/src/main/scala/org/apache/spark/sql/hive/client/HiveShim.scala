@@ -209,7 +209,7 @@ private[client] class Shim_v0_12 extends Shim with Logging {
       predicates: Seq[Expression]): Seq[Partition] = {
     // getPartitionsByFilter() doesn't support binary comparison ops in Hive 0.12.
     // See HIVE-4888.
-    logDebug("Hive 0.12 doesn't support predicate pushdown to metastore. " +
+    logInfo("Hive 0.12 doesn't support predicate pushdown to metastore. " +
       "Please use Hive 0.13 or higher.")
     getAllPartitions(hive, table)
   }
@@ -319,11 +319,14 @@ private[client] class Shim_v0_13 extends Shim_v0_12 {
    * Unsupported predicates are skipped.
    */
   def convertFilters(table: Table, filters: Seq[Expression]): String = {
+    logInfo("Filter expressions: " + filters.mkString(","))
     // hive varchar is treated as catalyst string, but hive varchar can't be pushed down.
     val varcharKeys = table.getPartitionKeys.asScala
       .filter(col => col.getType.startsWith(serdeConstants.VARCHAR_TYPE_NAME) ||
         col.getType.startsWith(serdeConstants.CHAR_TYPE_NAME))
       .map(col => col.getName).toSet
+
+    logInfo(s"VarcharKeys: ${varcharKeys.mkString(",")}")
 
     filters.collect {
       case op @ BinaryComparison(a: Attribute, Literal(v, _: IntegralType)) =>
@@ -349,6 +352,7 @@ private[client] class Shim_v0_13 extends Shim_v0_12 {
     val filter = convertFilters(table, predicates)
     val partitions =
       if (filter.isEmpty) {
+        logInfo(s"Hive metastore filter is empty.")
         getAllPartitionsMethod.invoke(hive, table).asInstanceOf[JSet[Partition]]
       } else {
         logInfo(s"Hive metastore filter is '$filter'.")
