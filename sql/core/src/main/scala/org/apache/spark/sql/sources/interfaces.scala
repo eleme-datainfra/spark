@@ -348,7 +348,8 @@ abstract class OutputWriterFactory extends Serializable {
    * @param dataSchema Schema of the rows to be written. Partition columns are not included in the
    *        schema if the relation being written is partitioned.
    * @param context The Hadoop MapReduce task context.
-    * @since 1.4.0
+   *
+   * @since 1.4.0
    */
   def newInstance(path: String, dataSchema: StructType, context: TaskAttemptContext): OutputWriter
 }
@@ -409,9 +410,11 @@ abstract class OutputWriter {
  *
  * @constructor This constructor is for internal uses only. The [[PartitionSpec]] argument is for
  *              implementing metastore table conversion.
-  * @param maybePartitionSpec An [[HadoopFsRelation]] can be created with an optional
+ *
+ * @param maybePartitionSpec An [[HadoopFsRelation]] can be created with an optional
  *        [[PartitionSpec]], so that partition discovery can be skipped.
-  * @since 1.4.0
+ *
+ * @since 1.4.0
  */
 @Experimental
 abstract class HadoopFsRelation private[sql](
@@ -473,8 +476,10 @@ abstract class HadoopFsRelation private[sql](
 
     def refresh(): Unit = {
       val files = listLeafFiles(paths)
+
       leafFiles.clear()
       leafDirToChildrenFiles.clear()
+
       leafFiles ++= files.map(f => f.getPath -> f)
       leafDirToChildrenFiles ++= files.toArray.groupBy(_.getPath.getParent)
     }
@@ -535,7 +540,7 @@ abstract class HadoopFsRelation private[sql](
    *
    * @since 1.4.0
    */
-  var paths: Array[String] = None
+  def paths: Array[String]
 
   /**
    * Contains a set of paths that are considered as the base dirs of the input datasets.
