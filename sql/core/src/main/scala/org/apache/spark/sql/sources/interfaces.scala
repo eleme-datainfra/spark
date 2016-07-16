@@ -535,7 +535,7 @@ abstract class HadoopFsRelation private[sql](
    *
    * @since 1.4.0
    */
-  def paths: Array[String]
+  var paths: Array[String]
 
   /**
    * Contains a set of paths that are considered as the base dirs of the input datasets.
