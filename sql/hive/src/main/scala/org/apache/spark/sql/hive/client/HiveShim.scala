@@ -346,12 +346,13 @@ private[client] class Shim_v0_13 extends Shim_v0_12 {
 
     // Hive getPartitionsByFilter() takes a string that represents partition
     // predicates like "str_key=\"value\" and int_key=1 ..."
+    logInfo(s"MetaStore expression is: '${predicates.map(_.toString).mkString(",")}'")
     val filter = convertFilters(table, predicates)
+    logInfo(s"Hive metastore is: '${filter}'")
     val partitions =
       if (filter.isEmpty) {
         getAllPartitionsMethod.invoke(hive, table).asInstanceOf[JSet[Partition]]
       } else {
-        logDebug(s"Hive metastore filter is '$filter'.")
         getPartitionsByFilterMethod.invoke(hive, table, filter).asInstanceOf[JArrayList[Partition]]
       }
 
