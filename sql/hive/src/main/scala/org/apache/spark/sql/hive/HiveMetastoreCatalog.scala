@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.hive
 
+import org.apache.spark.sql.catalyst.planning.PhysicalOperation
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -31,7 +33,7 @@ import org.apache.hadoop.hive.ql.metadata._
 import org.apache.hadoop.hive.ql.plan.TableDesc
 
 import org.apache.spark.Logging
-import org.apache.spark.sql.catalyst.analysis.{Catalog, MultiInstanceRelation, OverrideCatalog}
+import org.apache.spark.sql.catalyst.analysis.{Catalog, EliminateSubQueries, MultiInstanceRelation, OverrideCatalog}
 import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.logical
@@ -409,7 +411,10 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
     }
   }
 
-  private def convertToParquetRelation(metastoreRelation: MetastoreRelation): LogicalRelation = {
+  private def convertToParquetRelation(metastoreRelation: MetastoreRelation, plan: LogicalPlan)
+      : LogicalRelation = {
+    val (_, filters, _, _) = PhysicalOperation.collectProjectsAndFilters(plan)
+
     val metastoreSchema = StructType.fromAttributes(metastoreRelation.output)
     val mergeSchema = hive.convertMetastoreParquetWithSchemaMerging
 
@@ -466,7 +471,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
       val partitionColumnDataTypes = partitionSchema.map(_.dataType)
       // We're converting the entire table into ParquetRelation, so predicates to Hive metastore
       // are empty.
-      val partitions = metastoreRelation.getHiveQlPartitions().map { p =>
+      val partitions = metastoreRelation.getHiveQlPartitions(filters).map { p =>
         val location = p.getLocation
         val values = InternalRow.fromSeq(p.getValues.asScala.zip(partitionColumnDataTypes).map {
           case (rawValue, dataType) => Cast(Literal(rawValue), dataType).eval(null)
@@ -525,7 +530,7 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
           // Inserting into partitioned table is not supported in Parquet data source (yet).
           if !r.hiveQlTable.isPartitioned && hive.convertMetastoreParquet &&
             r.tableDesc.getSerdeClassName.toLowerCase.contains("parquet") =>
-          val parquetRelation = convertToParquetRelation(r)
+          val parquetRelation = convertToParquetRelation(r, plan)
           InsertIntoTable(parquetRelation, partition, child, overwrite, ifNotExists)
 
         // Write path
@@ -533,13 +538,13 @@ private[hive] class HiveMetastoreCatalog(val client: ClientInterface, hive: Hive
           // Inserting into partitioned table is not supported in Parquet data source (yet).
           if !r.hiveQlTable.isPartitioned && hive.convertMetastoreParquet &&
             r.tableDesc.getSerdeClassName.toLowerCase.contains("parquet") =>
-          val parquetRelation = convertToParquetRelation(r)
+          val parquetRelation = convertToParquetRelation(r, plan)
           InsertIntoTable(parquetRelation, partition, child, overwrite, ifNotExists)
 
         // Read path
         case relation: MetastoreRelation if hive.convertMetastoreParquet &&
           relation.tableDesc.getSerdeClassName.toLowerCase.contains("parquet") =>
-          val parquetRelation = convertToParquetRelation(relation)
+          val parquetRelation = convertToParquetRelation(relation, plan)
           Subquery(relation.alias.getOrElse(relation.tableName), parquetRelation)
       }
     }
@@ -832,7 +837,7 @@ private[hive] case class MetastoreRelation
 
   /** Only compare database and tablename, not alias. */
   override def sameResult(plan: LogicalPlan): Boolean = {
-    plan match {
+    EliminateSubQueries(plan) match {
       case mr: MetastoreRelation =>
         mr.databaseName == databaseName && mr.tableName == tableName
       case _ => false

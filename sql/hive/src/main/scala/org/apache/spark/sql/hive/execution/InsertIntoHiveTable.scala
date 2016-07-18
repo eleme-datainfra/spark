@@ -86,6 +86,7 @@ case class InsertIntoHiveTable(
 
     // Note that this function is executed on executor side
     def writeToFile(context: TaskContext, iterator: Iterator[InternalRow]): Unit = {
+      if (!iterator.hasNext) return
       val serializer = newSerializer(fileSinkConf.getTableInfo)
       val standardOI = ObjectInspectorUtils
         .getStandardObjectInspector(

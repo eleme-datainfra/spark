@@ -37,7 +37,7 @@ import org.apache.spark.{Logging, SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.yarn.YarnSparkHadoopUtil._
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpointRef}
 import org.apache.spark.scheduler.{ExecutorExited, ExecutorLossReason}
-import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.RemoveExecutor
+import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveLastAllocatedExecutorId, RemoveExecutor}
 import org.apache.spark.util.ThreadUtils
 
 /**
@@ -83,7 +83,7 @@ private[yarn] class YarnAllocator(
 
   @volatile private var numExecutorsRunning = 0
   // Used to generate a unique ID per executor
-  private var executorIdCounter = 0
+  private var executorIdCounter = driverRef.askWithRetry[Int](RetrieveLastAllocatedExecutorId)
   @volatile private var numExecutorsFailed = 0
 
   @volatile private var targetNumExecutors =
@@ -113,8 +113,10 @@ private[yarn] class YarnAllocator(
     math.max((memoryOverheadFactor * executorMemory).toInt, MEMORY_OVERHEAD_MIN))
   // Number of cores per executor.
   protected val executorCores = args.executorCores
+  protected val realExecutorCores = sparkConf.getInt("spark.yarn.executor.vcores", executorCores)
   // Resource capability requested for each executors
-  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead, executorCores)
+  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead,
+    realExecutorCores)
 
   private val launcherPool = ThreadUtils.newDaemonCachedThreadPool(
     "ContainerLauncher",

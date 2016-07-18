@@ -156,7 +156,7 @@ private[netty] class NettyRpcEnv(
   }
 
   private def postToOutbox(receiver: NettyRpcEndpointRef, message: OutboxMessage): Unit = {
-    if (receiver.client != null && receiver.client.isActive) {
+    if (receiver.client != null) {
       message.sendWith(receiver.client)
     } else {
       require(receiver.address != null,
@@ -289,14 +289,14 @@ private[netty] class NettyRpcEnv(
     if (timeoutScheduler != null) {
       timeoutScheduler.shutdownNow()
     }
+    if (dispatcher != null) {
+      dispatcher.stop()
+    }
     if (server != null) {
       server.close()
     }
     if (clientFactory != null) {
       clientFactory.close()
-    }
-    if (dispatcher != null) {
-      dispatcher.stop()
     }
     if (clientConnectionExecutor != null) {
       clientConnectionExecutor.shutdownNow()

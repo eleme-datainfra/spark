@@ -22,7 +22,7 @@ import scala.language.implicitConversions
 import java.io._
 import java.lang.reflect.Constructor
 import java.net.URI
-import java.util.{Arrays, Properties, UUID}
+import java.util.{Timer, Arrays, Properties, UUID, TimerTask}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
@@ -381,7 +381,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   }
 
   /** Control our logLevel. This overrides any user-defined log settings.
-   * @param logLevel The desired log level as a string.
+    *
+    * @param logLevel The desired log level as a string.
    * Valid log levels include: ALL, DEBUG, ERROR, FATAL, INFO, OFF, TRACE, WARN
    */
   def setLogLevel(logLevel: String) {
@@ -452,6 +453,23 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     // "SparkEnv", some messages will be posted to "listenerBus" and we should not miss them.
     _jobProgressListener = new JobProgressListener(_conf)
     listenerBus.addListener(jobProgressListener)
+    if (_conf.getBoolean("spark.listener.checkDeadJob.enabled", false)) {
+      val cleanTimeDuration = _conf.getTimeAsMs("spark.listener.checkDeadJob.duration", "300000")
+      val listenerCleaner: Timer = new Timer(true)
+      listenerCleaner.scheduleAtFixedRate(new TimerTask {
+        override def run(): Unit = {
+          _jobProgressListener.activeJobs.foreach { job =>
+            if (!_dagScheduler.containsJobId(job._2.jobId)) {
+              logInfo(s"Job ${job._2.jobId} is not active in DAGSchedular")
+              listenerBus.post(SparkListenerJobEnd(
+                job._2.jobId,
+                System.currentTimeMillis(),
+                JobFailed(new SparkException("Job is not active in DAGSchedular"))))
+            }
+          }
+        }
+      }, 0, cleanTimeDuration)
+    }
 
     // Create the Spark execution environment (cache, map output tracker, etc)
     _env = createSparkEnv(_conf, isLocal, listenerBus)
@@ -533,7 +551,11 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     _applicationAttemptId = taskScheduler.applicationAttemptId()
     _conf.set("spark.app.id", _applicationId)
     _ui.foreach(_.setAppId(_applicationId))
+    _ui.get.appUIAddress
     _env.blockManager.initialize(_applicationId)
+    // scalastyle:off println
+    System.err.println(s"Application ID is ${_applicationId}, trackingURL: ${_ui.get.appUIAddress}")
+    // scalastyle:on println
 
     // The metrics system for Driver need to be set spark.app.id to app ID.
     // So it should start after we get app ID from the task scheduler and set spark.app.id.
@@ -720,6 +742,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     setLocalProperty(SparkContext.SPARK_JOB_INTERRUPT_ON_CANCEL, null)
   }
 
+  def containsJobGroup(jobGroup: String): Boolean = {
+    _dagScheduler.containsJobGroup(jobGroup)
+  }
+
   /**
    * Execute a block of code in a scope such that all new RDDs created in this body will
    * be part of the same scope. For more detail, see {{org.apache.spark.rdd.RDDOperationScope}}.
@@ -750,8 +776,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * `step` every element.
    *
    * @note if we need to cache this RDD, we should make sure each partition does not exceed limit.
-   *
-   * @param start the start value.
+    * @param start the start value.
    * @param end the end value.
    * @param step the incremental step
    * @param numSlices the partition number of the new RDD.
@@ -874,8 +899,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * @note Small files are preferred, large file is also allowable, but may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    */
@@ -923,8 +947,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * @note Small files are preferred; very large files may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    */
@@ -956,8 +979,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    *             list of inputs.
    * @param recordLength The length at which to split the records
    * @param conf Configuration for setting up the dataset.
-   *
-   * @return An RDD of data with values, represented as byte arrays
+    * @return An RDD of data with values, represented as byte arrays
    */
   def binaryRecords(
       path: String,
@@ -1287,7 +1309,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   /**
    * Create an [[org.apache.spark.Accumulable]] shared variable, to which tasks can add values
    * with `+=`. Only the driver can access the accumuable's `value`.
-   * @tparam R accumulator result type
+    *
+    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
   def accumulable[R, T](initialValue: R)(implicit param: AccumulableParam[R, T])
@@ -1301,7 +1324,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * Create an [[org.apache.spark.Accumulable]] shared variable, with a name for display in the
    * Spark UI. Tasks can add values to the accumuable using the `+=` operator. Only the driver can
    * access the accumuable's `value`.
-   * @tparam R accumulator result type
+    *
+    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
   def accumulable[R, T](initialValue: R, name: String)(implicit param: AccumulableParam[R, T])
@@ -1417,7 +1441,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
-   * @param numExecutors The total number of executors we'd like to have. The cluster manager
+    *
+    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
    *                     we'd want to be allocated.
@@ -1445,7 +1470,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   /**
    * :: DeveloperApi ::
    * Request an additional number of executors from the cluster manager.
-   * @return whether the request is received.
+    *
+    * @return whether the request is received.
    */
   @DeveloperApi
   override def requestExecutors(numAdditionalExecutors: Int): Boolean = {
@@ -1605,7 +1631,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
   /**
    * Gets the locality information associated with the partition in a particular rdd
-   * @param rdd of interest
+    *
+    * @param rdd of interest
    * @param partition to be looked up for locality
    * @return list of preferred locations for the partition
    */

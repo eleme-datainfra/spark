@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory
 import java.net.URL
 import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
+import javax.annotation.concurrent.GuardedBy
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
@@ -114,6 +115,19 @@ private[spark] class Executor(
   private val heartbeatReceiverRef =
     RpcUtils.makeDriverRef(HeartbeatReceiver.ENDPOINT_NAME, conf, env.rpcEnv)
 
+  /**
+   * When an executor is unable to send heartbeats to the driver more than `HEARTBEAT_MAX_FAILURES`
+   * times, it should kill itself. The default value is 60. It means we will retry to send
+   * heartbeats about 10 minutes because the heartbeat interval is 10s.
+   */
+  private val HEARTBEAT_MAX_FAILURES = conf.getInt("spark.executor.heartbeat.maxFailures", 60)
+
+  /**
+   * Count the failure times of heartbeat. It should only be acessed in the heartbeat thread. Each
+   * successful heartbeat will reset it to 0.
+   */
+  private var heartbeatFailures = 0
+
   startDriverHeartbeater()
 
   def launchTask(
@@ -161,6 +175,10 @@ private[spark] class Executor(
     /** Whether this task has been killed. */
     @volatile private var killed = false
 
+    /** Whether this task has been finished. */
+    @GuardedBy("TaskRunner.this")
+    private var finished = false
+
     /** How much the JVM process has spent in GC when the task starts to run. */
     @volatile var startGCTime: Long = _
 
@@ -174,8 +192,23 @@ private[spark] class Executor(
       logInfo(s"Executor is trying to kill $taskName (TID $taskId)")
       killed = true
       if (task != null) {
-        task.kill(interruptThread)
+        synchronized {
+          if (!finished) {
+            task.kill(interruptThread)
+          }
+        }
       }
+    }
+
+    /**
+      * Set the finished flag to true and clear the current thread's interrupt status
+      */
+    private def setTaskFinishedAndClearInterruptStatus(): Unit = synchronized {
+      this.finished = true
+      // SPARK-14234 - Reset the interrupted status of the thread to avoid the
+      // ClosedByInterruptException during execBackend.statusUpdate which causes
+      // Executor to crash
+      Thread.interrupted()
     }
 
     override def run(): Unit = {
@@ -294,14 +327,17 @@ private[spark] class Executor(
       } catch {
         case ffe: FetchFailedException =>
           val reason = ffe.toTaskEndReason
+          setTaskFinishedAndClearInterruptStatus()
           execBackend.statusUpdate(taskId, TaskState.FAILED, ser.serialize(reason))
 
         case _: TaskKilledException | _: InterruptedException if task.killed =>
           logInfo(s"Executor killed $taskName (TID $taskId)")
+          setTaskFinishedAndClearInterruptStatus()
           execBackend.statusUpdate(taskId, TaskState.KILLED, ser.serialize(TaskKilled))
 
         case CausedBy(cDE: CommitDeniedException) =>
           val reason = cDE.toTaskEndReason
+          setTaskFinishedAndClearInterruptStatus()
           execBackend.statusUpdate(taskId, TaskState.FAILED, ser.serialize(reason))
 
         case t: Throwable =>
@@ -327,6 +363,7 @@ private[spark] class Executor(
                 ser.serialize(new ExceptionFailure(t, metrics, false))
             }
           }
+          setTaskFinishedAndClearInterruptStatus()
           execBackend.statusUpdate(taskId, TaskState.FAILED, serializedTaskEndReason)
 
           // Don't forcibly exit unless the exception was inherently fatal, to avoid
@@ -447,7 +484,9 @@ private[spark] class Executor(
             // JobProgressListener will hold an reference of it during
             // onExecutorMetricsUpdate(), then JobProgressListener can not see
             // the changes of metrics any more, so make a deep copy of it
-            val copiedMetrics = Utils.deserialize[TaskMetrics](Utils.serialize(metrics))
+            val copiedMetrics = Utils.deserialize[TaskMetrics](
+              Utils.serialize(metrics),
+              Utils.getContextOrSparkClassLoader)
             tasksMetrics += ((taskRunner.taskId, copiedMetrics))
           } else {
             // It will be copied by serialization
@@ -465,8 +504,16 @@ private[spark] class Executor(
         logInfo("Told to re-register on heartbeat")
         env.blockManager.reregister()
       }
+      heartbeatFailures = 0
     } catch {
-      case NonFatal(e) => logWarning("Issue communicating with driver in heartbeater", e)
+      case NonFatal(e) =>
+        logWarning("Issue communicating with driver in heartbeater", e)
+        heartbeatFailures += 1
+        if (heartbeatFailures >= HEARTBEAT_MAX_FAILURES) {
+          logError(s"Exit as unable to send heartbeats to driver " +
+            s"more than $HEARTBEAT_MAX_FAILURES times")
+          System.exit(ExecutorExitCode.HEARTBEAT_FAILURE)
+        }
     }
   }
 

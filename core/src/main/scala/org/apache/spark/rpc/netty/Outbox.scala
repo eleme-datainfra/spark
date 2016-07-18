@@ -138,7 +138,7 @@ private[netty] class Outbox(nettyEnv: NettyRpcEnv, val address: RpcAddress) {
         // We are connecting to the remote address, so just exit
         return
       }
-      if (client == null || !client.isActive) {
+      if (client == null) {
         // There is no connect task but client is null, so we need to launch the connect task.
         launchConnectTask()
         return
@@ -237,10 +237,6 @@ private[netty] class Outbox(nettyEnv: NettyRpcEnv, val address: RpcAddress) {
   }
 
   private def closeClient(): Unit = synchronized {
-    // Not sure if `client.close` is idempotent. Just for safety.
-    if (client != null) {
-      client.close()
-    }
     client = null
   }
 
