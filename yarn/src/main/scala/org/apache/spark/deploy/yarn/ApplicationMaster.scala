@@ -651,7 +651,7 @@ private[spark] class ApplicationMaster(
         context.reply(true)
 
       case GetExecutorLossReason(eid) =>
-        logInfo(s"${Thread.currentThread().getName}: Driver get Executor $edi Loss Reason")
+        logInfo(s"${Thread.currentThread().getName}: Driver get Executor $eid Loss Reason")
         Option(allocator) match {
           case Some(a) =>
             a.enqueueGetLossReasonRequest(eid, context)
