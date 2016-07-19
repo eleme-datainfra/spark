@@ -340,7 +340,7 @@ private[yarn] class YarnAllocator(
     val remainingAfterRackMatches = new ArrayBuffer[Container]
     for (allocatedContainer <- remainingAfterHostMatches) {
       val rack =
-        if (sc.getConf.getBoolean("spark.rack.disabled", false)) {
+        if (sparkConf.getBoolean("spark.rack.disabled", false)) {
           "/default-rack"
         } else {
           RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation

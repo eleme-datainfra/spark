@@ -644,8 +644,7 @@ private[spark] class ApplicationMaster(
         logInfo(s"$threadName: Driver requested to kill executor(s) ${executorIds.mkString(", ")}.")
         Option(allocator) match {
           case Some(a) => executorIds.foreach(a.killExecutor)
-          case None => logWarning(s"$threadName : " +
-            s"Container allocator is not ready to kill executors yet.")
+          case None => logWarning("Container allocator is not ready to kill executors yet.")
         }
         logInfo(s"$threadName has killed executor(s) ${executorIds.mkString(", ")}.")
         context.reply(true)
@@ -657,8 +656,7 @@ private[spark] class ApplicationMaster(
             a.enqueueGetLossReasonRequest(eid, context)
             resetAllocatorInterval()
           case None =>
-            logWarning(s"$threadName: Container allocator is not ready to " +
-              s"find executor loss reasons yet.")
+            logWarning("Container allocator is not ready to find executor loss reasons yet.")
         }
     }
 
