@@ -17,8 +17,6 @@
 
 package org.apache.spark.sql.hive.orc
 
-import java.util
-
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.hive.orc.HdfsOrcDataSource
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
@@ -26,26 +24,21 @@ import com.facebook.presto.orc._
 import com.facebook.presto.orc.memory.AggregatedMemoryContext
 import com.facebook.presto.orc.metadata.{OrcMetadataReader, MetadataReader}
 import com.facebook.presto.spi.`type`.Type
-import com.facebook.presto.spi.block.{ArrayBlock, BlockEncoding, BlockBuilder, Block}
+import com.facebook.presto.spi.block.Block
 import com.facebook.presto.spi.predicate.TupleDomain
-import io.airlift.slice.Slice
+import io.airlift.slice.{Slices, Slice}
 import io.airlift.units.DataSize
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, FSDataInputStream, Path}
-import org.apache.hadoop.hive.ql.io.orc.OrcFile.ReaderOptions
-import org.apache.hadoop.hive.ql.io.orc.ReaderImpl
+import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.hadoop.mapreduce.RecordReader
 import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
-import org.apache.spark.SparkException
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{MutableRow, UnsafeRow}
-import org.apache.spark.sql.catalyst.expressions.codegen.{BufferHolder, UnsafeRowWriter}
+import org.apache.spark.sql.catalyst.expressions.{GenericMutableRow, MutableRow}
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.Platform
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import org.joda.time.DateTimeZone
 import java.io.FileNotFoundException
@@ -78,12 +71,6 @@ class FasterOrcRecordReader(
   private var recordReader: OrcRecordReader = _
 
   /**
-    * The default size for varlen columns. The row grows as necessary to accommodate the
-    * largest column.
-    */
-  private val DEFAULT_VAR_LEN_SIZE: Int = 32
-
-  /**
     * Tries to initialize the reader for this split. Returns true if this reader supports reading
     * this split and false otherwise.
     */
@@ -104,12 +91,17 @@ class FasterOrcRecordReader(
     */
   def initialize(inputSplit: InputSplit, taskAttemptContext: TaskAttemptContext): Unit = {
     val fileSplit: FileSplit = inputSplit.asInstanceOf[FileSplit]
-    val path: Path = fileSplit.getPath
     val conf = SparkHadoopUtil.get.getConfigurationFromJobContext(taskAttemptContext)
-    initialize(path, conf)
+    initialize(fileSplit, conf)
   }
 
-  def initialize(path: Path, conf: Configuration): Unit = {
+  def initialize(fileSplit: FileSplit, conf: Configuration): Unit = {
+    output.foreach { col =>
+      val dt = col._2
+      if (dt.isInstanceOf[UserDefinedType[_]]) {
+        throw new IOException("Unsupported type: " + dt)
+      }
+    }
 
     var orcDataSource: OrcDataSource = null
     val metadataReader: MetadataReader = new OrcMetadataReader
@@ -118,12 +110,13 @@ class FasterOrcRecordReader(
     val streamBufferSize: DataSize = new DataSize(8, DataSize.Unit.MEGABYTE)
     val hiveStorageTimeZone: DateTimeZone = DateTimeZone.forTimeZone(
       TimeZone.getTimeZone(TimeZone.getDefault.getID))
-
+    val path = fileSplit.getPath
     try {
       val fileSystem = path.getFileSystem(conf)
       val size = fileSystem.getFileStatus(path).getLen
       var inputStream: FSDataInputStream = null
       if (fileSystem.isDirectory(path)) {
+        // for test
         val childPaths = fileSystem.listStatus(path)
         val childPath = childPaths(1).getPath
         inputStream = fileSystem.open(childPath)
@@ -155,11 +148,10 @@ class FasterOrcRecordReader(
     val columns = output.map(x => (x._1: Integer, x._3)).toMap.asJava
 
     recordReader = reader.createRecordReader(columns, predicate,
-      hiveStorageTimeZone, systemMemoryUsage)
+      fileSplit.getStart, fileSplit.getLength, hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
 
   }
-
 
   def nextKeyValue: Boolean = {
     if (batchIdx >= numBatched) {
@@ -193,180 +185,267 @@ class FasterOrcRecordReader(
     if (rowsReturned >= totalRowCount) {
       return false
     }
-
-    try {
-      batchIdx = 0
-      numBatched = recordReader.nextBatch
-      if (numBatched <= 0) {
-        close()
-        return false
-      }
-
-      rowsReturned += numBatched
-
-      for (col <- 0 until output.size) {
-        columns(col) = recordReader.readBlock(output(col)._3, output(col)._1)
-      }
-
-      return true
+    batchIdx = 0
+    numBatched = recordReader.nextBatch
+    if (numBatched <= 0) {
+      close()
+      return false
     }
+    rowsReturned += numBatched
+    for (col <- 0 until output.size) {
+      columns(col) = recordReader.readBlock(output(col)._3, output(col)._1)
+    }
+    return true
   }
 
   object BlockRow {
-    var row: BlockRow = new BlockRow(0)
+    var row: BlockRow = null
     def getRow(batchIdx: Int): BlockRow = {
-      row.setBatchIndex(batchIdx)
+      row = new BlockRow(batchIdx)
+      row.init()
       row
-    }
-  }
-
-  class MutableBlock(block: Block) extends Block {
-
-    override def getLength(i: Int): Int = {
-      block.getLength(i)
-    }
-
-    override def getSlice(position: Int, offset: Int, length: Int): Slice = {
-      block.getSlice(position, offset, length)
-    }
-
-    override def getPositionCount: Int = {
-      block.getPositionCount
-    }
-
-    override def bytesEqual(position: Int, offset: Int, otherSlice: Slice,
-                            otherOffset: Int, length: Int): Boolean = {
-      block.bytesEqual(position, offset, otherSlice, otherOffset, length)
-    }
-
-    override def getDouble(position: Int, offset: Int): Double = {
-      block.getDouble(position, offset)
-    }
-
-    override def copyPositions(list: util.List[Integer]): Block = {
-      block.copyPositions(list)
-    }
-
-    override def assureLoaded(): Unit = {
-      block.assureLoaded()
-    }
-
-    override def getSizeInBytes: Int = {
-      block.getSizeInBytes
-    }
-
-    override def writePositionTo(position: Int, blockBuilder: BlockBuilder): Unit = {
-      block.writePositionTo(position, blockBuilder)
-    }
-
-    override def hash(position: Int, offset: Int, length: Int): Long = {
-      block.hash(position, offset, length)
-    }
-
-    override def copyRegion(position: Int, length: Int): Block = {
-      block.copyRegion(position, length)
-    }
-
-    override def getRetainedSizeInBytes: Int = {
-      block.getRetainedSizeInBytes
-    }
-
-    override def getFloat(position: Int, offset: Int): Float = {
-      block.getFloat(position, offset)
-    }
-
-    override def getLong(position: Int, offset: Int): Long = {
-      block.getLong(position, offset)
-    }
-
-    override def getEncoding: BlockEncoding = {
-      block.getEncoding
-    }
-
-    override def getSingleValueBlock(position: Int): Block = {
-      block.getSingleValueBlock(position)
-    }
-
-    override def compareTo(position: Int, offset: Int, length: Int, otherBlock: Block,
-                           otherPosition: Int, otherOffset: Int, otherLength: Int): Int = {
-      block.compareTo(position, offset, length, otherBlock, otherPosition, otherOffset, otherLength)
-    }
-
-    override def getByte(position: Int, offset: Int): Byte = {
-      block.getByte(position, offset)
-    }
-
-    override def getShort(position: Int, offset: Int): Short = {
-      block.getShort(position, offset)
-    }
-
-    override def bytesCompare(position: Int, offset: Int, length: Int,
-                              otherSlice: Slice, otherOffset: Int, otherLength: Int): Int = {
-      block.bytesCompare(position, offset, length, otherSlice, otherOffset, otherLength)
-    }
-
-    override def isNull(postion: Int): Boolean = {
-      block.isNull(postion)
-    }
-
-    override def getRegion(position: Int, offset: Int): Block = {
-      block.getRegion(position, offset)
-    }
-
-    override def writeBytesTo(position: Int, offset: Int, length: Int,
-                              blockBuilder: BlockBuilder): Unit = {
-      block.writeBytesTo(position, offset, length, blockBuilder)
-    }
-
-    override def getInt(position: Int, offset: Int): Int = {
-      block.getInt(position, offset)
-    }
-
-    override def equals(position: Int, offset: Int, otherBlock: Block,
-                        otherPosition: Int, otherOffset: Int, length: Int): Boolean = {
-      block.equals(position, offset, otherBlock, otherPosition, otherOffset, length)
     }
   }
 
   class BlockRow(var batchIdx: Int) extends MutableRow {
     var length = 0
+    var valueIsNull: Slice = Slices.allocate(output.size)
 
     def setBatchIndex(batchIdx: Int): Unit = {
       this.batchIdx = batchIdx
     }
 
+    def init(): Unit = {
+      for (i <- 0 to out.size) {
+        valueIsNull.setByte(i, 0)
+      }
+    }
+
     override def setNullAt(ordinal: Int): Unit = {
-      throw new UnsupportedOperationException("Operation is not supported!")
+      valueIsNull.setByte(ordinal, 1)
     }
 
     override def update(ordinal: Int, value: Any): Unit = {
-      throw new UnsupportedOperationException("Operation is not supported!")
+      if (value == null) {
+        setNullAt(ordinal)
+      } else {
+        val dt = output(ordinal)._2
+        if (dt.isInstanceOf[BooleanType]) {
+          setBoolean(ordinal, value.asInstanceOf[BooleanType])
+        } else if (dt.isInstanceOf[IntegerType]) {
+          setInt(ordinal, value.asInstanceOf[Int])
+        } else if (dt.isInstanceOf[ShortType]) {
+          setShort(ordinal, value.asInstanceOf[Short])
+        } else if (dt.isInstanceOf[LongType]) {
+          setLong(ordinal, value.asInstanceOf[Long])
+        } else if (dt.isInstanceOf[FloatType]) {
+          setFloat(ordinal, value.asInstanceOf[Float])
+        } else if (dt.isInstanceOf[DoubleType]) {
+          setDouble(ordinal, value.asInstanceOf[Double])
+        } else if (dt.isInstanceOf[DecimalType]) {
+          val t = dt.asInstanceOf[DecimalType]
+          setDecimal(ordinal, Decimal.apply(value.asInstanceOf[BigDecimal],
+            t.precision(), t.scale()), t.precision());
+        } else {
+          throw new UnsupportedOperationException("Datatype not supported " + dt)
+        }
+      }
     }
 
     /** Returns true if there are any NULL values in this row. */
     override def anyNull: Boolean = {
+      for (i <- 0 to out.size) {
+        if (valueIsNull.getByte(i) == 1) {
+          return true
+        }
+      }
       !columns.filter(b => b.isNull(batchIdx - 1)).isEmpty
-    }
-
-    /**
-      * Make a copy of the current [[InternalRow]] object.
-      */
-    override def copy(): InternalRow = {
-      throw new UnsupportedOperationException("Operation is not supported!")
     }
 
     override def numFields: Int = output.size
 
-    override def getUTF8String(ordinal: Int): UTF8String = {
+    override def setBoolean(ordinal: Int, value: Boolean): Unit = {
       length = columns(ordinal).getLength(batchIdx - 1)
-      UTF8String.fromBytes(columns(ordinal).getSlice(batchIdx - 1, 0, length).getBytes)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setByte(0, if (value) 1 else 0)
+    }
+
+    override def setByte(ordinal: Int, value: Byte): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setByte(0, value)
+    }
+
+    override def setShort(ordinal: Int, value: Short): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setShort(0, value)
+    }
+
+    override def setInt(ordinal: Int, value: Int): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setInt(0, value)
+    }
+
+    override def setLong(ordinal: Int, value: Long): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setLong(0, value)
+    }
+
+    override def setFloat(ordinal: Int, value: Float): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setFloat(0, value)
+    }
+
+    override def setDouble(ordinal: Int, value: Double): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setDouble(0, value)
+    }
+
+    override def setDecimal(ordinal: Int, value: Decimal, precision: Int): Unit = {
+      length = columns(ordinal).getLength(batchIdx - 1)
+      columns(ordinal).getSlice(batchIdx - 1, 0, length).setLong(0, value.toUnscaledLong)
     }
 
     override def get(ordinal: Int, dataType: DataType): Object = {
-      throw new UnsupportedOperationException("Unsupported data type " + dataType.simpleString)
+      val block = columns(ordinal)
+      val index = batchIdx - 1
+      if (block.isNull(index) || dataType.isInstanceOf[NullType]) {
+        return null
+      } else {
+        if (dataType.isInstanceOf[BooleanType]) {
+          (block.getByte(index) != 0).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ByteType]) {
+          block.getByte(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[BinaryType]) {
+          length = block.getLength(batchIdx - 1)
+          block.getSlice(index, 0, length).getBytes
+        } else if (dataType.isInstanceOf[IntegerType]) {
+          block.getInt(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ShortType]) {
+          block.getShort(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[LongType]) {
+          block.getLong(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[FloatType]) {
+          block.getFloat(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DoubleType]) {
+          block.getDouble(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DateType]) {
+          block.getInt(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DecimalType]) {
+          val dt = dataType.asInstanceOf[DecimalType]
+          Decimal.apply(block.getLong(index, 0), dt.precision, dt.scale)
+        } else if (dataType.isInstanceOf[StringType]) {
+          length = block.getLength(index)
+          UTF8String.fromBytes(block.getSlice(index, 0, length).getBytes)
+        } else if (dataType.isInstanceOf[TimestampType]) {
+          block.getLong(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ArrayType]) {
+          val elementType = dataType.asInstanceOf[ArrayType].elementType
+          val arrayBlock = block.getObject(index, classOf[Block])
+          val array = new Array[Object](arrayBlock.getPositionCount)
+          for (i <- 0 to arrayBlock.getPositionCount) {
+            array(i) = get(arrayBlock, i, elementType)
+          }
+          new GenericArrayData(array)
+        } else if (dataType.isInstanceOf[MapType]) {
+          val dt = dataType.asInstanceOf[MapType]
+          val mapBlock = block.getObject(position, classOf[Block])
+          val keyArray = new Array[Object](mapBlock.getPositionCount)
+          val valueArray = new Array[Object](mapBlock.getPositionCount)
+          var i = 0
+          var j = 0
+          while (i < mapBlock.getPositionCount) {
+            keyArray(j) = get(mapBlock, i, dt.keyType)
+            valueArray(j) = get(mapBlock, i + 1, dt.valueType)
+            j = j + 1
+            i = i + 2
+          }
+          new ArrayBasedMapData(keyArray, valueArray)
+        } else if (dataType.isInstanceOf[StructType]) {
+          val dt = dataType.asInstanceOf[StructType]
+          val block = block.getObject(index, classOf[Block])
+          val values = new Array[Object](block.getPositionCount)
+          for (i <- 0 to block.getPositionCount) {
+            values(i) = get(block, i, dt.apply(i).dataType)
+          }
+          new GenericMutableRow(values)
+        } else if (dataType.isInstanceOf[UserDefinedType]) {
+          get(index, dataType.asInstanceOf[UserDefinedType].sqlType)
+        } else {
+          throw new UnsupportedOperationException("Datatype not supported " + dt)
+        }
+      }
+    }
+
+    def get(block: Block, index: Int, dataType: DataType): Object = {
+      if (block.isNull(index) || dataType.isInstanceOf[NullType]) {
+        return null
+      } else {
+        if (dataType.isInstanceOf[BooleanType]) {
+          (block.getByte(index) != 0).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ByteType]) {
+          block.getByte(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[BinaryType]) {
+          length = block.getLength(batchIdx - 1)
+          block.getSlice(index, 0, length).getBytes
+        } else if (dataType.isInstanceOf[IntegerType]) {
+          block.getInt(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ShortType]) {
+          block.getShort(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[LongType]) {
+          block.getLong(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[FloatType]) {
+          block.getFloat(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DoubleType]) {
+          block.getDouble(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DateType]) {
+          block.getInt(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[DecimalType]) {
+          val dt = dataType.asInstanceOf[DecimalType]
+          Decimal.apply(block.getLong(index, 0), dt.precision, dt.scale)
+        } else if (dataType.isInstanceOf[StringType]) {
+          length = block.getLength(index)
+          UTF8String.fromBytes(block.getSlice(index, 0, length).getBytes)
+        } else if (dataType.isInstanceOf[TimestampType]) {
+          block.getLong(index).asInstanceOf[AnyRef]
+        } else if (dataType.isInstanceOf[ArrayType]) {
+          val elementType = dataType.asInstanceOf[ArrayType].elementType
+          val arrayBlock = block.getObject(index, classOf[Block])
+          val array = new Array[Object](arrayBlock.getPositionCount)
+          for (i <- 0 to arrayBlock.getPositionCount) {
+            array(i) = get(arrayBlock, i, elementType)
+          }
+          new GenericArrayData(array)
+        } else if (dataType.isInstanceOf[MapType]) {
+          val dt = dataType.asInstanceOf[MapType]
+          val mapBlock = block.getObject(position, classOf[Block])
+          val keyArray = new Array[Object](mapBlock.getPositionCount/2)
+          val valueArray = new Array[Object](mapBlock.getPositionCount/2)
+          var i = 0
+          var j = 0
+          while (i < mapBlock.getPositionCount) {
+            keyArray(j) = get(mapBlock, i, dt.keyType)
+            valueArray(j) = get(mapBlock, i + 1, dt.valueType)
+            j = j + 1
+            i = i + 2
+          }
+          new ArrayBasedMapData(keyArray, valueArray)
+        } else if (dataType.isInstanceOf[StructType]) {
+          val dt = dataType.asInstanceOf[StructType]
+          val block = block.getObject(index, classOf[Block])
+          val values = new Array[Object](block.getPositionCount)
+          for (i <- 0 to block.getPositionCount) {
+            values(i) = get(block, i, dt.apply(i).dataType)
+          }
+          new GenericMutableRow(values)
+        } else if (dataType.isInstanceOf[UserDefinedType]) {
+          get(block, batchIdx - 1, dataType.asInstanceOf[UserDefinedType].sqlType)
+        } else {
+          throw new UnsupportedOperationException("Datatype not supported " + dt)
+        }
+      }
     }
 
     override def getBinary(ordinal: Int): Array[Byte] = {
+      if (isNullAt(ordinal)) return null
       length = columns(ordinal).getLength(batchIdx - 1)
       columns(ordinal).getSlice(batchIdx - 1, 0, length).getBytes
     }
@@ -376,11 +455,24 @@ class FasterOrcRecordReader(
     }
 
     override def getArray(ordinal: Int): ArrayData = {
-      null
+      if (isNullAt(ordinal)) return null
+      val elementType = output(ordinal)._2.asInstanceOf[ArrayType].elementType
+      val arrayBlock = columns(ordinal).getObject(batchIdx - 1, classOf[Block])
+      val array = new Array[Object](arrayBlock.getPositionCount)
+      for (i <- 0 to arrayBlock.getPositionCount) {
+        array(i) = get(arrayBlock, i, elementType)
+      }
+      new GenericArrayData(array)
+    }
+
+    override def getUTF8String(ordinal: Int): UTF8String = {
+      if (isNullAt(ordinal)) return null
+      length = columns(ordinal).getLength(batchIdx - 1)
+      UTF8String.fromBytes(columns(ordinal).getSlice(batchIdx - 1, 0, length).getBytes)
     }
 
     override def getInterval(ordinal: Int): CalendarInterval = {
-      null
+      throw new UnsupportedOperationException("Unsupported data type CalendarInterval")
     }
 
     override def getFloat(ordinal: Int): Float = {
@@ -392,7 +484,20 @@ class FasterOrcRecordReader(
     }
 
     override def getMap(ordinal: Int): MapData = {
-      null
+      if (isNullAt(ordinal)) return null
+      val dt = output(ordinal)._2.asInstanceOf[MapType]
+      val mapBlock = columns(ordinal).getObject(batchIdx - 1, classOf[Block])
+      val keyArray = new Array[Object](mapBlock.getPositionCount/2)
+      val valueArray = new Array[Object](mapBlock.getPositionCount/2)
+      var i = 0
+      var j = 0
+      while (i < mapBlock.getPositionCount) {
+        keyArray(j) = get(mapBlock, i, dt.keyType)
+        valueArray(j) = get(mapBlock, i + 1, dt.valueType)
+        j = j + 1
+        i = i + 2
+      }
+      new ArrayBasedMapData(keyArray, valueArray)
     }
 
     override def getByte(ordinal: Int): Byte = {
@@ -412,7 +517,14 @@ class FasterOrcRecordReader(
     }
 
     override def getStruct(ordinal: Int, numFields: Int): InternalRow = {
-      null
+      if (isNullAt(ordinal)) return null
+      val dt = output(ordinal)._2.asInstanceOf[StructType]
+      val block = columns(ordinal).getObject(batchIdx - 1, classOf[Block])
+      val values = new Array[Object](block.getPositionCount)
+      for (i <- 0 to block.getPositionCount) {
+        values(i) = get(block, i, dt.apply(i).dataType)
+      }
+      new GenericMutableRow(values)
     }
 
     override def getInt(ordinal: Int): Int = {
@@ -420,7 +532,7 @@ class FasterOrcRecordReader(
     }
 
     override def isNullAt(ordinal: Int): Boolean = {
-      columns(ordinal).isNull(batchIdx - 1)
+      valueIsNull.getByte(batchIdx - 1) != 0 || columns(ordinal).isNull(batchIdx - 1)
     }
   }
 
