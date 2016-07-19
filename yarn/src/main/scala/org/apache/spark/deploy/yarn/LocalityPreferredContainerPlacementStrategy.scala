@@ -141,7 +141,11 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
         // still be allocated with new container request.
         val hosts = preferredLocalityRatio.filter(_._2 > 0).keys.toArray
         val racks = hosts.map { h =>
-          RackResolver.resolve(yarnConf, h).getNetworkLocation
+          if (sc.getConf.getBoolean("spark.rack.disabled", false)) {
+            "/default-rack"
+          } else {
+            RackResolver.resolve(yarnConf, h).getNetworkLocation
+          }
         }.toSet
         containerLocalityPreferences += ContainerLocalityPreferences(hosts, racks.toArray)
 

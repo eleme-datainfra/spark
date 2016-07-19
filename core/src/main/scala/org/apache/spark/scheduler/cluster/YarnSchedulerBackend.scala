@@ -158,6 +158,7 @@ private[spark] abstract class YarnSchedulerBackend(
           val future = am.ask[ExecutorLossReason](lossReasonRequest, askTimeout)
           future onSuccess {
             case reason: ExecutorLossReason => {
+              logInfo(s"Receive Executor $executorId loss reason, Remove Executor.")
               driverEndpoint.askWithRetry[Boolean](RemoveExecutor(executorId, reason))
             }
           }

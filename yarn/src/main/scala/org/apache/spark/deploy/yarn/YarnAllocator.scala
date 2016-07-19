@@ -290,7 +290,9 @@ private[yarn] class YarnAllocator(
       }
     } else if (missing < 0) {
       val numToCancel = math.min(numPendingAllocate, -missing)
-      logInfo(s"Canceling requests for $numToCancel executor containers")
+      if (numToCancel > 0) {
+        logInfo(s"Canceling requests for $numToCancel executor containers")
+      }
 
       val matchingRequests = amClient.getMatchingRequests(RM_REQUEST_PRIORITY, ANY_HOST, resource)
       if (!matchingRequests.isEmpty) {
@@ -337,7 +339,12 @@ private[yarn] class YarnAllocator(
     // Match remaining by rack
     val remainingAfterRackMatches = new ArrayBuffer[Container]
     for (allocatedContainer <- remainingAfterHostMatches) {
-      val rack = RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+      val rack =
+        if (sc.getConf.getBoolean("spark.rack.disabled", false)) {
+          "/default-rack"
+        } else {
+          RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+        }
       matchContainerToRequest(allocatedContainer, rack, containersToUse,
         remainingAfterRackMatches)
     }
@@ -547,10 +554,12 @@ private[yarn] class YarnAllocator(
     if (executorIdToContainer.contains(eid)) {
       pendingLossReasonRequests
         .getOrElseUpdate(eid, new ArrayBuffer[RpcCallContext]) += context
+      logInfo(s"${Thread.currentThread().getName}: Add $edi Loss Reason Request to queue.")
     } else if (releasedExecutorLossReasons.contains(eid)) {
       // Executor is already released explicitly before getting the loss reason, so directly send
       // the pre-stored lost reason
       context.reply(releasedExecutorLossReasons.remove(eid).get)
+      logInfo(s"${Thread.currentThread().getName}: Send Driver Executor $edi Loss Reason.")
     } else {
       logWarning(s"Tried to get the loss reason for non-existent executor $eid")
       context.sendFailure(
@@ -559,8 +568,11 @@ private[yarn] class YarnAllocator(
   }
 
   private def internalReleaseContainer(container: Container): Unit = {
+    long start = System.currentTimeMillis()
     releasedContainers.add(container.getId())
     amClient.releaseAssignedContainer(container.getId())
+    long end = System.currentTimeMillis()
+    logDebug(s"Release container took ${end - start}ms")
   }
 
   private[yarn] def getNumUnexpectedContainerRelease = numUnexpectedContainerRelease
