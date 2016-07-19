@@ -568,10 +568,10 @@ private[yarn] class YarnAllocator(
   }
 
   private def internalReleaseContainer(container: Container): Unit = {
-    long start = System.currentTimeMillis()
+    val start = System.currentTimeMillis()
     releasedContainers.add(container.getId())
     amClient.releaseAssignedContainer(container.getId())
-    long end = System.currentTimeMillis()
+    val end = System.currentTimeMillis()
     logDebug(s"Release container took ${end - start}ms")
   }
 
