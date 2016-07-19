@@ -17,6 +17,7 @@
 
 package org.apache.spark.executor
 
+import java.lang.management.ManagementFactory
 import java.util.concurrent.ThreadPoolExecutor
 
 import scala.collection.JavaConverters._
@@ -27,7 +28,31 @@ import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.metrics.source.Source
 
 private[spark]
-class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String) extends Source {
+class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, memory: Int = 512) extends Source {
+
+  def getJvmId(): Int = {
+    val pidStr = ManagementFactory.getRuntimeMXBean().getName()
+    val idx = pidStr.lastIndexOf("@")
+    if (idx == -1) {
+      -1
+    } else {
+      pidStr.substring(0, idx).toInt
+    }
+  }
+
+  val pid = getJvmId()
+
+  /**
+   * Runtime.getRuntime().maxMemory不一定准确，所以修改为从配置中进行读取
+   */
+  val MB = 1024 * 1024
+  val maxMemoryByte = memory.toDouble * MB
+
+  // 增加了Executor实际内存使用率输出
+  metricRegistry.register(MetricRegistry.name("memory", "memoryUsedRate"), new Gauge[Double] {
+    override def getValue: Double =
+      ProcfsBasedGetter.getProcessRss(pid) / maxMemoryByte
+  })
 
   private def fileStats(scheme: String) : Option[FileSystem.Statistics] =
     FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme))

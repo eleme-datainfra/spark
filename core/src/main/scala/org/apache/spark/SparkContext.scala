@@ -515,6 +515,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
       .map(warnSparkMem))
       .map(Utils.memoryStringToMb)
       .getOrElse(1024)
+    // add executor memory parameter to executor
+    conf.set("spark.executor.totalmemory", _executorMemory.toString)
 
     // Convert java options to env vars as a work around
     // since we can't set env vars directly in sbt.
