@@ -551,15 +551,17 @@ private[yarn] class YarnAllocator(
   private[yarn] def enqueueGetLossReasonRequest(
       eid: String,
       context: RpcCallContext): Unit = synchronized {
+    val executorId = eid
     if (executorIdToContainer.contains(eid)) {
       pendingLossReasonRequests
         .getOrElseUpdate(eid, new ArrayBuffer[RpcCallContext]) += context
-      logInfo(s"${Thread.currentThread().getName}: Add $edi Loss Reason Request to queue.")
+      val msg = s"${Thread.currentThread().getName}: Add $executorId Loss Reason Request to queue."
+      logInfo(msg)
     } else if (releasedExecutorLossReasons.contains(eid)) {
       // Executor is already released explicitly before getting the loss reason, so directly send
       // the pre-stored lost reason
       context.reply(releasedExecutorLossReasons.remove(eid).get)
-      logInfo(s"${Thread.currentThread().getName}: Send Driver Executor $edi Loss Reason.")
+      logInfo(s"${Thread.currentThread().getName}: Send Driver Executor $executorId Loss Reason.")
     } else {
       logWarning(s"Tried to get the loss reason for non-existent executor $eid")
       context.sendFailure(
