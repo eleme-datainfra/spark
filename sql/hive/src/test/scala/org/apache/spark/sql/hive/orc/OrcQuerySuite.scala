@@ -114,7 +114,8 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
 
       try {
 
-        val reader = new FasterOrcRecordReader(outputAttrs.toArray, columnReferences)
+        val reader = new FasterOrcRecordReader(outputAttrs.toArray,
+          Map.empty[Int, (DataType, String)], columnReferences)
         reader.initialize(new Path(file), new Configuration())
         var start = System.currentTimeMillis()
         while(reader.nextKeyValue) {
