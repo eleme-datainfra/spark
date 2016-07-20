@@ -27,9 +27,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.ql.io.orc.{OrcStruct, OrcInputFormat, CompressionKind}
-import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.mapred.{Reporter, JobConf, FileSplit}
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.hive.HiveMetastoreTypes
 import org.apache.spark.sql.types._
 import org.scalatest.BeforeAndAfterAll
@@ -114,7 +112,8 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       try {
         val reader = new FasterOrcRecordReader(outputAttrs.toArray,
           Map.empty[Int, (DataType, String)], columnReferences)
-        reader.initialize(new FileSplit(new Path(file), 0, fileStatus.getLen, null),
+        reader.initialize(new org.apache.hadoop.mapreduce.lib.input.FileSplit(new Path(file),
+          0, fileStatus.getLen, null),
           new Configuration())
         var start = System.currentTimeMillis()
         while(reader.nextKeyValue) {
