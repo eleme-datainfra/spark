@@ -39,6 +39,7 @@ import org.apache.hadoop.mapreduce.{InputFormat => NewInputFormat}
 
 import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
@@ -240,10 +241,11 @@ class HadoopTableReader(
         Utils.withDummyCallSite[RDD[InternalRow]](sc.sparkContext) {
           val inputFormatClass = classOf[OrcNewInputFormat]
             .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
-          val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs)
+          val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs,
+            partitionKeyAttrs, partValues)
           new FasterOrcRDD[InternalRow](
-            sqlContext,
-            broadcastedConf,
+            sc,
+            new SerializableConfiguration(SparkHadoopUtil.get.conf),
             includedColumnsInfo,
             inputFormatClass,
             classOf[InternalRow])

@@ -243,7 +243,7 @@ class FasterOrcRecordReader(
         } else if (dt.isInstanceOf[DecimalType]) {
           val t = dt.asInstanceOf[DecimalType]
           setDecimal(ordinal, Decimal.apply(value.asInstanceOf[BigDecimal],
-            t.precision(), t.scale()), t.precision());
+            t.precision(), t.scale()), t.precision())
         } else {
           throw new UnsupportedOperationException("Datatype not supported " + dt)
         }
@@ -315,7 +315,7 @@ class FasterOrcRecordReader(
         if (dataType.isInstanceOf[BooleanType]) {
           (block.getByte(index, 0) != 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ByteType]) {
-          block.getByte(index).asInstanceOf[AnyRef]
+          block.getByte(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[BinaryType]) {
           length = block.getLength(batchIdx - 1)
           block.getSlice(index, 0, length).getBytes
@@ -363,12 +363,12 @@ class FasterOrcRecordReader(
           new ArrayBasedMapData(new GenericArrayData(keyArray), new GenericArrayData(valueArray))
         } else if (dataType.isInstanceOf[StructType]) {
           val dt = dataType.asInstanceOf[StructType]
-          val block = block.getObject(index, classOf[Block])
-          val values = new Array[Object](block.getPositionCount)
-          for (i <- 0 to block.getPositionCount) {
-            values(i) = get(block, i, dt.apply(i).dataType)
+          val structBlock = block.getObject(index, classOf[Block])
+          val values = new Array[Any](structBlock.getPositionCount)
+          for (i <- 0 to structBlock.getPositionCount) {
+            values(i) = get(structBlock, i, dt.apply(i).dataType)
           }
-          new GenericMutableRow(values.asInstanceOf[AnyRef])
+          new GenericMutableRow(values)
         } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
           get(index, dataType.asInstanceOf[UserDefinedType[_]].sqlType)
         } else {
@@ -432,14 +432,14 @@ class FasterOrcRecordReader(
           new ArrayBasedMapData(new GenericArrayData(keyArray), new GenericArrayData(valueArray))
         } else if (dataType.isInstanceOf[StructType]) {
           val dt = dataType.asInstanceOf[StructType]
-          val block = block.getObject(index, classOf[Block])
-          val values = new Array[Object](block.getPositionCount)
-          for (i <- 0 to block.getPositionCount) {
-            values(i) = get(block, i, dt.apply(i).dataType)
+          val structBlock = block.getObject(index, classOf[Block])
+          val values = new Array[Any](structBlock.getPositionCount)
+          for (i <- 0 to structBlock.getPositionCount) {
+            values(i) = get(structBlock, i, dt.apply(i).dataType)
           }
-          new GenericMutableRow(values.asInstanceOf[Array[AnyRef]])
+          new GenericMutableRow(values)
         } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
-          get(block, batchIdx - 1, dataType.asInstanceOf[UserDefinedType].sqlType)
+          get(block, batchIdx - 1, dataType.asInstanceOf[UserDefinedType[_]].sqlType)
         } else {
           throw new UnsupportedOperationException("Datatype not supported " + dataType)
         }
@@ -522,11 +522,11 @@ class FasterOrcRecordReader(
       if (isNullAt(ordinal)) return null
       val dt = output(ordinal)._2.asInstanceOf[StructType]
       val block = columns(ordinal).getObject(batchIdx - 1, classOf[Block])
-      val values = new Array[Object](block.getPositionCount)
+      val values = new Array[Any](block.getPositionCount)
       for (i <- 0 to block.getPositionCount) {
         values(i) = get(block, i, dt.apply(i).dataType)
       }
-      new GenericMutableRow(values.asInstanceOf[AnyRef])
+      new GenericMutableRow(values)
     }
 
     override def getInt(ordinal: Int): Int = {

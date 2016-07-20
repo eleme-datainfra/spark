@@ -85,7 +85,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     * Implemented by subclasses to return the set of partitions in this RDD. This method will only
     * be called once, so it is safe to implement a time-consuming computation in it.
     */
-  override protected def getPartitions: Array[Partition] = {mv
+  override protected def getPartitions: Array[Partition] = {
     val jobConf: Configuration = broadcastedConf.value.value
     if (sqlContext.conf.useStripeBasedSplitStrategy) {
       val inputPaths = OrcUtil.getInputPaths(jobConf)
@@ -191,7 +191,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * TODO: plumb this through a different way?
         */
       if (sqlContext.conf.useFasterOrcReader) {
-        val orcReader = new FasterOrcRecordReader(columnInfo.output, partitions,
+        val orcReader = new FasterOrcRecordReader(columnInfo.output, columnInfo.partitions,
           columnInfo.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
           hadoopAttemptContext)) {
