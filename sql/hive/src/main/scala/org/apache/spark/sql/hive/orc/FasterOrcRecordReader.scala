@@ -302,6 +302,14 @@ class FasterOrcRecordReader(
       columns(ordinal).getSlice(batchIdx - 1, 0, length).setLong(0, value.toUnscaledLong)
     }
 
+
+    /**
+      * Make a copy of the current [[InternalRow]] object.
+      */
+    override def copy(): InternalRow = {
+      throw new UnsupportedOperationException("Copy is not implemented.")
+    }
+
     override def get(ordinal: Int, dataType: DataType): Object = {
       if (partitions.contains(ordinal)) {
         val part = partitions.get(ordinal).get
