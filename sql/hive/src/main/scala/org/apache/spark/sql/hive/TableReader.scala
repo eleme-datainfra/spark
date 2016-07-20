@@ -245,7 +245,7 @@ class HadoopTableReader(
             partitionKeyAttrs, partValues)
           new FasterOrcRDD[InternalRow](
             sc,
-            new SerializableConfiguration(SparkHadoopUtil.get.conf),
+            SparkHadoopUtil.get.conf,
             includedColumnsInfo,
             inputFormatClass,
             classOf[InternalRow])
@@ -302,7 +302,8 @@ class HadoopTableReader(
       partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
     }
 
-    SerializableColumnInfo(nonPartitionOutputAttrs.toArray, partitionOutputAttrs, columnReferences)
+    SerializableColumnInfo(nonPartitionOutputAttrs.toArray,
+      partitionOutputAttrs.toMap, columnReferences)
   }
 
   /**

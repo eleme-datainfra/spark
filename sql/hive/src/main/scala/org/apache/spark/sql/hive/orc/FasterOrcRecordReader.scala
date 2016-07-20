@@ -243,7 +243,7 @@ class FasterOrcRecordReader(
         } else if (dt.isInstanceOf[DecimalType]) {
           val t = dt.asInstanceOf[DecimalType]
           setDecimal(ordinal, Decimal.apply(value.asInstanceOf[BigDecimal],
-            t.precision(), t.scale()), t.precision())
+            t.precision, t.scale), t.precision)
         } else {
           throw new UnsupportedOperationException("Datatype not supported " + dt)
         }

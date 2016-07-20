@@ -67,7 +67,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       valueClass: Class[V]) {
 
     this(sqlContext,
-      sqlContext.sparkContext.broadcast(jobConf),
+      sqlContext.sparkContext.broadcast(new SerializableConfiguration(jobConf)),
       columnInfo,
       inputFormatClass,
       valueClass
