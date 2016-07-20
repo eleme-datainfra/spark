@@ -348,6 +348,14 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "<TODO>")
 
+  val HIVE_MERGE_FILES = booleanConf("spark.sql.hive.mergeFiles",
+    defaultValue = Some(false),
+    doc = "<TODO>")
+
+  val HIVE_MERGE_FILES_COUNT = intConf("spark.sql.hive.mergeFilesCount",
+    defaultValue = Some(2),
+    doc = "<TODO>")
+
   val HIVE_METASTORE_PARTITION_PRUNING = booleanConf("spark.sql.hive.metastorePartitionPruning",
     defaultValue = Some(false),
     doc = "When true, some predicates will be pushed down into the Hive metastore so that " +
@@ -546,6 +554,10 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
   private[spark] def useStripeBasedSplitStrategy: Boolean = getConf(ORC_SPLIT_BY_STRIPE_ENABLED)
 
   private[spark] def verifyPartitionPath: Boolean = getConf(HIVE_VERIFY_PARTITION_PATH)
+
+  private[spark] def mergeHiveFiles: Boolean = getConf(HIVE_MERGE_FILES)
+
+  private[spark] def mergeHiveFilesCount: Int = getConf(HIVE_MERGE_FILES_COUNT)
 
   private[spark] def metastorePartitionPruning: Boolean = getConf(HIVE_METASTORE_PARTITION_PRUNING)
 

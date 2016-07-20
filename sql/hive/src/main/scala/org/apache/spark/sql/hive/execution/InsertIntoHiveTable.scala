@@ -31,7 +31,7 @@ import org.apache.hadoop.hive.serde2.objectinspector._
 import org.apache.hadoop.mapred.{FileOutputCommitter, FileOutputFormat, JobConf}
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{SQLConf, Row}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.{UnaryNode, SparkPlan}
@@ -81,7 +81,12 @@ case class InsertIntoHiveTable(
     log.debug("Saving as hadoop file of type " + valueClass.getSimpleName)
 
     writerContainer.driverSideSetup()
-    sc.sparkContext.runJob(rdd, writeToFile _)
+    if (sc.conf.mergeHiveFiles) {
+      val mergeFilesRDD = rdd.repartition(sc.conf.mergeHiveFilesCount)
+      sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
+    } else {
+      sc.sparkContext.runJob(rdd, writeToFile _)
+    }
     writerContainer.commitJob()
 
     // Note that this function is executed on executor side

@@ -290,7 +290,9 @@ private[yarn] class YarnAllocator(
       }
     } else if (missing < 0) {
       val numToCancel = math.min(numPendingAllocate, -missing)
-      logInfo(s"Canceling requests for $numToCancel executor containers")
+      if (numToCancel > 0) {
+        logInfo(s"Canceling requests for $numToCancel executor containers")
+      }
 
       val matchingRequests = amClient.getMatchingRequests(RM_REQUEST_PRIORITY, ANY_HOST, resource)
       if (!matchingRequests.isEmpty) {
@@ -337,7 +339,12 @@ private[yarn] class YarnAllocator(
     // Match remaining by rack
     val remainingAfterRackMatches = new ArrayBuffer[Container]
     for (allocatedContainer <- remainingAfterHostMatches) {
-      val rack = RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+      val rack =
+        if (sparkConf.getBoolean("spark.rack.disabled", false)) {
+          "/default-rack"
+        } else {
+          RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+        }
       matchContainerToRequest(allocatedContainer, rack, containersToUse,
         remainingAfterRackMatches)
     }
@@ -544,13 +551,17 @@ private[yarn] class YarnAllocator(
   private[yarn] def enqueueGetLossReasonRequest(
       eid: String,
       context: RpcCallContext): Unit = synchronized {
+    val executorId = eid
     if (executorIdToContainer.contains(eid)) {
       pendingLossReasonRequests
         .getOrElseUpdate(eid, new ArrayBuffer[RpcCallContext]) += context
+      val msg = s"${Thread.currentThread().getName}: Add $executorId Loss Reason Request to queue."
+      logInfo(msg)
     } else if (releasedExecutorLossReasons.contains(eid)) {
       // Executor is already released explicitly before getting the loss reason, so directly send
       // the pre-stored lost reason
       context.reply(releasedExecutorLossReasons.remove(eid).get)
+      logInfo(s"${Thread.currentThread().getName}: Send Driver Executor $executorId Loss Reason.")
     } else {
       logWarning(s"Tried to get the loss reason for non-existent executor $eid")
       context.sendFailure(

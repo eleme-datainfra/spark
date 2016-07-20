@@ -625,27 +625,32 @@ private[spark] class ApplicationMaster(
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
       case RequestExecutors(requestedTotal, localityAwareTasks, hostToLocalTaskCount) =>
+        val threadName = Thread.currentThread().getName
+        logInfo(s"$threadName: Receive RequestExecutors Request")
         Option(allocator) match {
           case Some(a) =>
             if (a.requestTotalExecutorsWithPreferredLocalities(requestedTotal,
               localityAwareTasks, hostToLocalTaskCount)) {
               resetAllocatorInterval()
             }
-
           case None =>
-            logWarning("Container allocator is not ready to request executors yet.")
+            logWarning(s"$threadName: Container allocator is not ready to request executors yet.")
         }
+        logInfo(s"$threadName handle RequestExecutors complete.")
         context.reply(true)
 
       case KillExecutors(executorIds) =>
-        logInfo(s"Driver requested to kill executor(s) ${executorIds.mkString(", ")}.")
+        val threadName = Thread.currentThread().getName
+        logInfo(s"$threadName: Driver requested to kill executor(s) ${executorIds.mkString(", ")}.")
         Option(allocator) match {
           case Some(a) => executorIds.foreach(a.killExecutor)
           case None => logWarning("Container allocator is not ready to kill executors yet.")
         }
+        logInfo(s"$threadName has killed executor(s) ${executorIds.mkString(", ")}.")
         context.reply(true)
 
       case GetExecutorLossReason(eid) =>
+        logInfo(s"${Thread.currentThread().getName}: Driver get Executor $eid Loss Reason")
         Option(allocator) match {
           case Some(a) =>
             a.enqueueGetLossReasonRequest(eid, context)
