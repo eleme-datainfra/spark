@@ -280,12 +280,15 @@ class HadoopTableReader(
     }
   }
 
-  def addIncludeColumnsInfo(nonPartitionKeyAttrs: Seq[(Attribute, Int)]): SerializableColumnInfo = {
+  def addIncludeColumnsInfo(nonPartitionKeyAttrs: Seq[(Attribute, Int)],
+                            partitionKeyAttrs: Seq[(Attribute, Int)],
+                            partValues: Array[String]): SerializableColumnInfo = {
+
     val typeManager = new TypeRegistry()
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
-    var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+    var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
 
-    nonPartitionKeyAttrs.foreach { (a: Attribute, fieldIndex: Int) =>
+    nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
       val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
       val hiveType = HiveType.valueOf(mType)
       val pType = typeManager.getType(hiveType.getTypeSignature)
@@ -293,10 +296,16 @@ class HadoopTableReader(
         new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
         fieldIndex,
         pType))
-      outputAttrs += ((fieldIndex, a.dataType, pType))
+      nonPartitionOutputAttrs += ((fieldIndex, a.dataType, pType))
     }
 
-    SerializableColumnInfo(outputAttrs.toArray, columnReferences)
+    var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
+    partitionKeyAttrs.foreach { case (a, fieldIndex) =>
+      val partOrdinal = relation.partitionKeys.indexOf(a)
+      partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
+    }
+
+    SerializableColumnInfo(nonPartitionOutputAttrs.toArray, partitionOutputAttrs, columnReferences)
   }
 
   /**

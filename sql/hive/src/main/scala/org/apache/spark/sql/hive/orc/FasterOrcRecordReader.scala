@@ -37,7 +37,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, GenericMutableRow, MutableRow}
+import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import org.joda.time.DateTimeZone
@@ -50,12 +50,13 @@ import scala.collection.JavaConverters._
 
 class FasterOrcRecordReader(
     output: Array[(Int, DataType, Type)],
+    partitions: Map[Int, (DataType, String)],
     columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
   extends RecordReader[NullWritable, InternalRow] {
 
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
-  private var columns = new Array[Block](output.size)
+  private val columns = new Array[Block](output.size)
 
   /**
     * The number of rows that have been returned.
@@ -192,9 +193,7 @@ class FasterOrcRecordReader(
       return false
     }
     rowsReturned += numBatched
-    for (col <- 0 until output.size) {
-      columns(col) = recordReader.readBlock(output(col)._3, output(col)._1)
-    }
+    Cast(Literal(rawPartValues(partOrdinal)), attr.dataType).eval(null)
     return true
   }
 
@@ -262,7 +261,7 @@ class FasterOrcRecordReader(
       !columns.filter(b => b.isNull(batchIdx - 1)).isEmpty
     }
 
-    override def numFields: Int = output.size
+    override def numFields: Int = output.size + partitions.size
 
     override def setBoolean(ordinal: Int, value: Boolean): Unit = {
       length = columns(ordinal).getLength(batchIdx - 1)
@@ -304,18 +303,11 @@ class FasterOrcRecordReader(
       columns(ordinal).getSlice(batchIdx - 1, 0, length).setLong(0, value.toUnscaledLong)
     }
 
-    def resize(partitionKeys: Seq[Attribute]): Unit = {
-      if (columns.size != (output.size + partitionKeys.size)) {
-        var newCopy = new Array[Block](output.size + partitionKeys.size)
-        for (i <- 0 to columns.size) {
-          newCopy(i) = columns(i)
-        }
-
-        columns = newCopy
-      }
-    }
-
     override def get(ordinal: Int, dataType: DataType): Object = {
+      if (partitions.contains(ordinal)) {
+        val part = partitions.get(ordinal).get
+        return Cast(Literal(part._2), part._1)
+      }
       val block = columns(ordinal)
       val index = batchIdx - 1
       if (block.isNull(index) || dataType.isInstanceOf[NullType]) {

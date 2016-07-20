@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.hive.orc
 
-import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.{ExecutorCompletionService, Callable, Executors}
@@ -30,10 +29,8 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
-import org.apache.hadoop.util.StringUtils
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
-import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import OrcUtil.StripeSplit
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
@@ -48,6 +45,7 @@ import scala.reflect.ClassTag
 
 private[hive] case class SerializableColumnInfo(
     @transient var output: Array[(Int, DataType, Type)],
+    @transient var partitions: Map[Int, (DataType, String)],
     @transient var columnReferences: java.util.List[ColumnReference[HiveColumnHandle]])
   extends Serializable
 

@@ -280,7 +280,10 @@ private[orc] case class OrcTableScan(
         pType))
       outputAttrs += ((fieldIndex, a.dataType, pType))
     }
-    SerializableColumnInfo(outputAttrs.toArray, columnReferences)
+
+    SerializableColumnInfo(outputAttrs.toArray,
+      Map.empty[Int, (DataType, String)],
+      columnReferences)
   }
 
   private def mapDataTypeToType(dataType: DataType, typeManager: TypeRegistry): Type = {
