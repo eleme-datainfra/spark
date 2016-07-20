@@ -191,7 +191,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * TODO: plumb this through a different way?
         */
       if (sqlContext.conf.useFasterOrcReader) {
-        val orcReader = new FasterOrcRecordReader(columnInfo.output, columnInfo.columnReferences)
+        val orcReader = new FasterOrcRecordReader(columnInfo.output, partitions,
+          columnInfo.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
           hadoopAttemptContext)) {
           orcReader.close()

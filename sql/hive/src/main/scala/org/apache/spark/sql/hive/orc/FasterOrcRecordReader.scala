@@ -193,7 +193,6 @@ class FasterOrcRecordReader(
       return false
     }
     rowsReturned += numBatched
-    Cast(Literal(rawPartValues(partOrdinal)), attr.dataType).eval(null)
     return true
   }
 
@@ -230,7 +229,7 @@ class FasterOrcRecordReader(
       } else {
         val dt = output(ordinal)._2
         if (dt.isInstanceOf[BooleanType]) {
-          setBoolean(ordinal, value.asInstanceOf[BooleanType])
+          setBoolean(ordinal, value.asInstanceOf[Boolean])
         } else if (dt.isInstanceOf[IntegerType]) {
           setInt(ordinal, value.asInstanceOf[Int])
         } else if (dt.isInstanceOf[ShortType]) {
@@ -253,7 +252,7 @@ class FasterOrcRecordReader(
 
     /** Returns true if there are any NULL values in this row. */
     override def anyNull: Boolean = {
-      for (i <- 0 to out.size) {
+      for (i <- 0 to output.size) {
         if (valueIsNull.getByte(i) == 1) {
           return true
         }
@@ -314,24 +313,24 @@ class FasterOrcRecordReader(
         return null
       } else {
         if (dataType.isInstanceOf[BooleanType]) {
-          (block.getByte(index) != 0).asInstanceOf[AnyRef]
+          (block.getByte(index, 0) != 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ByteType]) {
           block.getByte(index).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[BinaryType]) {
           length = block.getLength(batchIdx - 1)
           block.getSlice(index, 0, length).getBytes
         } else if (dataType.isInstanceOf[IntegerType]) {
-          block.getInt(index).asInstanceOf[AnyRef]
+          block.getInt(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ShortType]) {
-          block.getShort(index).asInstanceOf[AnyRef]
+          block.getShort(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[LongType]) {
-          block.getLong(index).asInstanceOf[AnyRef]
+          block.getLong(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[FloatType]) {
-          block.getFloat(index).asInstanceOf[AnyRef]
+          block.getFloat(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DoubleType]) {
-          block.getDouble(index).asInstanceOf[AnyRef]
+          block.getDouble(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DateType]) {
-          block.getInt(index).asInstanceOf[AnyRef]
+          block.getInt(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DecimalType]) {
           val dt = dataType.asInstanceOf[DecimalType]
           Decimal.apply(block.getLong(index, 0), dt.precision, dt.scale)
@@ -339,7 +338,7 @@ class FasterOrcRecordReader(
           length = block.getLength(index)
           UTF8String.fromBytes(block.getSlice(index, 0, length).getBytes)
         } else if (dataType.isInstanceOf[TimestampType]) {
-          block.getLong(index).asInstanceOf[AnyRef]
+          block.getLong(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ArrayType]) {
           val elementType = dataType.asInstanceOf[ArrayType].elementType
           val arrayBlock = block.getObject(index, classOf[Block])
@@ -350,7 +349,7 @@ class FasterOrcRecordReader(
           new GenericArrayData(array)
         } else if (dataType.isInstanceOf[MapType]) {
           val dt = dataType.asInstanceOf[MapType]
-          val mapBlock = block.getObject(position, classOf[Block])
+          val mapBlock = block.getObject(index, classOf[Block])
           val keyArray = new Array[Object](mapBlock.getPositionCount)
           val valueArray = new Array[Object](mapBlock.getPositionCount)
           var i = 0
@@ -361,7 +360,7 @@ class FasterOrcRecordReader(
             j = j + 1
             i = i + 2
           }
-          new ArrayBasedMapData(keyArray, valueArray)
+          new ArrayBasedMapData(new GenericArrayData(keyArray), new GenericArrayData(valueArray))
         } else if (dataType.isInstanceOf[StructType]) {
           val dt = dataType.asInstanceOf[StructType]
           val block = block.getObject(index, classOf[Block])
@@ -369,11 +368,11 @@ class FasterOrcRecordReader(
           for (i <- 0 to block.getPositionCount) {
             values(i) = get(block, i, dt.apply(i).dataType)
           }
-          new GenericMutableRow(values)
-        } else if (dataType.isInstanceOf[UserDefinedType]) {
-          get(index, dataType.asInstanceOf[UserDefinedType].sqlType)
+          new GenericMutableRow(values.asInstanceOf[AnyRef])
+        } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
+          get(index, dataType.asInstanceOf[UserDefinedType[_]].sqlType)
         } else {
-          throw new UnsupportedOperationException("Datatype not supported " + dt)
+          throw new UnsupportedOperationException("Datatype not supported " + dataType)
         }
       }
     }
@@ -383,24 +382,24 @@ class FasterOrcRecordReader(
         return null
       } else {
         if (dataType.isInstanceOf[BooleanType]) {
-          (block.getByte(index) != 0).asInstanceOf[AnyRef]
+          (block.getByte(index, 0) != 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ByteType]) {
-          block.getByte(index).asInstanceOf[AnyRef]
+          block.getByte(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[BinaryType]) {
           length = block.getLength(batchIdx - 1)
           block.getSlice(index, 0, length).getBytes
         } else if (dataType.isInstanceOf[IntegerType]) {
-          block.getInt(index).asInstanceOf[AnyRef]
+          block.getInt(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ShortType]) {
-          block.getShort(index).asInstanceOf[AnyRef]
+          block.getShort(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[LongType]) {
-          block.getLong(index).asInstanceOf[AnyRef]
+          block.getLong(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[FloatType]) {
-          block.getFloat(index).asInstanceOf[AnyRef]
+          block.getFloat(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DoubleType]) {
-          block.getDouble(index).asInstanceOf[AnyRef]
+          block.getDouble(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DateType]) {
-          block.getInt(index).asInstanceOf[AnyRef]
+          block.getInt(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[DecimalType]) {
           val dt = dataType.asInstanceOf[DecimalType]
           Decimal.apply(block.getLong(index, 0), dt.precision, dt.scale)
@@ -408,7 +407,7 @@ class FasterOrcRecordReader(
           length = block.getLength(index)
           UTF8String.fromBytes(block.getSlice(index, 0, length).getBytes)
         } else if (dataType.isInstanceOf[TimestampType]) {
-          block.getLong(index).asInstanceOf[AnyRef]
+          block.getLong(index, 0).asInstanceOf[AnyRef]
         } else if (dataType.isInstanceOf[ArrayType]) {
           val elementType = dataType.asInstanceOf[ArrayType].elementType
           val arrayBlock = block.getObject(index, classOf[Block])
@@ -419,7 +418,7 @@ class FasterOrcRecordReader(
           new GenericArrayData(array)
         } else if (dataType.isInstanceOf[MapType]) {
           val dt = dataType.asInstanceOf[MapType]
-          val mapBlock = block.getObject(position, classOf[Block])
+          val mapBlock = block.getObject(index, classOf[Block])
           val keyArray = new Array[Object](mapBlock.getPositionCount/2)
           val valueArray = new Array[Object](mapBlock.getPositionCount/2)
           var i = 0
@@ -430,7 +429,7 @@ class FasterOrcRecordReader(
             j = j + 1
             i = i + 2
           }
-          new ArrayBasedMapData(keyArray, valueArray)
+          new ArrayBasedMapData(new GenericArrayData(keyArray), new GenericArrayData(valueArray))
         } else if (dataType.isInstanceOf[StructType]) {
           val dt = dataType.asInstanceOf[StructType]
           val block = block.getObject(index, classOf[Block])
@@ -438,11 +437,11 @@ class FasterOrcRecordReader(
           for (i <- 0 to block.getPositionCount) {
             values(i) = get(block, i, dt.apply(i).dataType)
           }
-          new GenericMutableRow(values)
-        } else if (dataType.isInstanceOf[UserDefinedType]) {
+          new GenericMutableRow(values.asInstanceOf[Array[AnyRef]])
+        } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
           get(block, batchIdx - 1, dataType.asInstanceOf[UserDefinedType].sqlType)
         } else {
-          throw new UnsupportedOperationException("Datatype not supported " + dt)
+          throw new UnsupportedOperationException("Datatype not supported " + dataType)
         }
       }
     }
@@ -500,7 +499,7 @@ class FasterOrcRecordReader(
         j = j + 1
         i = i + 2
       }
-      new ArrayBasedMapData(keyArray, valueArray)
+      new ArrayBasedMapData(new GenericArrayData(keyArray), new GenericArrayData(valueArray))
     }
 
     override def getByte(ordinal: Int): Byte = {
@@ -527,7 +526,7 @@ class FasterOrcRecordReader(
       for (i <- 0 to block.getPositionCount) {
         values(i) = get(block, i, dt.apply(i).dataType)
       }
-      new GenericMutableRow(values)
+      new GenericMutableRow(values.asInstanceOf[AnyRef])
     }
 
     override def getInt(ordinal: Int): Int = {

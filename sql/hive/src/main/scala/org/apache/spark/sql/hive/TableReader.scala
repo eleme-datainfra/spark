@@ -28,15 +28,14 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
 import org.apache.hadoop.hive.ql.io.orc.OrcNewInputFormat
-import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, Hive, HiveUtils, HiveStorageHandler}
+import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, HiveUtils}
 import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorConverters, StructObjectInspector}
 import org.apache.hadoop.io.{NullWritable, Writable}
-import org.apache.hadoop.mapred.InputFormat
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
-import org.apache.hadoop.mapreduce.InputFormat
+import org.apache.hadoop.mapreduce.{InputFormat => NewInputFormat}
 
 import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
@@ -45,7 +44,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.hive.orc.{SerializableColumnInfo, FasterOrcRDD}
-import org.apache.spark.sql.types.{DataType, StructType}
+import org.apache.spark.sql.types.DataType
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
 
@@ -236,10 +235,11 @@ class HadoopTableReader(
         }
       }
 
+
       if (sc.conf.useFasterOrcReader) {
-        Utils.withDummyCallSite(sc.sparkContext) {
+        Utils.withDummyCallSite[RDD[InternalRow]](sc.sparkContext) {
           val inputFormatClass = classOf[OrcNewInputFormat]
-            .asInstanceOf[Class[_ <: InputFormat[NullWritable, InternalRow]]]
+            .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
           val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs)
           new FasterOrcRDD[InternalRow](
             sqlContext,
@@ -247,11 +247,6 @@ class HadoopTableReader(
             includedColumnsInfo,
             inputFormatClass,
             classOf[InternalRow])
-        }.mapPartitions { iter =>
-          iter.map { value =>
-            fillPartitionKeys(partValues, value)
-            value: InternalRow
-          }
         }
       } else {
         // Fill all partition keys to the given MutableRow object
