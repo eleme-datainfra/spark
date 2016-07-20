@@ -46,12 +46,12 @@ import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-private[orc] case class SerializableColumnInfo(
+private[hive] case class SerializableColumnInfo(
     @transient var output: Array[(Int, DataType, Type)],
     @transient var columnReferences: java.util.List[ColumnReference[HiveColumnHandle]])
   extends Serializable
 
-private[orc] class FasterOrcRDD[V: ClassTag](
+private[hive] class FasterOrcRDD[V: ClassTag](
     sqlContext: SQLContext,
     broadcastedConf: Broadcast[SerializableConfiguration],
     columnInfo: SerializableColumnInfo,
@@ -87,7 +87,7 @@ private[orc] class FasterOrcRDD[V: ClassTag](
     * Implemented by subclasses to return the set of partitions in this RDD. This method will only
     * be called once, so it is safe to implement a time-consuming computation in it.
     */
-  override protected def getPartitions: Array[Partition] = {
+  override protected def getPartitions: Array[Partition] = {mv
     val jobConf: Configuration = broadcastedConf.value.value
     if (sqlContext.conf.useStripeBasedSplitStrategy) {
       val inputPaths = OrcUtil.getInputPaths(jobConf)

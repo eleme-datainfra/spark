@@ -19,17 +19,24 @@ package org.apache.spark.sql.hive
 
 import java.util
 
+import com.facebook.presto.`type`.TypeRegistry
+import com.facebook.presto.hive.{HiveType, HiveColumnHandle}
+import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
+import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
+import org.apache.hadoop.hive.ql.io.orc.OrcNewInputFormat
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, Hive, HiveUtils, HiveStorageHandler}
 import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorConverters, StructObjectInspector}
-import org.apache.hadoop.io.Writable
+import org.apache.hadoop.io.{NullWritable, Writable}
+import org.apache.hadoop.mapred.InputFormat
 import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
+import org.apache.hadoop.mapreduce.InputFormat
 
 import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
@@ -37,8 +44,12 @@ import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.hive.orc.{SerializableColumnInfo, FasterOrcRDD}
+import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
+
+import scala.collection.mutable
 
 /**
  * A trait for subclasses that handle table scans.
@@ -173,7 +184,7 @@ class HadoopTableReader(
             }
 
             val partPath = partition.getDataLocation
-            val partNum = Utilities.getPartitionDesc(partition).getPartSpec.size();
+            val partNum = Utilities.getPartitionDesc(partition).getPartSpec.size()
             var pathPatternStr = getPathPatternByPath(partNum, partPath)
             if (!pathPatternSet.contains(pathPatternStr)) {
               pathPatternSet += pathPatternStr
@@ -225,20 +236,39 @@ class HadoopTableReader(
         }
       }
 
-      // Fill all partition keys to the given MutableRow object
-      fillPartitionKeys(partValues, mutableRow)
+      if (sc.conf.useFasterOrcReader) {
+        Utils.withDummyCallSite(sc.sparkContext) {
+          val inputFormatClass = classOf[OrcNewInputFormat]
+            .asInstanceOf[Class[_ <: InputFormat[NullWritable, InternalRow]]]
+          val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs)
+          new FasterOrcRDD[InternalRow](
+            sqlContext,
+            broadcastedConf,
+            includedColumnsInfo,
+            inputFormatClass,
+            classOf[InternalRow])
+        }.mapPartitions { iter =>
+          iter.map { value =>
+            fillPartitionKeys(partValues, value)
+            value: InternalRow
+          }
+        }
+      } else {
+        // Fill all partition keys to the given MutableRow object
+        fillPartitionKeys(partValues, mutableRow)
 
-      createHadoopRdd(tableDesc, inputPathStr, ifc).mapPartitions { iter =>
-        val hconf = broadcastedHiveConf.value.value
-        val deserializer = localDeserializer.newInstance()
-        deserializer.initialize(hconf, partProps)
-        // get the table deserializer
-        val tableSerDe = tableDesc.getDeserializerClass.newInstance()
-        tableSerDe.initialize(hconf, tableDesc.getProperties)
+        createHadoopRdd(tableDesc, inputPathStr, ifc).mapPartitions { iter =>
+          val hconf = broadcastedHiveConf.value.value
+          val deserializer = localDeserializer.newInstance()
+          deserializer.initialize(hconf, partProps)
+          // get the table deserializer
+          val tableSerDe = tableDesc.getDeserializerClass.newInstance()
+          tableSerDe.initialize(hconf, tableDesc.getProperties)
 
-        // fill the non partition key attributes
-        HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
-          mutableRow, tableSerDe)
+          // fill the non partition key attributes
+          HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
+            mutableRow, tableSerDe)
+         }
       }
     }.toSeq
 
@@ -248,6 +278,25 @@ class HadoopTableReader(
     } else {
       new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
     }
+  }
+
+  def addIncludeColumnsInfo(nonPartitionKeyAttrs: Seq[(Attribute, Int)]): SerializableColumnInfo = {
+    val typeManager = new TypeRegistry()
+    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
+    var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+
+    nonPartitionKeyAttrs.foreach { (a: Attribute, fieldIndex: Int) =>
+      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
+      val hiveType = HiveType.valueOf(mType)
+      val pType = typeManager.getType(hiveType.getTypeSignature)
+      columnReferences.add(new ColumnReference(
+        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
+        fieldIndex,
+        pType))
+      outputAttrs += ((fieldIndex, a.dataType, pType))
+    }
+
+    SerializableColumnInfo(outputAttrs.toArray, columnReferences)
   }
 
   /**

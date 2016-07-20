@@ -37,7 +37,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{GenericMutableRow, MutableRow}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, GenericMutableRow, MutableRow}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import org.joda.time.DateTimeZone
@@ -55,7 +55,7 @@ class FasterOrcRecordReader(
 
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
-  private val columns = new Array[Block](output.size)
+  private var columns = new Array[Block](output.size)
 
   /**
     * The number of rows that have been returned.
@@ -216,7 +216,7 @@ class FasterOrcRecordReader(
     }
 
     def init(): Unit = {
-      for (i <- 0 to out.size) {
+      for (i <- 0 to output.size) {
         valueIsNull.setByte(i, 0)
       }
     }
@@ -302,6 +302,17 @@ class FasterOrcRecordReader(
     override def setDecimal(ordinal: Int, value: Decimal, precision: Int): Unit = {
       length = columns(ordinal).getLength(batchIdx - 1)
       columns(ordinal).getSlice(batchIdx - 1, 0, length).setLong(0, value.toUnscaledLong)
+    }
+
+    def resize(partitionKeys: Seq[Attribute]): Unit = {
+      if (columns.size != (output.size + partitionKeys.size)) {
+        var newCopy = new Array[Block](output.size + partitionKeys.size)
+        for (i <- 0 to columns.size) {
+          newCopy(i) = columns(i)
+        }
+
+        columns = newCopy
+      }
     }
 
     override def get(ordinal: Int, dataType: DataType): Object = {

@@ -263,19 +263,17 @@ private[orc] case class OrcTableScan(
     HiveShim.appendReadColumns(conf, sortedIds, sortedNames)
   }
 
-  private def addIncludeColumnsInfo(
+  def addIncludeColumnsInfo(
       output: Seq[Attribute],
-      relation: OrcRelation): SerializableColumnInfo = {
+      dataSchema: StructType): SerializableColumnInfo = {
     val typeManager = new TypeRegistry()
-    // val includedColumns = new java.util.HashMap[Integer, Type]()
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
     var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
     output.foreach { a =>
-      val fieldIndex = relation.dataSchema.fieldIndex(a.name)
+      val fieldIndex = dataSchema.fieldIndex(a.name)
       val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
       val hiveType = HiveType.valueOf(mType)
       val pType = typeManager.getType(hiveType.getTypeSignature)
-      // includedColumns.put(fieldIndex, pType)
       columnReferences.add(new ColumnReference(
         new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
         fieldIndex,
@@ -344,7 +342,7 @@ private[orc] case class OrcTableScan(
 
     if (sqlContext.conf.useFasterOrcReader) {
       Utils.withDummyCallSite(sqlContext.sparkContext) {
-        val includedColumnsInfo = addIncludeColumnsInfo(attributes, relation)
+        val includedColumnsInfo = addIncludeColumnsInfo(attributes, relation.dataSchema)
         val inputFormatClass = classOf[OrcNewInputFormat]
           .asInstanceOf[Class[_ <: InputFormat[NullWritable, InternalRow]]]
         new FasterOrcRDD[InternalRow](
