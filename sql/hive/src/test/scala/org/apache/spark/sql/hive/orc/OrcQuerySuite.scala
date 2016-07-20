@@ -98,7 +98,6 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       val pType = typeManager.getType(hiveType.getTypeSignature)
       columnReferences.add(new ColumnReference(
         new HiveColumnHandle("", t._1.toString, hiveType, hiveType.getTypeSignature, t._1, false),
-
         t._1,
         pType))
         outputAttrs += ((t._1, dataType, pType))
@@ -113,10 +112,10 @@ class OrcQuerySuite extends QueryTest with BeforeAndAfterAll with OrcTest {
       val fileStatus = fs.listStatus(filePath)(1)
 
       try {
-
         val reader = new FasterOrcRecordReader(outputAttrs.toArray,
           Map.empty[Int, (DataType, String)], columnReferences)
-        reader.initialize(new Path(file), new Configuration())
+        reader.initialize(new FileSplit(new Path(file), 0, fileStatus.getLen, null),
+          new Configuration())
         var start = System.currentTimeMillis()
         while(reader.nextKeyValue) {
 
