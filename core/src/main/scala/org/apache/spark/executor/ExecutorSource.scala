@@ -48,12 +48,6 @@ class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, memory:
   val MB = 1024 * 1024
   val maxMemoryByte = memory.toDouble * MB
 
-  // 增加了Executor实际内存使用率输出
-  metricRegistry.register(MetricRegistry.name("memory", "memoryUsedRate"), new Gauge[Double] {
-    override def getValue: Double =
-      ProcfsBasedGetter.getProcessRss(pid) / maxMemoryByte
-  })
-
   private def fileStats(scheme: String) : Option[FileSystem.Statistics] =
     FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme))
 
@@ -67,6 +61,12 @@ class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, memory:
   override val metricRegistry = new MetricRegistry()
 
   override val sourceName = "executor"
+
+  // 增加了Executor实际内存使用率输出
+  metricRegistry.register(MetricRegistry.name("memory", "memoryUsedRate"), new Gauge[Double] {
+    override def getValue: Double =
+      ProcfsBasedGetter.getProcessRss(pid) / maxMemoryByte
+  })
 
   // Gauge for executor thread pool's actively executing task counts
   metricRegistry.register(MetricRegistry.name("threadpool", "activeTasks"), new Gauge[Int] {
