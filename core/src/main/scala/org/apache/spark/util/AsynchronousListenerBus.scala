@@ -21,7 +21,7 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.DynamicVariable
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkException, SparkContext}
 
 /**
  * Asynchronously passes events to registered listeners.
@@ -30,21 +30,30 @@ import org.apache.spark.SparkContext
  * has started will events be actually propagated to all attached listeners. This listener bus
  * is stopped when `stop()` is called, and it will drop further events after stopping.
  *
+ * @param sc sparkContext
  * @param name name of the listener bus, will be the name of the listener thread.
  * @tparam L type of listener
  * @tparam E type of event
  */
-private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E](name: String)
+private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E]
+    (sc: SparkContext, name: String)
   extends ListenerBus[L, E] {
 
   self =>
 
-  private var sparkContext: SparkContext = null
 
+  private lazy val EVENT_QUEUE_CAPACITY = validateAndGetQueueSize()
   /* Cap the capacity of the event queue so we get an explicit error (rather than
    * an OOM exception) if it's perpetually being added to more quickly than it's being drained. */
-  private val EVENT_QUEUE_CAPACITY = 10000
   private val eventQueue = new LinkedBlockingQueue[E](EVENT_QUEUE_CAPACITY)
+
+  private def validateAndGetQueueSize(): Int = {
+    val queueSize = sc.conf.getInt("spark.scheduler.listenerbus.eventqueue.size", 10000)
+    if (queueSize <= 0) {
+      throw new SparkException("spark.scheduler.listenerbus.eventqueue.size must be > 0!")
+    }
+    queueSize
+  }
 
   // Indicate if `start()` is called
   private val started = new AtomicBoolean(false)
@@ -60,7 +69,7 @@ private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E](name: Stri
 
   private val listenerThread = new Thread(name) {
     setDaemon(true)
-    override def run(): Unit = Utils.tryOrStopSparkContext(sparkContext) {
+    override def run(): Unit = Utils.tryOrStopSparkContext(sc) {
       AsynchronousListenerBus.withinListenerThread.withValue(true) {
         while (true) {
           eventLock.acquire()
@@ -94,12 +103,9 @@ private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E](name: Stri
    * This first sends out all buffered events posted before this listener bus has started, then
    * listens for any additional events asynchronously while the listener bus is still running.
    * This should only be called once.
-   *
-   * @param sc Used to stop the SparkContext in case the listener thread dies.
    */
-  def start(sc: SparkContext) {
+  def start() {
     if (started.compareAndSet(false, true)) {
-      sparkContext = sc
       listenerThread.start()
     } else {
       throw new IllegalStateException(s"$name already started!")

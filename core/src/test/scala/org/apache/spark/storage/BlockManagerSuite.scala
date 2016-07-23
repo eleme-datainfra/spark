@@ -44,7 +44,7 @@ import org.apache.spark.util._
 
 
 class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterEach
-  with PrivateMethodTester with ResetSystemProperties {
+  with PrivateMethodTester with LocalSparkContext with ResetSystemProperties {
 
   private val conf = new SparkConf(false).set("spark.app.id", "test")
   var store: BlockManager = null
@@ -89,7 +89,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     conf.set("spark.storage.unrollMemoryThreshold", "512")
 
     master = new BlockManagerMaster(rpcEnv.setupEndpoint("blockmanager",
-      new BlockManagerMasterEndpoint(rpcEnv, true, conf, new LiveListenerBus)), conf, true)
+      new BlockManagerMasterEndpoint(rpcEnv, true, conf, new LiveListenerBus(sc))), conf, true)
 
     val initialize = PrivateMethod[Unit]('initialize)
     SizeEstimator invokePrivate initialize()

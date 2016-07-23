@@ -37,7 +37,8 @@ import org.apache.spark.shuffle.hash.HashShuffleManager
 import org.apache.spark.storage.StorageLevel._
 
 /** Testsuite that tests block replication in BlockManager */
-class BlockManagerReplicationSuite extends SparkFunSuite with Matchers with BeforeAndAfter {
+class BlockManagerReplicationSuite extends SparkFunSuite
+  with Matchers with BeforeAndAfter with LocalSparkContext {
 
   private val conf = new SparkConf(false).set("spark.app.id", "test")
   private var rpcEnv: RpcEnv = null
@@ -84,7 +85,7 @@ class BlockManagerReplicationSuite extends SparkFunSuite with Matchers with Befo
     conf.set("spark.storage.cachedPeersTtl", "10")
 
     master = new BlockManagerMaster(rpcEnv.setupEndpoint("blockmanager",
-      new BlockManagerMasterEndpoint(rpcEnv, true, conf, new LiveListenerBus)), conf, true)
+      new BlockManagerMasterEndpoint(rpcEnv, true, conf, new LiveListenerBus(sc))), conf, true)
     allStores.clear()
   }
 
