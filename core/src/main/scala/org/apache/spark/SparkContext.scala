@@ -76,7 +76,7 @@ import org.apache.spark.util._
  * @param config a Spark Config object describing the application configuration. Any settings in
  *   this config overrides the default configs as well as system properties.
  */
-class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationClient {
+class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocationClient {
 
   // The call site where this SparkContext was constructed.
   private val creationSite: CallSite = Utils.getCallSite()

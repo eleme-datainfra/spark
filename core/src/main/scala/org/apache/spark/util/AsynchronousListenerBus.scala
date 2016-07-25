@@ -48,7 +48,7 @@ private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E]
   private val eventQueue = new LinkedBlockingQueue[E](EVENT_QUEUE_CAPACITY)
 
   private def validateAndGetQueueSize(): Int = {
-    val queueSize = sc.conf.getInt("spark.scheduler.listenerbus.eventqueue.size", 10000)
+    val queueSize = sc.config.getInt("spark.scheduler.listenerbus.eventqueue.size", 10000)
     if (queueSize <= 0) {
       throw new SparkException("spark.scheduler.listenerbus.eventqueue.size must be > 0!")
     }
