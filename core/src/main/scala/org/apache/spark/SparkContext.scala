@@ -516,7 +516,25 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
       .map(Utils.memoryStringToMb)
       .getOrElse(1024)
     // add executor memory parameter to executor
-    conf.set("spark.executor.totalmemory", _executorMemory.toString)
+    // adjust yarn mode
+    /**
+      * Add 'physical memory used' and 'physical core used' metrics
+      *
+      * 1) We set Memory Request Resource which not `getRuntime().maxMemory`
+      *     from configuration according to YARN mode or Standalone mode.
+      * 2) We set CPU core Request Resource from configuration `conf.getInt("spark.executor.cores")`.
+      *      And core-physical-used from `active task number of executor threadpool`
+      */
+    val execReqMemory = if (SparkHadoopUtil.get.isYarnMode()) {
+      val memoryOverheadFactor = conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.20)
+      val memoryOverhead: Int = conf.getInt("spark.yarn.executor.memoryOverhead",
+        math.max((memoryOverheadFactor * _executorMemory).toInt, 384))
+      _executorMemory + memoryOverhead
+    } else {
+      //has been formatted to MB
+      _executorMemory
+    }
+    conf.set("spark.executor.memory.resourcereq.mb", execReqMemory.toString)
 
     // Convert java options to env vars as a work around
     // since we can't set env vars directly in sbt.
