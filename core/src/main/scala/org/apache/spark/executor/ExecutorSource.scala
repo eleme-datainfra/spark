@@ -68,7 +68,7 @@ class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, reqMemo
   // Gauge for executor physical cpu core slot usage rate.
   metricRegistry.register(MetricRegistry.name("cpu", "cpuSlotUsageRate"), new Gauge[Double] {
     override def getValue: Double =
-      threadPool.getActiveCount() / reqCores
+      threadPool.getActiveCount() / reqCores.toDouble
   })
 
   // Gauge for executor thread pool's actively executing task counts
