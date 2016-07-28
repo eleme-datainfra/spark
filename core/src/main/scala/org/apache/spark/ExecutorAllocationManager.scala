@@ -168,6 +168,9 @@ private[spark] class ExecutorAllocationManager(
   // Host to possible task running on it, used for executor placement.
   private var hostToLocalTaskCount: Map[String, Int] = Map.empty
 
+  // counter for logging scheduler executors number
+  private var count = 0
+
   /**
    * Verify that the settings specified through the config are valid.
    * If not, throw an appropriate exception.
@@ -242,9 +245,9 @@ private[spark] class ExecutorAllocationManager(
   }
 
   /**
-    * Reset the allocation manager to the initial state. Currently this will only be called in
-    * yarn-client mode when AM re-registers after a failure.
-    */
+   * Reset the allocation manager to the initial state. Currently this will only be called in
+   * yarn-client mode when AM re-registers after a failure.
+   */
   def reset(): Unit = synchronized {
     initializing = true
     numExecutorsTarget = initialNumExecutors
@@ -300,6 +303,11 @@ private[spark] class ExecutorAllocationManager(
    */
   private def updateAndSyncNumExecutorsTarget(now: Long): Int = synchronized {
     val maxNeeded = maxNumExecutorsNeeded
+    count = count + 1
+    if (count % 100 == 0) {
+      logDebug(s"Max executors needed is ${maxNeeded}, last target is $numExecutorsTarget")
+      count = 0
+    }
 
     if (initializing) {
       // Do not change our target while we are still initializing,
@@ -383,6 +391,7 @@ private[spark] class ExecutorAllocationManager(
     } else {
       logWarning(
         s"Unable to reach the cluster manager to request $numExecutorsTarget total executors!")
+      numExecutorsTarget = oldNumExecutorsTarget
       0
     }
   }
@@ -421,7 +430,8 @@ private[spark] class ExecutorAllocationManager(
       executorsPendingToRemove.add(executorId)
       true
     } else {
-      logWarning(s"Unable to reach the cluster manager to kill executor $executorId!")
+      logWarning(s"Unable to reach the cluster manager to kill executor $executorId," +
+        s"or no executor eligible to kill!")
       false
     }
   }
@@ -549,6 +559,7 @@ private[spark] class ExecutorAllocationManager(
     override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
       initializing = false
       val stageId = stageSubmitted.stageInfo.stageId
+      logInfo(s"Stage $stageId start.")
       val numTasks = stageSubmitted.stageInfo.numTasks
       allocationManager.synchronized {
         stageIdToNumTasks(stageId) = numTasks
@@ -576,6 +587,7 @@ private[spark] class ExecutorAllocationManager(
 
     override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
       val stageId = stageCompleted.stageInfo.stageId
+      logInfo(s"Stage $stageId complete.")
       allocationManager.synchronized {
         stageIdToNumTasks -= stageId
         stageIdToTaskIndices -= stageId
@@ -592,6 +604,11 @@ private[spark] class ExecutorAllocationManager(
             logWarning("No stages are running, but numRunningTasks != 0")
             numRunningTasks = 0
           }
+          executorIdToTaskIds.clear()
+          executorIds.filter(listener.isExecutorIdle).foreach(onExecutorIdle)
+        } else {
+          logDebug(s"There are ${stageIdToNumTasks.size} stages(" +
+            s"${stageIdToNumTasks.keySet.mkString(",")}), ${numRunningTasks} tasks are running.")
         }
       }
     }
@@ -630,6 +647,7 @@ private[spark] class ExecutorAllocationManager(
       val stageId = taskEnd.stageId
       allocationManager.synchronized {
         numRunningTasks -= 1
+
         // If the executor is no longer running any scheduled tasks, mark it as idle
         if (executorIdToTaskIds.contains(executorId)) {
           executorIdToTaskIds(executorId) -= taskId

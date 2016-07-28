@@ -504,7 +504,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
       executorIds: Seq[String],
       replace: Boolean,
       force: Boolean): Boolean = synchronized {
-    logInfo(s"Requesting to kill executor(s) ${executorIds.mkString(", ")}")
+    logInfo(s"Requesting to kill executor(s) ${executorIds.mkString(",")}")
     val (knownExecutors, unknownExecutors) = executorIds.partition(executorDataMap.contains)
     unknownExecutors.foreach { id =>
       logWarning(s"Executor to kill $id does not exist!")
@@ -512,10 +512,18 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
     // If an executor is already pending to be removed, do not kill it again (SPARK-9795)
     // If this executor is busy, do not kill it unless we are told to force kill it (SPARK-9552)
-    val executorsToKill = knownExecutors
-      .filter { id => !executorsPendingToRemove.contains(id) }
-      .filter { id => force || !scheduler.isExecutorBusy(id) }
+    val (executorsToKill, executorsNotToKill) = knownExecutors.partition { id =>
+      !executorsPendingToRemove.contains(id) && (force || !scheduler.isExecutorBusy(id))
+    }
     executorsToKill.foreach { id => executorsPendingToRemove(id) = !replace }
+
+    executorsNotToKill.foreach { id =>
+      if (executorsPendingToRemove.contains(id)) {
+        logDebug(s"Executor ${id} is already to pending to kill.")
+      } else {
+        logDebug(s"Executor ${id} is busy, can't kill.")
+      }
+    }
 
     // If we do not wish to replace the executors we kill, sync the target number of executors
     // with the cluster manager to avoid allocating new ones. When computing the new target,
