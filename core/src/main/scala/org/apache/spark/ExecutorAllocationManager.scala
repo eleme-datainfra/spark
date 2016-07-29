@@ -618,6 +618,7 @@ private[spark] class ExecutorAllocationManager(
       val taskId = taskStart.taskInfo.taskId
       val taskIndex = taskStart.taskInfo.index
       val executorId = taskStart.taskInfo.executorId
+      logDebug(s"Task $taskId start.")
 
       allocationManager.synchronized {
         numRunningTasks += 1
@@ -645,6 +646,8 @@ private[spark] class ExecutorAllocationManager(
       val taskId = taskEnd.taskInfo.taskId
       val taskIndex = taskEnd.taskInfo.index
       val stageId = taskEnd.stageId
+      logDebug(s"Task $taskId complete.")
+
       allocationManager.synchronized {
         if (numRunningTasks > 0) {
           numRunningTasks -= 1
