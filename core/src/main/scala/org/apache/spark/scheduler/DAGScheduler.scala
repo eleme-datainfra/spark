@@ -1133,8 +1133,8 @@ class DAGScheduler(
       event.taskInfo.attemptNumber, // this is a task attempt number
       event.reason)
 
-    listenerBus.post(SparkListenerTaskEnd(stageId, task.stageAttemptId, taskType,
-      event.reason, event.taskInfo, taskMetrics))
+    listenerBus.post(SparkListenerTaskEnd(stageId, task.stageAttemptId, taskType, event.reason,
+      event.taskInfo, event.taskMetrics))
 
     if (!stageIdToStage.contains(task.stageId)) {
       // Skip all the actions if the stage has been cancelled.
