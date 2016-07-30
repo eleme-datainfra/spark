@@ -504,7 +504,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
       executorIds: Seq[String],
       replace: Boolean,
       force: Boolean): Boolean = synchronized {
-    logInfo(s"Requesting to kill executor(s) ${executorIds.mkString(",")}")
+    logInfo(s"Requesting to kill executor(s) ${executorIds.mkString(", ")}")
     val (knownExecutors, unknownExecutors) = executorIds.partition(executorDataMap.contains)
     unknownExecutors.foreach { id =>
       logWarning(s"Executor to kill $id does not exist!")
@@ -529,8 +529,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     // with the cluster manager to avoid allocating new ones. When computing the new target,
     // take into account executors that are pending to be added or removed.
     if (!replace) {
-      doRequestTotalExecutors(
-        numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+      if (!Utils.isDynamicAllocationEnabled(conf)) {
+        logDebug(s"Sync with master, $numExistingExecutors existing , " +
+          s"$numPendingExecutors pending, ${executorsPendingToRemove.size} removing")
+        doRequestTotalExecutors(
+          numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+      }
     } else {
       numPendingExecutors += knownExecutors.size
     }
