@@ -208,7 +208,7 @@ private[ui] object RDDOperationGraph extends Logging {
       indent: String): Unit = {
     subgraph.append(indent).append(s"subgraph cluster${cluster.id} {\n")
       .append(indent).append(s"""  label="${StringEscapeUtils.escapeJava(cluster.name)}";\n""")
-    cluster.childNodes.foreach { node =>
+    cluster.childNodes.headOption.foreach { node =>
       subgraph.append(indent).append(s"  ${makeDotNode(node)};\n")
     }
     cluster.childClusters.foreach { cscope =>
