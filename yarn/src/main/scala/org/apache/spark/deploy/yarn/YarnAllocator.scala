@@ -298,8 +298,6 @@ private[yarn] class YarnAllocator(
       if (!matchingRequests.isEmpty) {
         matchingRequests.iterator().next().asScala
           .take(numToCancel).foreach(amClient.removeContainerRequest)
-      } else {
-        logWarning("Expected to find pending requests, but found none.")
       }
     }
   }
