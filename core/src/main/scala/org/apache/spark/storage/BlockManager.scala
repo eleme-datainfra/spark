@@ -139,6 +139,8 @@ private[spark] class BlockManager(
   private val compressRdds = conf.getBoolean("spark.rdd.compress", false)
   // Whether to compress shuffle output temporarily spilled to disk
   private val compressShuffleSpill = conf.getBoolean("spark.shuffle.spill.compress", true)
+  // Whether to stop when executor can't connect to yarn shuffle service
+  private val stopOnFailure = conf.getBoolean("spark.yarn.shuffle.stopOnFailure", true)
 
   private val slaveEndpoint = rpcEnv.setupEndpoint(
     "BlockManagerEndpoint" + BlockManager.ID_GENERATOR.next,
@@ -223,6 +225,10 @@ private[spark] class BlockManager(
           logError(s"Failed to connect to external shuffle server, will retry ${MAX_ATTEMPTS - i}"
             + s" more times after waiting $SLEEP_TIME_SECS seconds...", e)
           Thread.sleep(SLEEP_TIME_SECS * 1000)
+        case e: Exception if i >= MAX_ATTEMPTS =>
+          if (stopOnFailure) {
+            throw e
+          }
       }
     }
   }
