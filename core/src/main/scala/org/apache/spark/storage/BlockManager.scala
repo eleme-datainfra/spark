@@ -225,11 +225,10 @@ private[spark] class BlockManager(
           logError(s"Failed to connect to external shuffle server, will retry ${MAX_ATTEMPTS - i}"
             + s" more times after waiting $SLEEP_TIME_SECS seconds...", e)
           Thread.sleep(SLEEP_TIME_SECS * 1000)
-        case e: Exception if i >= MAX_ATTEMPTS =>
-          if (stopOnFailure) {
-            throw e
-          }
       }
+    }
+    if (stopOnFailure) {
+      throw SparkException(s"Can't connect shuffle server $host:$port! Executor $executorId exit!")
     }
   }
 
