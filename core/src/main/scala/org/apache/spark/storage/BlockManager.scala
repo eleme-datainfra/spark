@@ -228,7 +228,7 @@ private[spark] class BlockManager(
       }
     }
     if (stopOnFailure) {
-      throw SparkException(s"Can't connect shuffle server $host:$port! Executor $executorId exit!")
+      throw new SparkException(s"Executor $executorId can't connect to shuffle server $host:$port!")
     }
   }
 
