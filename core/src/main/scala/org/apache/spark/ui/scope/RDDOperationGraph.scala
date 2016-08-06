@@ -122,6 +122,7 @@ private[ui] object RDDOperationGraph extends Logging {
     var rootNodeCount = 0
     val rootNodeMaxCount = retainedNodes
     val addRDDIds = new mutable.HashSet[Int]()
+    val dropRDDIds = new mutable.HashSet[Int]()
 
     def isAllowed(addRDDIds: mutable.HashSet[Int], parentIds: Seq[Int]): Boolean = {
       if (parentIds.size == 0) {
@@ -140,8 +141,10 @@ private[ui] object RDDOperationGraph extends Logging {
       val keepNode: Boolean = isAllowed(addRDDIds, rdd.parentIds)
       if (keepNode) {
         addRDDIds.add(rdd.id)
-        edges ++= rdd.parentIds.filter(id => addRDDIds.contains(id))
+        edges ++= rdd.parentIds.filter(id => !dropRDDIds.contains(id))
           .map { parentId => RDDOperationEdge(parentId, rdd.id) }
+      } else {
+        dropRDDIds.add(rdd.id)
       }
 
       if (rdd.parentIds.size == 0) {
