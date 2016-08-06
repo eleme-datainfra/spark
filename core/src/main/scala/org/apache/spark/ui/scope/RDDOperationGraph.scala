@@ -119,9 +119,15 @@ private[ui] object RDDOperationGraph extends Logging {
       { if (stage.attemptId == 0) "" else s" (attempt ${stage.attemptId})" }
     val rootCluster = new RDDOperationCluster(stageClusterId, stageClusterName)
 
+    var rootNodeCount = 0
+    val rootNodeMaxCount = 2
+
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.foreach { rdd =>
-      edges ++= rdd.parentIds.map { parentId => RDDOperationEdge(parentId, rdd.id) }
+      if (rdd.parentIds.isEmpty && rootNodeCount < rootNodeMaxCount) {
+        edges ++= rdd.parentIds.map { parentId => RDDOperationEdge(parentId, rdd.id) }
+        rootNodeCount = rootNodeCount + 1
+      }
 
       // TODO: differentiate between the intention to cache an RDD and whether it's actually cached
       val node = nodes.getOrElseUpdate(rdd.id, RDDOperationNode(
@@ -130,7 +136,9 @@ private[ui] object RDDOperationGraph extends Logging {
       if (rdd.scope.isEmpty) {
         // This RDD has no encompassing scope, so we put it directly in the root cluster
         // This should happen only if an RDD is instantiated outside of a public RDD API
-        rootCluster.attachChildNode(node)
+        if (rootClusterCount < rootNodeMaxCount) {
+          rootCluster.attachChildNode(node)
+        }
       } else {
         // Otherwise, this RDD belongs to an inner cluster,
         // which may be nested inside of other clusters
@@ -154,7 +162,9 @@ private[ui] object RDDOperationGraph extends Logging {
             rootCluster.attachChildCluster(cluster)
           }
         }
-        rddClusters.lastOption.foreach { cluster => cluster.attachChildNode(node) }
+        if (rootClusterCount < rootNodeMaxCount) {
+          rddClusters.lastOption.foreach { cluster => cluster.attachChildNode(node) }
+        }
       }
     }
 
