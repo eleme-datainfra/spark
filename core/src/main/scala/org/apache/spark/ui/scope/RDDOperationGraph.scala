@@ -107,7 +107,7 @@ private[ui] object RDDOperationGraph extends Logging {
    * supporting in the future if we decide to group certain stages within the same job under
    * a common scope (e.g. part of a SQL query).
    */
-  def makeOperationGraph(stage: StageInfo): RDDOperationGraph = {
+  def makeOperationGraph(stage: StageInfo, retainedNodes: Int): RDDOperationGraph = {
     val edges = new ListBuffer[RDDOperationEdge]
     val nodes = new mutable.HashMap[Int, RDDOperationNode]
     val clusters = new mutable.HashMap[String, RDDOperationCluster] // indexed by cluster ID
@@ -120,7 +120,7 @@ private[ui] object RDDOperationGraph extends Logging {
     val rootCluster = new RDDOperationCluster(stageClusterId, stageClusterName)
 
     var rootNodeCount = 0
-    val rootNodeMaxCount = 2
+    val rootNodeMaxCount = retainedNodes
 
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.foreach { rdd =>
