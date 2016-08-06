@@ -124,8 +124,11 @@ private[ui] object RDDOperationGraph extends Logging {
 
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.foreach { rdd =>
-      if (rdd.parentIds.isEmpty && rootNodeCount < rootNodeMaxCount) {
+      val keepNode = !rdd.parentIds.isEmpty || rootNodeCount < rootNodeMaxCount
+      if (keepNode) {
         edges ++= rdd.parentIds.map { parentId => RDDOperationEdge(parentId, rdd.id) }
+      }
+      if (rdd.parentIds.isEmpty) {
         rootNodeCount = rootNodeCount + 1
       }
 
@@ -136,7 +139,7 @@ private[ui] object RDDOperationGraph extends Logging {
       if (rdd.scope.isEmpty) {
         // This RDD has no encompassing scope, so we put it directly in the root cluster
         // This should happen only if an RDD is instantiated outside of a public RDD API
-        if (rootClusterCount < rootNodeMaxCount) {
+        if (keepNode) {
           rootCluster.attachChildNode(node)
         }
       } else {
@@ -162,7 +165,7 @@ private[ui] object RDDOperationGraph extends Logging {
             rootCluster.attachChildCluster(cluster)
           }
         }
-        if (rootClusterCount < rootNodeMaxCount) {
+        if (keepNode) {
           rddClusters.lastOption.foreach { cluster => cluster.attachChildNode(node) }
         }
       }
