@@ -123,20 +123,25 @@ private[ui] object RDDOperationGraph extends Logging {
     val rootNodeMaxCount = retainedNodes
     val addRDDIds = new mutable.HashSet[Int]()
 
-    def isAllowed(parentIds: Seq[Int]): Boolean = {
+    def isAllowed(addRDDIds: mutable.HashSet[Int], parentIds: Seq[Int]): Boolean = {
       if (parentIds.size == 0) {
         rootNodeCount < rootNodeMaxCount
       } else {
-        parentIds.exists(id => addRDDIds.contains(id))
+        if (addRDDIds.size > 0) {
+          parentIds.exists(id => addRDDIds.contains(id))
+        } else {
+          true
+        }
       }
     }
 
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.sortBy(_.id).foreach { rdd =>
-      val keepNode: Boolean = isAllowed(rdd.parentIds)
+      val keepNode: Boolean = isAllowed(addRDDIds, rdd.parentIds)
       if (keepNode) {
         addRDDIds.add(rdd.id)
-        edges ++= rdd.parentIds.map { parentId => RDDOperationEdge(parentId, rdd.id) }
+        edges ++= rdd.parentIds.filter(id => addRDDIds.contains(id))
+          .map { parentId => RDDOperationEdge(parentId, rdd.id) }
       }
 
       if (rdd.parentIds.size == 0) {
@@ -235,7 +240,7 @@ private[ui] object RDDOperationGraph extends Logging {
       indent: String): Unit = {
     subgraph.append(indent).append(s"subgraph cluster${cluster.id} {\n")
       .append(indent).append(s"""  label="${StringEscapeUtils.escapeJava(cluster.name)}";\n""")
-    cluster.childNodes.foreach { node =>
+    cluster.childNodes.take(2).foreach { node =>
       subgraph.append(indent).append(s"  ${makeDotNode(node)};\n")
     }
     cluster.childClusters.foreach { cscope =>
