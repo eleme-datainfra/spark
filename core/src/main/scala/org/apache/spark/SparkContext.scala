@@ -551,7 +551,6 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
     _applicationAttemptId = taskScheduler.applicationAttemptId()
     _conf.set("spark.app.id", _applicationId)
     _ui.foreach(_.setAppId(_applicationId))
-    _ui.get.appUIAddress
     _env.blockManager.initialize(_applicationId)
     // scalastyle:off println
     System.err.println(s"Application ID is ${_applicationId}, trackingURL: ${_ui.get.appUIAddress}")
