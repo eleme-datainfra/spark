@@ -124,12 +124,12 @@ private[ui] object RDDOperationGraph extends Logging {
     val addRDDIds = new mutable.HashSet[Int]()
     val dropRDDIds = new mutable.HashSet[Int]()
 
-    def isAllowed(addRDDIds: mutable.HashSet[Int], parentIds: Seq[Int]): Boolean = {
+    def isAllowed(ids: mutable.HashSet[Int], parentIds: Seq[Int]): Boolean = {
       if (parentIds.size == 0) {
         rootNodeCount < rootNodeMaxCount
       } else {
-        if (addRDDIds.size > 0) {
-          parentIds.exists(id => addRDDIds.contains(id))
+        if (ids.size > 0) {
+          parentIds.exists(id => ids.contains(id))
         } else {
           true
         }
@@ -243,7 +243,7 @@ private[ui] object RDDOperationGraph extends Logging {
       indent: String): Unit = {
     subgraph.append(indent).append(s"subgraph cluster${cluster.id} {\n")
       .append(indent).append(s"""  label="${StringEscapeUtils.escapeJava(cluster.name)}";\n""")
-    cluster.childNodes.take(2).foreach { node =>
+    cluster.childNodes.foreach { node =>
       subgraph.append(indent).append(s"  ${makeDotNode(node)};\n")
     }
     cluster.childClusters.foreach { cscope =>
