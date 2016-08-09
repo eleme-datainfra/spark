@@ -17,6 +17,10 @@
 
 package org.apache.spark.sql.hive
 
+import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -56,7 +60,15 @@ private[hive] class HiveFunctionRegistry(
     // Hive Registry need current database to lookup function
     // TODO: the current database of executionHive should be consistent with metadataHive
     executionHive.withHiveState {
-      FunctionRegistry.getFunctionInfo(name)
+      var functionInfo = FunctionRegistry.getFunctionInfo(name)
+      if (functionInfo != null) {
+        logInfo("Find function in hive metastore")
+        val func = Hive.get().getFunction(executionHive.currentDatabase, name)
+        FunctionRegistry.registerPermanentFunction(func.getFunctionName,
+          func.getClassName, true, FunctionTask.toFunctionResource(func.getResourceUris))
+        functionInfo = FunctionRegistry.getFunctionInfo(name)
+      }
+      functionInfo
     }
   }
 
@@ -356,7 +368,8 @@ private[spark] object ResolveHiveWindowFunction extends Rule[LogicalPlan] {
 
 /**
  * A [[WindowFunction]] implementation wrapping Hive's window function.
- * @param funcWrapper The wrapper for the Hive Window Function.
+  *
+  * @param funcWrapper The wrapper for the Hive Window Function.
  * @param pivotResult If it is true, the Hive function will return a list of values representing
  *                    the values of the added columns. Otherwise, a single value is returned for
  *                    current row.
