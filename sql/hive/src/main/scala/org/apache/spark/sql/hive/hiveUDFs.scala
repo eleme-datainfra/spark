@@ -17,9 +17,14 @@
 
 package org.apache.spark.sql.hive
 
+import java.util
+import java.util.List
+
+import org.apache.hadoop.hive.ql.exec.FunctionInfo.FunctionResource
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
+import org.apache.spark.util.{ShutdownHookManager, Utils}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
@@ -52,6 +57,7 @@ import org.apache.spark.sql.types._
 
 
 private[hive] class HiveFunctionRegistry(
+    hiveContext: HiveContext,
     underlying: analysis.FunctionRegistry,
     executionHive: ClientWrapper)
   extends analysis.FunctionRegistry with HiveInspectors {
@@ -61,11 +67,27 @@ private[hive] class HiveFunctionRegistry(
     // TODO: the current database of executionHive should be consistent with metadataHive
     executionHive.withHiveState {
       var functionInfo = FunctionRegistry.getFunctionInfo(name)
-      if (functionInfo != null) {
+      if (functionInfo == null) {
         logInfo("Find function in hive metastore")
-        val func = Hive.get().getFunction(executionHive.currentDatabase, name)
-        FunctionRegistry.registerPermanentFunction(func.getFunctionName,
-          func.getClassName, true, FunctionTask.toFunctionResource(func.getResourceUris))
+        val function = Hive.get().getFunction(hiveContext.metadataHive.currentDatabase, name)
+        val resources = new util.ArrayList[String](function.getResourceUris.size())
+        val iter = function.getResourceUrisIterator
+        while (iter.hasNext) {
+          resources.add(iter.next().getUri)
+        }
+        val localJars = executionHive.state.add_resources(ResourceType.JAR, resources)
+
+        val functionResources = new util.ArrayList[FunctionResource](localJars.size())
+        var i = 0
+        while (i < localJars.size()) {
+          val jar = localJars.get(i)
+          logInfo(s"Add jar: $jar")
+          functionResources.add(new FunctionResource(ResourceType.JAR, jar))
+          hiveContext.addJar(jar)
+          i = i + 1
+        }
+        val udfClass = Utils.classForName(function.getClassName)
+        FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass, functionResources)
         functionInfo = FunctionRegistry.getFunctionInfo(name)
       }
       functionInfo
