@@ -150,7 +150,7 @@ class DAGScheduler(
   // Stages that must be resubmitted due to fetch failures
   private[scheduler] val failedStages = new HashSet[Stage]
 
-  @volatile private[scheduler] var activeJobs = new HashSet[ActiveJob]
+  private[scheduler] var activeJobs = new HashSet[ActiveJob]
 
   /**
    * Contains the locations that each RDD's partitions are cached on.  This map's keys are RDD ids
@@ -183,14 +183,6 @@ class DAGScheduler(
 
   private[scheduler] val eventProcessLoop = new DAGSchedulerEventProcessLoop(this)
   taskScheduler.setDAGScheduler(this)
-
-  def containsJobGroup(jobGroup: String): Boolean = {
-    activeJobs.exists(_.properties.getProperty(SparkContext.SPARK_JOB_GROUP_ID) == jobGroup)
-  }
-
-  def containsJobId(jobId: Int): Boolean = {
-    jobIdToActiveJob.contains(jobId)
-  }
 
   /**
    * Called by the TaskSetManager to report task's starting.
