@@ -22,6 +22,8 @@ import java.sql.{Date, Timestamp}
 import java.util.concurrent.RejectedExecutionException
 import java.util.{Arrays, UUID, Map => JMap}
 
+import org.apache.hadoop.security.UserGroupInformation
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, Map => SMap}
 import scala.util.control.NonFatal
@@ -139,7 +141,19 @@ private[hive] class SparkExecuteStatementOperation(
     if (!runInBackground) {
       execute()
     } else {
-      val sparkServiceUGI = Utils.getUGI()
+      var user: String = System.getenv("SPARK_USER").orElse(System.getenv("HADOOP_USER_NAME"))
+      if (confOverlay != null && confOverlay.containsKey("SPARK_USER")) {
+        val proxyUser = confOverlay.get("SPARK_USER")
+        if (proxyUser.size > 0) {
+          user = proxyUser
+        }
+      }
+      val sparkServiceUGI = if (user.size > 0) {
+        UserGroupInformation.createProxyUser(user,
+          UserGroupInformation.getLoginUser())
+      } else {
+        UserGroupInformation.getCurrentUser
+      }
 
       // Runnable impl to call runInternal asynchronously,
       // from a different thread
