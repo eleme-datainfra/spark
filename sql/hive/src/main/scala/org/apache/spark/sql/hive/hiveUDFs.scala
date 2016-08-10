@@ -67,36 +67,35 @@ private[hive] class HiveFunctionRegistry(
 
   def getFunctionInfo(name: String): FunctionInfo = {
     // Hive Registry need current database to lookup function
+    var functionInfo: FunctionInfo = null
     // TODO: the current database of executionHive should be consistent with metadataHive
     executionHive.withHiveState {
-      var functionInfo = FunctionRegistry.getFunctionInfo(name)
-      if (functionInfo == null) {
-        val function = hive.getFunction(hiveContext.metadataHive.currentDatabase, name)
-        val resources = new util.ArrayList[String](function.getResourceUris.size())
-        val iter = function.getResourceUrisIterator
-        while (iter.hasNext) {
-          resources.add(iter.next().getUri)
-        }
-        val localJars = executionHive.state.add_resources(ResourceType.JAR, resources)
-
-        val functionResources = new Array[FunctionResource](localJars.size())
-        var i = 0
-        while (i < localJars.size()) {
-          val jar = localJars.get(i)
-          functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
-          hiveContext.addJar(jar)
-          i = i + 1
-        }
-
-        val udfClass = Utils.classForName(function.getClassName)
-        val udfClassType = FunctionUtils.getUDFClassType(udfClass)
-        logInfo(s"UDF class Type: ${udfClassType}")
-        functionInfo = FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
-          functionResources: _*)
-        logInfo(s"${functionInfo.getDisplayName}")
-      }
-      functionInfo
+      functionInfo = FunctionRegistry.getFunctionInfo(name)
     }
+    if (functionInfo == null) {
+      val function = hive.getFunction(hiveContext.metadataHive.currentDatabase, name)
+      val resources = new util.ArrayList[String](function.getResourceUris.size())
+      val iter = function.getResourceUrisIterator
+      while (iter.hasNext) {
+        resources.add(iter.next().getUri)
+      }
+      val localJars = executionHive.state.add_resources(ResourceType.JAR, resources)
+
+      val functionResources = new Array[FunctionResource](localJars.size())
+      var i = 0
+      while (i < localJars.size()) {
+        val jar = localJars.get(i)
+        functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
+        hiveContext.addJar(jar)
+        i = i + 1
+      }
+
+      val udfClass = Utils.classForName(function.getClassName)
+      val udfClassType = FunctionUtils.getUDFClassType(udfClass)
+      functionInfo = FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
+        functionResources: _*)
+    }
+    functionInfo
   }
 
   override def lookupFunction(name: String, children: Seq[Expression]): Expression = {
@@ -108,9 +107,6 @@ private[hive] class HiveFunctionRegistry(
           throw new AnalysisException(s"undefined function $name"))
 
       val functionClassName = functionInfo.getFunctionClass.getName
-
-      logInfo(s"UDFClassType: ${FunctionUtils.getUDFClassType(functionInfo.getFunctionClass)}")
-      logInfo(s"Function Class: ${functionInfo.getFunctionClass}")
 
       // When we instantiate hive UDF wrapper class, we may throw exception if the input expressions
       // don't satisfy the hive UDF, such as type mismatch, input number mismatch, etc. Here we
@@ -141,7 +137,7 @@ private[hive] class HiveFunctionRegistry(
           // If the exception is an AnalysisException, just throw it.
           throw analysisException
         case throwable: Throwable =>
-          throwable.printStackTrace()
+          logError(throwable.getMessage, throwable)
           // If there is any other error, we throw an AnalysisException.
           val errorMessage = s"No handler for Hive udf ${functionInfo.getFunctionClass} " +
             s"because: ${throwable.getMessage}."
