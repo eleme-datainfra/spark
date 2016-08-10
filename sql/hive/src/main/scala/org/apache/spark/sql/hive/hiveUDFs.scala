@@ -63,7 +63,7 @@ private[hive] class HiveFunctionRegistry(
     executionHive: ClientWrapper)
   extends analysis.FunctionRegistry with HiveInspectors with Logging {
 
-  val hive = new Hive(new HiveConf())
+  val hive = Hive.get(new HiveConf())
 
   def getFunctionInfo(name: String): FunctionInfo = {
     // Hive Registry need current database to lookup function
