@@ -109,7 +109,7 @@ private[hive] class HiveFunctionRegistry(
 
       val functionClassName = functionInfo.getFunctionClass.getName
 
-      logInfo(s"UDFClassType: ${FunctionUtils.getUDFClassType(udfClass)}")
+      logInfo(s"UDFClassType: ${FunctionUtils.getUDFClassType(functionInfo.getFunctionClass)}")
       logInfo(s"Function Class: ${functionInfo.getFunctionClass}")
 
       // When we instantiate hive UDF wrapper class, we may throw exception if the input expressions
