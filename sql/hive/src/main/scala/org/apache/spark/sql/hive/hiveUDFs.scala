@@ -71,7 +71,6 @@ private[hive] class HiveFunctionRegistry(
     executionHive.withHiveState {
       var functionInfo = FunctionRegistry.getFunctionInfo(name)
       if (functionInfo == null) {
-        logInfo("Find function in hive metastore")
         val function = hive.getFunction(hiveContext.metadataHive.currentDatabase, name)
         val resources = new util.ArrayList[String](function.getResourceUris.size())
         val iter = function.getResourceUrisIterator
@@ -84,15 +83,18 @@ private[hive] class HiveFunctionRegistry(
         var i = 0
         while (i < localJars.size()) {
           val jar = localJars.get(i)
-          logInfo(s"Add jar: $jar")
           functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
           hiveContext.addJar(jar)
           i = i + 1
         }
+
         val udfClass = Utils.classForName(function.getClassName)
+        logInfo(s"${function}")
         FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
           functionResources: _*)
         functionInfo = FunctionRegistry.getFunctionInfo(name)
+        logInfo(s"${functionInfo}")
+        logInfo(s"function class ${functionInfo.getFunctionClass}")
       }
       functionInfo
     }
