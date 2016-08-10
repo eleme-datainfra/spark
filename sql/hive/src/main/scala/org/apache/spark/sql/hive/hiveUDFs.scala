@@ -109,6 +109,9 @@ private[hive] class HiveFunctionRegistry(
 
       val functionClassName = functionInfo.getFunctionClass.getName
 
+      logInfo(s"UDFClassType: ${FunctionUtils.getUDFClassType(udfClass)}")
+      logInfo(s"Function Class: ${functionInfo.getFunctionClass}")
+
       // When we instantiate hive UDF wrapper class, we may throw exception if the input expressions
       // don't satisfy the hive UDF, such as type mismatch, input number mismatch, etc. Here we
       // catch the exception and throw AnalysisException instead.
