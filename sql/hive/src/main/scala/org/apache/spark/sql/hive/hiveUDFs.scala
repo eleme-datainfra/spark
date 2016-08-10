@@ -91,7 +91,6 @@ private[hive] class HiveFunctionRegistry(
       }
 
       val udfClass = Utils.classForName(function.getClassName)
-      val udfClassType = FunctionUtils.getUDFClassType(udfClass)
       functionInfo = FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
         functionResources: _*)
     }
