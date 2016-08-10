@@ -20,6 +20,7 @@ package org.apache.spark.sql.hive
 import java.util
 import java.util.List
 
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.FunctionInfo.FunctionResource
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
@@ -62,6 +63,8 @@ private[hive] class HiveFunctionRegistry(
     executionHive: ClientWrapper)
   extends analysis.FunctionRegistry with HiveInspectors with Logging {
 
+  val hive = new Hive(new HiveConf())
+
   def getFunctionInfo(name: String): FunctionInfo = {
     // Hive Registry need current database to lookup function
     // TODO: the current database of executionHive should be consistent with metadataHive
@@ -69,8 +72,7 @@ private[hive] class HiveFunctionRegistry(
       var functionInfo = FunctionRegistry.getFunctionInfo(name)
       if (functionInfo == null) {
         logInfo("Find function in hive metastore")
-        val function = hiveContext.executionHive.client
-          .getFunction(hiveContext.metadataHive.currentDatabase, name)
+        val function = hive.getFunction(hiveContext.metadataHive.currentDatabase, name)
         val resources = new util.ArrayList[String](function.getResourceUris.size())
         val iter = function.getResourceUrisIterator
         while (iter.hasNext) {
