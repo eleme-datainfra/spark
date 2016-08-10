@@ -145,7 +145,7 @@ private[hive] class SparkExecuteStatementOperation(
         .getOrElse(System.getenv("HADOOP_USER_NAME"))
       if (confOverlay != null && confOverlay.containsKey("SPARK_USER")) {
         val proxyUser = confOverlay.get("SPARK_USER")
-        if (proxyUser.size > 0) {
+        if (proxyUser != null && proxyUser.size > 0) {
           user = proxyUser
         }
       }
