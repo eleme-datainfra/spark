@@ -22,9 +22,8 @@ import java.util.List
 
 import org.apache.hadoop.hive.ql.exec.FunctionInfo.FunctionResource
 import org.apache.hadoop.hive.ql.metadata.Hive
-import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
-import org.apache.spark.util.{ShutdownHookManager, Utils}
+import org.apache.spark.util.Utils
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
@@ -54,13 +53,14 @@ import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.hive.HiveShim._
 import org.apache.spark.sql.hive.client.ClientWrapper
 import org.apache.spark.sql.types._
+import org.apache.spark.Logging
 
 
 private[hive] class HiveFunctionRegistry(
     hiveContext: HiveContext,
     underlying: analysis.FunctionRegistry,
     executionHive: ClientWrapper)
-  extends analysis.FunctionRegistry with HiveInspectors {
+  extends analysis.FunctionRegistry with HiveInspectors with Logging {
 
   def getFunctionInfo(name: String): FunctionInfo = {
     // Hive Registry need current database to lookup function
@@ -77,12 +77,12 @@ private[hive] class HiveFunctionRegistry(
         }
         val localJars = executionHive.state.add_resources(ResourceType.JAR, resources)
 
-        val functionResources = new util.ArrayList[FunctionResource](localJars.size())
+        val functionResources = new Array[FunctionResource](localJars.size())
         var i = 0
         while (i < localJars.size()) {
           val jar = localJars.get(i)
           logInfo(s"Add jar: $jar")
-          functionResources.add(new FunctionResource(ResourceType.JAR, jar))
+          functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
           hiveContext.addJar(jar)
           i = i + 1
         }
