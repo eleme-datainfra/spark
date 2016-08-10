@@ -17,14 +17,14 @@
 
 package org.apache.spark.sql.hive
 
+import java.io.File
 import java.util
-import java.util.List
 
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.exec.FunctionInfo.FunctionResource
 import org.apache.hadoop.hive.ql.metadata.Hive
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{ShutdownHookManager, Utils}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
@@ -40,7 +40,6 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDF._
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ConversionHelper
 
-import org.apache.spark.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis
@@ -87,6 +86,8 @@ private[hive] class HiveFunctionRegistry(
         val jar = localJars.get(i)
         functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
         hiveContext.addJar(jar)
+        // remove resource dir
+        ShutdownHookManager.removeShutdownDeleteDir(new File(jar).getParentFile.getParentFile)
         i = i + 1
       }
 
