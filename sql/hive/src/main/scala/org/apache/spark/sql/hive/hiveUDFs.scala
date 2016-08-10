@@ -69,7 +69,8 @@ private[hive] class HiveFunctionRegistry(
       var functionInfo = FunctionRegistry.getFunctionInfo(name)
       if (functionInfo == null) {
         logInfo("Find function in hive metastore")
-        val function = Hive.get().getFunction(hiveContext.metadataHive.currentDatabase, name)
+        val function = hiveContext.executionHive.client
+          .getFunction(hiveContext.metadataHive.currentDatabase, name)
         val resources = new util.ArrayList[String](function.getResourceUris.size())
         val iter = function.getResourceUrisIterator
         while (iter.hasNext) {
