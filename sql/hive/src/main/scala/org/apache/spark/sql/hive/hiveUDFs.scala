@@ -93,7 +93,7 @@ private[hive] class HiveFunctionRegistry(
         logInfo(s"UDF class Type: ${udfClassType}")
         functionInfo = FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
           functionResources: _*)
-        logInfo(s"${functionInfo.getDisplayName} ${functionInfo.getGenericUDF}")
+        logInfo(s"${functionInfo.getDisplayName}")
       }
       functionInfo
     }
@@ -141,7 +141,7 @@ private[hive] class HiveFunctionRegistry(
           // If the exception is an AnalysisException, just throw it.
           throw analysisException
         case throwable: Throwable =>
-          logError(throwable.getMessage + " " + throwable.getStackTrace.toString)
+          throwable.printStackTrace()
           // If there is any other error, we throw an AnalysisException.
           val errorMessage = s"No handler for Hive udf ${functionInfo.getFunctionClass} " +
             s"because: ${throwable.getMessage}."
