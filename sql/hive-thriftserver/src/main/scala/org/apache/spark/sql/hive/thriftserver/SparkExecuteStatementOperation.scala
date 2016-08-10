@@ -141,16 +141,16 @@ private[hive] class SparkExecuteStatementOperation(
     if (!runInBackground) {
       execute()
     } else {
-      var user: String = System.getenv("SPARK_USER").orElse(System.getenv("HADOOP_USER_NAME"))
+      var user: String = Option(System.getenv("SPARK_USER"))
+        .getOrElse(System.getenv("HADOOP_USER_NAME"))
       if (confOverlay != null && confOverlay.containsKey("SPARK_USER")) {
         val proxyUser = confOverlay.get("SPARK_USER")
         if (proxyUser.size > 0) {
           user = proxyUser
         }
       }
-      val sparkServiceUGI = if (user.size > 0) {
-        UserGroupInformation.createProxyUser(user,
-          UserGroupInformation.getLoginUser())
+      val sparkServiceUGI = if (user != null && user.size > 0) {
+        UserGroupInformation.createProxyUser(user, UserGroupInformation.getLoginUser())
       } else {
         UserGroupInformation.getCurrentUser
       }
