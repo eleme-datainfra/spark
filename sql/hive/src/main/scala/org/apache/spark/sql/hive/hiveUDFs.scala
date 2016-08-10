@@ -138,7 +138,7 @@ private[hive] class HiveFunctionRegistry(
           // If the exception is an AnalysisException, just throw it.
           throw analysisException
         case throwable: Throwable =>
-          logError(throwable)
+          logError(throwable.getMessage + " " + throwable.getStackTrace.toString)
           // If there is any other error, we throw an AnalysisException.
           val errorMessage = s"No handler for Hive udf ${functionInfo.getFunctionClass} " +
             s"because: ${throwable.getMessage}."
