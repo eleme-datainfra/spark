@@ -173,7 +173,7 @@ class HadoopTableReader(
             }
 
             val partPath = partition.getDataLocation
-            val partNum = Utilities.getPartitionDesc(partition).getPartSpec.size();
+            val partNum = Utilities.getPartitionDesc(partition).getPartSpec.size()
             var pathPatternStr = getPathPatternByPath(partNum, partPath)
             if (!pathPatternSet.contains(pathPatternStr)) {
               pathPatternSet += pathPatternStr
