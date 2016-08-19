@@ -18,6 +18,7 @@
 package org.apache.spark.sql.execution
 
 import org.apache.spark.rdd.{PartitionwiseSampledRDD, RDD, ShuffledRDD}
+import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.sort.SortShuffleManager
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
@@ -215,12 +216,36 @@ case class TakeOrderedAndProject(
   }
 
   override def executeCollect(): Array[InternalRow] = {
-    collectData()
+    val data = child.execute().map(_.copy()).takeOrdered(limit)(ord)
+    if (projectList.isDefined) {
+      val proj = UnsafeProjection.create(projectList.get, child.output)
+      data.map(r => proj(r).copy())
+    } else {
+      data
+    }
   }
 
-  // TODO: Terminal split should be implemented differently from non-terminal split.
-  // TODO: Pick num splits based on |limit|.
-  protected override def doExecute(): RDD[InternalRow] = sparkContext.makeRDD(collectData(), 1)
+  private val serializer: Serializer = new UnsafeRowSerializer(child.output.size)
+
+  protected override def doExecute(): RDD[InternalRow] = {
+    val localTopK: RDD[InternalRow] = {
+      child.execute().map(_.copy()).mapPartitions { iter =>
+        org.apache.spark.util.collection.Utils.takeOrdered(iter, limit)(ord)
+      }
+    }
+
+    val shuffled = new ShuffledRowRDD(
+      Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
+    shuffled.mapPartitions { iter =>
+      val topK = org.apache.spark.util.collection.Utils.takeOrdered(iter.map(_.copy()), limit)(ord)
+      if (projectList.isDefined) {
+        val proj = UnsafeProjection.create(projectList.get, child.output)
+        topK.map(r => proj(r))
+      } else {
+        topK
+      }
+    }
+  }
 
   override def outputOrdering: Seq[SortOrder] = sortOrder
 
