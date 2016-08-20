@@ -216,16 +216,10 @@ case class TakeOrderedAndProject(
   }
 
   override def executeCollect(): Array[InternalRow] = {
-    val data = child.execute().map(_.copy()).takeOrdered(limit)(ord)
-    if (projectList.isDefined) {
-      val proj = UnsafeProjection.create(projectList.get, child.output)
-      data.map(r => proj(r).copy())
-    } else {
-      data
-    }
+    collectData
   }
 
-  private val serializer: Serializer = new UnsafeRowSerializer(child.output.size)
+  private val serializer: Serializer = new SparkSqlSerializer(child.sqlContext.sparkContext.getConf)
 
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {

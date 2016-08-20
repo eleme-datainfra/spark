@@ -87,7 +87,7 @@ private[hive] class HiveFunctionRegistry(
         functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
         hiveContext.addJar(jar)
         // remove resource dir
-        ShutdownHookManager.removeShutdownDeleteDir(new File(jar).getParentFile.getParentFile)
+        ShutdownHookManager.removeShutdownDeleteDir(new File(jar).getParentFile)
         i = i + 1
       }
 

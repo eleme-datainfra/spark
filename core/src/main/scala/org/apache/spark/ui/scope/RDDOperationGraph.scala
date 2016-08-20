@@ -26,7 +26,7 @@ import org.apache.commons.lang3.StringEscapeUtils
 
 import org.apache.spark.Logging
 import org.apache.spark.scheduler.StageInfo
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{RDDInfo, StorageLevel}
 
 /**
  * A representation of a generic cluster graph used for storing information on RDD operations.
@@ -120,25 +120,25 @@ private[ui] object RDDOperationGraph extends Logging {
     val rootCluster = new RDDOperationCluster(stageClusterId, stageClusterName)
 
     var rootNodeCount = 0
-    val rootNodeMaxCount = retainedNodes
     val addRDDIds = new mutable.HashSet[Int]()
     val dropRDDIds = new mutable.HashSet[Int]()
 
-    def isAllowed(ids: mutable.HashSet[Int], parentIds: Seq[Int]): Boolean = {
+    def isAllowed(ids: mutable.HashSet[Int], rdd: RDDInfo): Boolean = {
+      val parentIds = rdd.parentIds
       if (parentIds.size == 0) {
-        rootNodeCount < rootNodeMaxCount
+        rootNodeCount < retainedNodes
       } else {
         if (ids.size > 0) {
-          parentIds.exists(id => ids.contains(id))
+            parentIds.exists(id => ids.contains(id) || !dropRDDIds.contains(id))
         } else {
-          true
+            true
         }
       }
     }
 
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.sortBy(_.id).foreach { rdd =>
-      val keepNode: Boolean = isAllowed(addRDDIds, rdd.parentIds)
+      val keepNode: Boolean = isAllowed(addRDDIds, rdd)
       if (keepNode) {
         addRDDIds.add(rdd.id)
         edges ++= rdd.parentIds.filter(id => !dropRDDIds.contains(id))
