@@ -403,6 +403,11 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
     if (!_conf.contains("spark.app.name")) {
       throw new SparkException("An application name must be set in your configuration")
     }
+    if (_conf.getBoolean("spark.yarnClientMode.disabled")) {
+      if (master == "yarn-client") {
+        throw new Exception("Detected yarn-client mode, but it is not supported.")
+      }
+    }
 
     // System property spark.yarn.app.id must be set if user code ran by AM on a YARN cluster
     // yarn-standalone is deprecated, but still supported

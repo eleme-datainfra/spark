@@ -17,9 +17,17 @@
 
 package org.apache.spark.util.collection
 
+import java.io.File
+
+import org.apache.spark.SparkEnv
+import org.geirove.exmeso.{ChunkSizeIterator, ExternalMergeSort}
+import org.geirove.exmeso.kryo.KryoSerializer
+
 import scala.collection.JavaConverters._
 
 import com.google.common.collect.{Ordering => GuavaOrdering}
+
+import scala.util.Random
 
 /**
  * Utility functions for collections.
@@ -34,6 +42,20 @@ private[spark] object Utils {
     val ordering = new GuavaOrdering[T] {
       override def compare(l: T, r: T): Int = ord.compare(l, r)
     }
-    ordering.leastOf(input.asJava, num).iterator.asScala
+    val conf = SparkEnv.get.conf
+    val chunkSize = conf.getInt("spark.takeOrdered.chunkSize", 50000)
+    val csi = new ChunkSizeIterator(input.asJava, chunkSize)
+    if (csi.isMultipleChunks) {
+      val serializer = new KryoSerializer[T]()
+      val tempDirs = org.apache.spark.util.Utils.getOrCreateLocalRootDirs(conf)
+      val tempDir = new File(tempDirs(new Random().nextInt(tempDirs.size)))
+      val sort = ExternalMergeSort.newSorter(serializer, ordering)
+        .withChunkSize(chunkSize)
+        .withTempDirectory(tempDir)
+        .build()
+      sort.mergeSort(csi).asScala.take(num)
+    } else {
+      ordering.leastOf(csi, num).iterator().asScala
+    }
   }
 }

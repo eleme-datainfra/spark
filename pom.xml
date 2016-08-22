@@ -457,6 +457,11 @@
         <version>14.0.1</version>
         <scope>provided</scope>
       </dependency>
+      <dependency>
+        <groupId>org.geirove.exmeso</groupId>
+        <artifactId>exmeso-kryo</artifactId>
+        <version>0.2</version>
+      </dependency>
       <!-- End of shaded deps -->
 
       <dependency>
