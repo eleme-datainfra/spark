@@ -403,7 +403,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
     if (!_conf.contains("spark.app.name")) {
       throw new SparkException("An application name must be set in your configuration")
     }
-    if (_conf.getBoolean("spark.yarnClientMode.disabled")) {
+    if (_conf.getBoolean("spark.yarnClientMode.disabled", false)) {
       if (master == "yarn-client") {
         throw new Exception("Detected yarn-client mode, but it is not supported.")
       }
