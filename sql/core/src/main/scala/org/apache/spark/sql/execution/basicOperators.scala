@@ -29,6 +29,8 @@ import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.util.MutablePair
 import org.apache.spark.util.random.PoissonSampler
 import org.apache.spark.{HashPartitioner, SparkEnv}
+import scala.reflect.classTag
+import org.apache.spark.util.collection.{Utils => CUtils}
 
 
 case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends UnaryNode {
@@ -207,16 +209,14 @@ case class TakeOrderedAndProject(
   // and this ordering needs to be created on the driver in order to be passed into Spark core code.
   private val ord: InterpretedOrdering = new InterpretedOrdering(sortOrder, child.output)
 
-  // TODO: remove @transient after figure out how to clean closure at InsertIntoHiveTable.
-  @transient private val projection = projectList.map(new InterpretedProjection(_, child.output))
-
-  private def collectData(): Array[InternalRow] = {
-    val data = child.execute().map(_.copy()).takeOrdered(limit)(ord)
-    projection.map(data.map(_)).getOrElse(data)
-  }
-
   override def executeCollect(): Array[InternalRow] = {
-    collectData
+    val data = child.execute().map(_.copy()).takeOrdered(limit, serializer)(ord)
+    if (projectList.isDefined) {
+      val proj = UnsafeProjection.create(projectList.get, child.output)
+      data.map(r => proj(r))
+    } else {
+      data
+    }
   }
 
   private val serializer: Serializer = new SparkSqlSerializer(child.sqlContext.sparkContext.getConf)
@@ -224,14 +224,15 @@ case class TakeOrderedAndProject(
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {
       child.execute().map(_.copy()).mapPartitions { iter =>
-        org.apache.spark.util.collection.Utils.takeOrdered(iter, limit)(ord)
+        CUtils.takeOrdered(iter, limit, serializer)(classTag[InternalRow], ord)
       }
     }
 
     val shuffled = new ShuffledRowRDD(
       Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
     shuffled.mapPartitions { iter =>
-      val topK = org.apache.spark.util.collection.Utils.takeOrdered(iter.map(_.copy()), limit)(ord)
+      val topK =
+        CUtils.takeOrdered(iter.map(_.copy()), limit, serializer)(classTag[InternalRow], ord)
       if (projectList.isDefined) {
         val proj = UnsafeProjection.create(projectList.get, child.output)
         topK.map(r => proj(r))

@@ -19,6 +19,8 @@ package org.apache.spark.rdd
 
 import java.util.Random
 
+import org.apache.spark.serializer.Serializer
+
 import scala.collection.{mutable, Map}
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -442,8 +444,7 @@ abstract class RDD[T: ClassTag](
    *
    * @param weights weights for splits, will be normalized if they don't sum to 1
    * @param seed random seed
-   *
-   * @return split RDDs in an array
+    * @return split RDDs in an array
    */
   def randomSplit(
       weights: Array[Double],
@@ -458,7 +459,8 @@ abstract class RDD[T: ClassTag](
   /**
    * Internal method exposed for Random Splits in DataFrames. Samples an RDD given a probability
    * range.
-   * @param lb lower bound to use for the Bernoulli sampler
+    *
+    * @param lb lower bound to use for the Bernoulli sampler
    * @param ub upper bound to use for the Bernoulli sampler
    * @param seed the seed for the Random number generator
    * @return A random sub-sample of the RDD without replacement.
@@ -1381,14 +1383,15 @@ abstract class RDD[T: ClassTag](
    * @param ord the implicit ordering for T
    * @return an array of top elements
    */
-  def takeOrdered(num: Int)(implicit ord: Ordering[T]): Array[T] = withScope {
+  def takeOrdered(num: Int, ser: Serializer = SparkEnv.get.serializer)
+      (implicit ord: Ordering[T]): Array[T] = withScope {
     if (num == 0) {
       Array.empty
     } else {
       val mapRDDs = mapPartitions { items =>
         // Priority keeps the largest elements, so let's reverse the ordering.
         val queue = new BoundedPriorityQueue[T](num)(ord.reverse)
-        queue ++= util.collection.Utils.takeOrdered(items, num)(ord)
+        queue ++= util.collection.Utils.takeOrdered[T](items, num, ser)(classTag[T], ord)
         Iterator.single(queue)
       }
       if (mapRDDs.partitions.length == 0) {
@@ -1404,7 +1407,8 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Returns the max of this RDD as defined by the implicit Ordering[T].
-   * @return the maximum element of the RDD
+    *
+    * @return the maximum element of the RDD
    * */
   def max()(implicit ord: Ordering[T]): T = withScope {
     this.reduce(ord.max)
@@ -1412,7 +1416,8 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Returns the min of this RDD as defined by the implicit Ordering[T].
-   * @return the minimum element of the RDD
+    *
+    * @return the minimum element of the RDD
    * */
   def min()(implicit ord: Ordering[T]): T = withScope {
     this.reduce(ord.min)

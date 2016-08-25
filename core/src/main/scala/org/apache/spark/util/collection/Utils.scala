@@ -17,45 +17,35 @@
 
 package org.apache.spark.util.collection
 
-import java.io.File
 
-import org.apache.spark.SparkEnv
-import org.geirove.exmeso.{ChunkSizeIterator, ExternalMergeSort}
-import org.geirove.exmeso.kryo.KryoSerializer
+import org.apache.spark.util.CompletionIterator
+import org.apache.spark.{TaskContext, InternalAccumulator, Logging, SparkEnv}
+import org.apache.spark.serializer.Serializer
 
-import scala.collection.JavaConverters._
+import scala.reflect._
 
-import com.google.common.collect.{Ordering => GuavaOrdering}
-
-import scala.util.Random
 
 /**
  * Utility functions for collections.
  */
-private[spark] object Utils {
+private[spark] object Utils extends Logging {
 
   /**
    * Returns the first K elements from the input as defined by the specified implicit Ordering[T]
    * and maintains the ordering.
    */
-  def takeOrdered[T](input: Iterator[T], num: Int)(implicit ord: Ordering[T]): Iterator[T] = {
-    val ordering = new GuavaOrdering[T] {
-      override def compare(l: T, r: T): Int = ord.compare(l, r)
-    }
-    val conf = SparkEnv.get.conf
-    val chunkSize = conf.getInt("spark.takeOrdered.chunkSize", 50000)
-    val csi = new ChunkSizeIterator(input.asJava, chunkSize)
-    if (csi.isMultipleChunks) {
-      val serializer = new KryoSerializer[T]()
-      val tempDirs = org.apache.spark.util.Utils.getOrCreateLocalRootDirs(conf)
-      val tempDir = new File(tempDirs(new Random().nextInt(tempDirs.size)))
-      val sort = ExternalMergeSort.newSorter(serializer, ordering)
-        .withChunkSize(chunkSize)
-        .withTempDirectory(tempDir)
-        .build()
-      sort.mergeSort(csi).asScala.take(num)
-    } else {
-      ordering.leastOf(csi, num).iterator().asScala
-    }
+  def takeOrdered[T: ClassTag](input: Iterator[T], num: Int,
+      ser: Serializer = SparkEnv.get.serializer)(implicit ord: Ordering[T]): Iterator[T] = {
+    val context = TaskContext.get()
+    val sorter =
+      new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
+    sorter.insertAll(input.map(x => (x, null)))
+    context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
+    context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
+    context.taskMetrics().incSpillTime(sorter.spillTime)
+    context.internalMetricsToAccumulators(
+      InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)
+    CompletionIterator[T, Iterator[T]](sorter.iterator.map(_._1).take(num), sorter.stop())
+
   }
 }
