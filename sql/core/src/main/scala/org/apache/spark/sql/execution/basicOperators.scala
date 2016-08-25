@@ -224,15 +224,14 @@ case class TakeOrderedAndProject(
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {
       child.execute().map(_.copy()).mapPartitions { iter =>
-        CUtils.takeOrdered(iter, limit, serializer)(classTag[InternalRow], ord)
+        CUtils.takeOrdered(iter, limit, serializer)(ord)
       }
     }
 
     val shuffled = new ShuffledRowRDD(
       Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
     shuffled.mapPartitions { iter =>
-      val topK =
-        CUtils.takeOrdered(iter.map(_.copy()), limit, serializer)(classTag[InternalRow], ord)
+      val topK = CUtils.takeOrdered(iter.map(_.copy()), limit, serializer)(ord)
       if (projectList.isDefined) {
         val proj = UnsafeProjection.create(projectList.get, child.output)
         topK.map(r => proj(r))

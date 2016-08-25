@@ -34,7 +34,7 @@ private[spark] object Utils extends Logging {
    * Returns the first K elements from the input as defined by the specified implicit Ordering[T]
    * and maintains the ordering.
    */
-  def takeOrdered[T: ClassTag](input: Iterator[T], num: Int,
+  def takeOrdered[T](input: Iterator[T], num: Int,
       ser: Serializer = SparkEnv.get.serializer)(implicit ord: Ordering[T]): Iterator[T] = {
     val context = TaskContext.get()
     val sorter =
