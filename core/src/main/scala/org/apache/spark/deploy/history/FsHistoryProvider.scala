@@ -73,7 +73,7 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
   // Used by check event thread and clean log thread.
   // Scheduled thread pool size must be one, otherwise it will have concurrent issues about fs
   // and applications between check task and clean task.
-  private val pool = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+  private val pool = Executors.newScheduledThreadPool(2, new ThreadFactoryBuilder()
     .setNameFormat("spark-history-task-%d").setDaemon(true).build())
 
   // The modification time of the newest log detected during the last scan. This is used
