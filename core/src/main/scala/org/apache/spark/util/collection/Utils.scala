@@ -22,9 +22,6 @@ import org.apache.spark.util.CompletionIterator
 import org.apache.spark.{TaskContext, InternalAccumulator, Logging, SparkEnv}
 import org.apache.spark.serializer.Serializer
 
-import scala.reflect._
-
-
 /**
  * Utility functions for collections.
  */
@@ -46,6 +43,5 @@ private[spark] object Utils extends Logging {
     context.internalMetricsToAccumulators(
       InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)
     CompletionIterator[T, Iterator[T]](sorter.iterator.map(_._1).take(num), sorter.stop())
-
   }
 }
