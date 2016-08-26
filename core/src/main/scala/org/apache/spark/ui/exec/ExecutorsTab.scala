@@ -57,7 +57,8 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
   val executorToShuffleRead = HashMap[String, Long]()
   val executorToShuffleWrite = HashMap[String, Long]()
   val executorToLogUrls = HashMap[String, Map[String, String]]()
-  val executorIdToData = new mutable.LinkedHashMap[String, ExecutorUIData]()
+  val executorIdToData: HashMap[String, ExecutorUIData]
+    = new mutable.LinkedHashMap[String, ExecutorUIData]()
 
   val EXECUTOR_MAX_LIMIT = SparkEnv.get.conf.getInt("spark.ui.retainedExecutors", 1000)
 
@@ -79,7 +80,7 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
       val iterator = executorIdToData.iterator
       var flag = true
       while (iterator.hasNext && flag) {
-        val entry = iter.next()
+        val entry = iterator.next()
         if (entry._2.finishTime.isDefined) {
           val eid = entry._1
           executorIdToData.remove(eid)
