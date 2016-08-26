@@ -116,9 +116,9 @@ private[ui] class AllJobsPage(parent: JobsTab) extends WebUIPage("") {
 
   val MAX_TIMELINE_EXECUTORS = parent.conf.getInt("spark.ui.timeline.executors.maximum", 1000)
 
-  private def makeExecutorEvent(executorUIDatas: HashMap[String, ExecutorUIData]): Seq[String] = {
+  private def makeExecutorEvent(executorUIDatas: Map[String, ExecutorUIData]): Seq[String] = {
     val events = ListBuffer[String]()
-    executorUIDatas.toArray.sortBy(-_._2.startTime).take(MAX_TIMELINE_EXECUTORS).foreach {
+    executorUIDatas.toArray.reverse.take(MAX_TIMELINE_EXECUTORS).foreach {
       case (executorId, event) =>
         val addedEvent =
           s"""

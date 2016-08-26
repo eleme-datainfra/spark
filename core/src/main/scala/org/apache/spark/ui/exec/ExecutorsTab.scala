@@ -57,8 +57,7 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
   val executorToShuffleRead = HashMap[String, Long]()
   val executorToShuffleWrite = HashMap[String, Long]()
   val executorToLogUrls = HashMap[String, Map[String, String]]()
-  val executorIdToData: HashMap[String, ExecutorUIData]
-    = new mutable.LinkedHashMap[String, ExecutorUIData]()
+  val executorIdToData = new mutable.LinkedHashMap[String, ExecutorUIData]()
 
   val EXECUTOR_MAX_LIMIT = SparkEnv.get.conf.getInt("spark.ui.retainedExecutors", 1000)
 
