@@ -57,7 +57,7 @@ object OrcUtil {
     }
     inputFiles.foreach { file =>
       val orcReader = OrcFile.createReader(fs, file)
-      val locations = ShimLoader.getHadoopShims.getLocations(fs, fs.getFileStatus(file))
+      val locations = ShimLoader.getHadoopShims.getLocationsWithOffset(fs, fs.getFileStatus(file))
 
       orcReader.getStripes.asScala.foreach { stripe =>
         // if we are working on a stripe, over the min stripe size, and
@@ -95,15 +95,20 @@ object OrcUtil {
                   offset: Long,
                   length: Long,
                   blockSize: Long,
-                  locations: Array[BlockLocation]): StripeSplit = {
+                  locations: util.TreeMap[Long, BlockLocation]): StripeSplit = {
     var hosts: Array[String] = null
-    if ((offset % blockSize) + length <= blockSize) {
-      hosts = locations((offset / blockSize).toInt).getHosts()
+    val startEntry = locations.floorEntry(offset)
+    val start = startEntry.getValue
+    if (offset + length <= start.getOffset + start.getLength) {
+      hosts = start.getHosts
     } else {
+      val endEntry = locations.floorEntry(offset + length)
+      // get the submap
+      val navigableMap = locations.subMap(startEntry.getKey, true, endEntry.getKey, true)
       // Calculate the number of bytes in the split that are local to each host
       val sizes = new util.HashMap[String, LongWritable]()
       var maxSize = 0L
-      locations.foreach { block =>
+      navigableMap.values().asScala.foreach { block =>
         val overlap = getOverlap(offset, length, block.getOffset(), block.getLength())
         if (overlap > 0) {
           block.getHosts.foreach { host =>
@@ -115,13 +120,16 @@ object OrcUtil {
             size.set(size.get() + overlap)
             maxSize = Math.max(maxSize, size.get())
           }
+        } else {
+          throw new IOException("File " + path +
+            " should have had overlap on block starting at " + block.getOffset)
         }
       }
 
       // filter the list of locations to those that have at least 70% of the max
       val threshold = (maxSize * 0.7).toLong
       val hostList = new ArrayBuffer[String]()
-      locations.foreach { block =>
+      navigableMap.values().asScala.foreach { block =>
         block.getHosts.foreach { host =>
           if (sizes.containsKey(host)) {
             if (sizes.get(host).get() >= threshold) {
