@@ -50,7 +50,7 @@ object OrcUtil {
     val inputFiles = new ArrayBuffer[Path]()
     if (fs.isDirectory(inputPath)) {
       inputFiles += SparkHadoopUtil.get.listLeafStatuses(fs, inputPath)
-        .filter(f => !f.getPath.getName.startsWith("_"))
+        .filter(f => !f.getPath.getName.startsWith("_")).map(f => f.getPath)
     } else {
       inputFiles += inputPath
     }
