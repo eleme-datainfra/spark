@@ -236,16 +236,19 @@ class HadoopTableReader(
         }
       }
 
-
       if (sc.conf.useFasterOrcReader) {
         Utils.withDummyCallSite[RDD[InternalRow]](sc.sparkContext) {
           val inputFormatClass = classOf[OrcNewInputFormat]
             .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
           val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs,
             partitionKeyAttrs, partValues)
+          val initializeJobConfFunc =
+            HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
+
           new FasterOrcRDD[InternalRow](
             sc,
-            SparkHadoopUtil.get.conf,
+            _broadcastedHiveConf,
+            initializeJobConfFunc,
             includedColumnsInfo,
             inputFormatClass,
             classOf[InternalRow])

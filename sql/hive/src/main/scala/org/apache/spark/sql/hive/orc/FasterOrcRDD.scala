@@ -27,6 +27,7 @@ import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
+import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -52,12 +53,17 @@ private[hive] case class SerializableColumnInfo(
 private[hive] class FasterOrcRDD[V: ClassTag](
     sqlContext: SQLContext,
     broadcastedConf: Broadcast[SerializableConfiguration],
+    initLocalJobConfFuncOpt: Option[JobConf => Unit],
     columnInfo: SerializableColumnInfo,
     inputFormatClass: Class[_ <: InputFormat[NullWritable, V]],
     valueClass: Class[V])
   extends RDD[V](sqlContext.sparkContext, Nil)
     with SparkHadoopMapReduceUtil
     with Logging {
+
+  if (initLocalJobConfFuncOpt.isDefined) {
+    sparkContext.clean(initLocalJobConfFuncOpt.get)
+  }
 
   def this(
       sqlContext: SQLContext,
@@ -68,11 +74,14 @@ private[hive] class FasterOrcRDD[V: ClassTag](
 
     this(sqlContext,
       sqlContext.sparkContext.broadcast(new SerializableConfiguration(jobConf)),
+      initLocalJobConfFuncOpt = None,
       columnInfo,
       inputFormatClass,
       valueClass
     )
   }
+
+  protected val jobConfCacheKey = "rdd_%d_job_conf".format(id)
 
   private val jobTrackerId: String = {
     val formatter = new SimpleDateFormat("yyyyMMddHHmm")
@@ -86,11 +95,12 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     * be called once, so it is safe to implement a time-consuming computation in it.
     */
   override protected def getPartitions: Array[Partition] = {
-    val jobConf: Configuration = broadcastedConf.value.value
+    val jobConf = getJobConf()
     if (sqlContext.conf.useStripeBasedSplitStrategy) {
       val inputPaths = OrcUtil.getInputPaths(jobConf)
       var result: Array[Partition] = null
       var splits: Seq[StripeSplit] = null
+      val wrappedConf = new SerializableConfiguration(conf)
 
       if (inputPaths.size <= 10) {
         val exec = Executors.newFixedThreadPool(inputPaths.size)
@@ -98,7 +108,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         inputPaths.foreach { path =>
           completionService.submit(new Callable[Array[StripeSplit]] {
             override def call(): Array[StripeSplit] = {
-              OrcUtil.getSplit(broadcastedConf, path)
+              OrcUtil.getSplit(wrappedConf, path)
             }
           })
         }
@@ -112,7 +122,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         exec.shutdown()
       } else {
         val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
-          OrcUtil.getSplit(broadcastedConf, path)
+          OrcUtil.getSplit(wrappedConf, path)
         }.collect().flatten
         result = new Array[Partition](splits.size)
       }
@@ -144,7 +154,50 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       }
       result
     }
+  }
 
+  private val shouldCloneJobConf = sparkContext.conf.getBoolean("spark.hadoop.cloneConf", false)
+
+  // Returns a JobConf that will be used on slaves to obtain input splits for Hadoop reads.
+  protected def getJobConf(): JobConf = {
+    val conf = broadcastedConf.value.value
+    if (shouldCloneJobConf) {
+      // Hadoop Configuration objects are not thread-safe, which may lead to various problems if
+      // one job modifies a configuration while another reads it (SPARK-2546).  This problem occurs
+      // somewhat rarely because most jobs treat the configuration as though it's immutable.  One
+      // solution, implemented here, is to clone the Configuration object.  Unfortunately, this
+      // clone can be very expensive.  To avoid unexpected performance regressions for workloads and
+      // Hadoop versions that do not suffer from these thread-safety issues, this cloning is
+      // disabled by default.
+      HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+        logDebug("Cloning Hadoop Configuration")
+        val newJobConf = new JobConf(conf)
+        if (!conf.isInstanceOf[JobConf]) {
+          initLocalJobConfFuncOpt.map(f => f(newJobConf))
+        }
+        newJobConf
+      }
+    } else {
+      if (conf.isInstanceOf[JobConf]) {
+        logDebug("Re-using user-broadcasted JobConf")
+        conf.asInstanceOf[JobConf]
+      } else if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+        logDebug("Re-using cached JobConf")
+        HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+      } else {
+        // Create a JobConf that will be cached and used across this RDD's getJobConf() calls in the
+        // local process. The local cache is accessed through HadoopRDD.putCachedMetadata().
+        // The caching helps minimize GC, since a JobConf can contain ~10KB of temporary objects.
+        // Synchronize to prevent ConcurrentModificationException (SPARK-1097, HADOOP-10456).
+        HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+          logDebug("Creating new JobConf and caching it for later re-use")
+          val newJobConf = new JobConf(conf)
+          initLocalJobConfFuncOpt.map(f => f(newJobConf))
+          HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+          newJobConf
+        }
+      }
+    }
   }
 
   /**
@@ -154,7 +207,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
   override def compute(split: Partition, context: TaskContext): Iterator[V] = {
     val iter = new Iterator[V] {
       val inputSplit = split.asInstanceOf[NewHadoopPartition]
-      val conf: Configuration = broadcastedConf.value.value
+      val conf = getJobConf()
       val inputMetrics = context.taskMetrics
         .getInputMetricsForReadMethod(DataReadMethod.Hadoop)
 

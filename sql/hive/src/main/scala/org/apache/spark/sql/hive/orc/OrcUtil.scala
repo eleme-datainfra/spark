@@ -36,10 +36,10 @@ object OrcUtil {
 
   case class StripeSplit(path: String, offset: Long, length: Long, hosts: Array[String])
 
-  def getSplit(broadcastedConf: Broadcast[SerializableConfiguration], path: String):
+  def getSplit(broadcastedConf: SerializableConfiguration, path: String):
       Array[StripeSplit] = {
 
-    val conf = broadcastedConf.value.value
+    val conf = broadcastedConf.value
     val fs = FileSystem.get(conf)
     val filePath = new Path(path)
     val orcReader = OrcFile.createReader(fs, filePath)
@@ -143,9 +143,9 @@ object OrcUtil {
     * @return the list of input { @link Path}s for the map-reduce job.
     */
   def getInputPaths (conf: Configuration): Array[String] = {
-    val dirs = conf.get ("mapred.input.dir")
+    val dirs = conf.get ("mapreduce.input.fileinputformat.inputdir")
     if (dirs == null) {
-      throw new IOException ("Configuration mapred.input.dir is not defined.")
+      throw new IOException ("mapreduce.input.fileinputformat.inputdir is not defined.")
     }
     val list = StringUtils.split(dirs)
     val result = new Array[String](list.length)

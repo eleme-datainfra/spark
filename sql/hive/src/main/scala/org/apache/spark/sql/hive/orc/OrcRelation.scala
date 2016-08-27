@@ -350,7 +350,7 @@ private[orc] case class OrcTableScan(
           .asInstanceOf[Class[_ <: InputFormat[NullWritable, InternalRow]]]
         new FasterOrcRDD[InternalRow](
           sqlContext,
-          broadcastedConf,
+          conf,
           includedColumnsInfo,
           inputFormatClass,
           classOf[InternalRow])
