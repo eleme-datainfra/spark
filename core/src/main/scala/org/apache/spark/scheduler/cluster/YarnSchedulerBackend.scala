@@ -59,6 +59,7 @@ private[spark] abstract class YarnSchedulerBackend(
    * This includes executors already pending or running.
    */
   override def doRequestTotalExecutors(requestedTotal: Int): Boolean = {
+    logDebug(s"Ask YarnSchedulerEndpoint for ${requestedTotal} executors.")
     yarnSchedulerEndpointRef.askWithRetry[Boolean](
       RequestExecutors(requestedTotal, localityAwareTasks, hostToLocalTaskCount))
   }
@@ -67,6 +68,7 @@ private[spark] abstract class YarnSchedulerBackend(
    * Request that the ApplicationMaster kill the specified executors.
    */
   override def doKillExecutors(executorIds: Seq[String]): Boolean = {
+    logDebug(s"Ask YarnSchedulerEndpoint for killing executors(${executorIds.mkString(",")})")
     yarnSchedulerEndpointRef.askWithRetry[Boolean](KillExecutors(executorIds))
   }
 
@@ -204,6 +206,7 @@ private[spark] abstract class YarnSchedulerBackend(
       case r: RequestExecutors =>
         amEndpoint match {
           case Some(am) =>
+            logDebug(s"Request AM for ${r.requestedTotal} executors.")
             Future {
               context.reply(am.askWithRetry[Boolean](r))
             } onFailure {
@@ -219,6 +222,7 @@ private[spark] abstract class YarnSchedulerBackend(
       case k: KillExecutors =>
         amEndpoint match {
           case Some(am) =>
+            logInfo(s"Request to kill executors(${k.executorIds.mkString(",")})")
             Future {
               context.reply(am.askWithRetry[Boolean](k))
             } onFailure {

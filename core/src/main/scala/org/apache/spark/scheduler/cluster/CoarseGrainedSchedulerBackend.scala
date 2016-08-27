@@ -512,17 +512,29 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
 
     // If an executor is already pending to be removed, do not kill it again (SPARK-9795)
     // If this executor is busy, do not kill it unless we are told to force kill it (SPARK-9552)
-    val executorsToKill = knownExecutors
-      .filter { id => !executorsPendingToRemove.contains(id) }
-      .filter { id => force || !scheduler.isExecutorBusy(id) }
+    val (executorsToKill, executorsNotToKill) = knownExecutors.partition { id =>
+      !executorsPendingToRemove.contains(id) && (force || !scheduler.isExecutorBusy(id))
+    }
     executorsToKill.foreach { id => executorsPendingToRemove(id) = !replace }
+
+    executorsNotToKill.foreach { id =>
+      if (executorsPendingToRemove.contains(id)) {
+        logDebug(s"Executor ${id} is already to pending to kill.")
+      } else {
+        logDebug(s"Executor ${id} is busy, can't kill.")
+      }
+    }
 
     // If we do not wish to replace the executors we kill, sync the target number of executors
     // with the cluster manager to avoid allocating new ones. When computing the new target,
     // take into account executors that are pending to be added or removed.
     if (!replace) {
-      doRequestTotalExecutors(
-        numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+      if (!Utils.isDynamicAllocationEnabled(conf)) {
+        logDebug(s"Sync with master, $numExistingExecutors existing , " +
+          s"$numPendingExecutors pending, ${executorsPendingToRemove.size} removing")
+        doRequestTotalExecutors(
+          numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+      }
     } else {
       numPendingExecutors += knownExecutors.size
     }

@@ -81,7 +81,7 @@ case class InsertIntoHiveTable(
     log.debug("Saving as hadoop file of type " + valueClass.getSimpleName)
 
     writerContainer.driverSideSetup()
-    if (sc.conf.mergeHiveFiles) {
+    if (sc.conf.mergeHiveFiles && rdd.partitions.size > sc.conf.mergeHiveFilesCount) {
       val mergeFilesRDD = rdd.repartition(sc.conf.mergeHiveFilesCount)
       sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
     } else {

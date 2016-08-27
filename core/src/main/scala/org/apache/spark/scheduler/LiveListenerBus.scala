@@ -19,6 +19,7 @@ package org.apache.spark.scheduler
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+import org.apache.spark.SparkContext
 import org.apache.spark.util.AsynchronousListenerBus
 
 /**
@@ -28,8 +29,8 @@ import org.apache.spark.util.AsynchronousListenerBus
  * has started will events be actually propagated to all attached listeners. This listener bus
  * is stopped when it receives a SparkListenerShutdown event, which is posted using stop().
  */
-private[spark] class LiveListenerBus
-  extends AsynchronousListenerBus[SparkListener, SparkListenerEvent]("SparkListenerBus")
+private[spark] class LiveListenerBus(val sc: SparkContext)
+  extends AsynchronousListenerBus[SparkListener, SparkListenerEvent](sc, "SparkListenerBus")
   with SparkListenerBus {
 
   private val logDroppedEvent = new AtomicBoolean(false)

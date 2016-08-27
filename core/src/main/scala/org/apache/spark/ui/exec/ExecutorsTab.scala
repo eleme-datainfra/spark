@@ -17,9 +17,10 @@
 
 package org.apache.spark.ui.exec
 
+import scala.collection.mutable
 import scala.collection.mutable.HashMap
 
-import org.apache.spark.{Resubmitted, ExceptionFailure, SparkContext}
+import org.apache.spark.{SparkEnv, Resubmitted, ExceptionFailure, SparkContext}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.scheduler._
 import org.apache.spark.storage.{StorageStatus, StorageStatusListener}
@@ -56,7 +57,9 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
   val executorToShuffleRead = HashMap[String, Long]()
   val executorToShuffleWrite = HashMap[String, Long]()
   val executorToLogUrls = HashMap[String, Map[String, String]]()
-  val executorIdToData = HashMap[String, ExecutorUIData]()
+  val executorIdToData = new mutable.LinkedHashMap[String, ExecutorUIData]()
+
+  val EXECUTOR_MAX_LIMIT = SparkEnv.get.conf.getInt("spark.ui.retainedExecutors", 1000)
 
   def storageStatusList: Seq[StorageStatus] = storageStatusListener.storageStatusList
 
@@ -72,6 +75,28 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
     val uiData = executorIdToData(eid)
     uiData.finishTime = Some(executorRemoved.time)
     uiData.finishReason = Some(executorRemoved.reason)
+    if (executorIdToData.size > EXECUTOR_MAX_LIMIT) {
+      val iterator = executorIdToData.iterator
+      var flag = true
+      while (iterator.hasNext && flag) {
+        val entry = iterator.next()
+        if (entry._2.finishTime.isDefined) {
+          val eid = entry._1
+          executorIdToData.remove(eid)
+          executorToTasksActive.remove(eid)
+          executorToTasksComplete.remove(eid)
+          executorToTasksFailed.remove(eid)
+          executorToDuration.remove(eid)
+          executorToInputBytes.remove(eid)
+          executorToOutputBytes.remove(eid)
+          executorToOutputRecords.remove(eid)
+          executorToShuffleRead.remove(eid)
+          executorToShuffleWrite.remove(eid)
+          executorToLogUrls.remove(eid)
+          flag = false
+        }
+      }
+    }
   }
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {

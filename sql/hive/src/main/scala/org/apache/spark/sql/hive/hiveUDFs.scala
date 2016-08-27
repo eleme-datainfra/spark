@@ -17,6 +17,15 @@
 
 package org.apache.spark.sql.hive
 
+import java.io.File
+import java.util
+
+import org.apache.hadoop.hive.conf.HiveConf
+import org.apache.hadoop.hive.ql.exec.FunctionInfo.FunctionResource
+import org.apache.hadoop.hive.ql.metadata.Hive
+import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
+import org.apache.spark.util.{ShutdownHookManager, Utils}
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -31,7 +40,6 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDF._
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFEvaluator.AggregationBuffer
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ConversionHelper
 
-import org.apache.spark.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis
@@ -45,19 +53,49 @@ import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.hive.HiveShim._
 import org.apache.spark.sql.hive.client.ClientWrapper
 import org.apache.spark.sql.types._
+import org.apache.spark.Logging
 
 
 private[hive] class HiveFunctionRegistry(
+    hiveContext: HiveContext,
     underlying: analysis.FunctionRegistry,
     executionHive: ClientWrapper)
-  extends analysis.FunctionRegistry with HiveInspectors {
+  extends analysis.FunctionRegistry with HiveInspectors with Logging {
+
+  val hive = Hive.get(new HiveConf())
 
   def getFunctionInfo(name: String): FunctionInfo = {
     // Hive Registry need current database to lookup function
+    var functionInfo: FunctionInfo = null
     // TODO: the current database of executionHive should be consistent with metadataHive
     executionHive.withHiveState {
-      FunctionRegistry.getFunctionInfo(name)
+      functionInfo = FunctionRegistry.getFunctionInfo(name)
     }
+    if (functionInfo == null) {
+      val function = hive.getFunction(hiveContext.metadataHive.currentDatabase, name)
+      val resources = new util.ArrayList[String](function.getResourceUris.size())
+      val iter = function.getResourceUrisIterator
+      while (iter.hasNext) {
+        resources.add(iter.next().getUri)
+      }
+      val localJars = executionHive.state.add_resources(ResourceType.JAR, resources)
+
+      val functionResources = new Array[FunctionResource](localJars.size())
+      var i = 0
+      while (i < localJars.size()) {
+        val jar = localJars.get(i)
+        functionResources(i) = new FunctionResource(ResourceType.JAR, jar)
+        hiveContext.addJar(jar)
+        // remove resource dir
+        ShutdownHookManager.removeShutdownDeleteDir(new File(jar).getParentFile)
+        i = i + 1
+      }
+
+      val udfClass = Utils.classForName(function.getClassName)
+      functionInfo = FunctionRegistry.registerTemporaryUDF(function.getFunctionName, udfClass,
+        functionResources: _*)
+    }
+    functionInfo
   }
 
   override def lookupFunction(name: String, children: Seq[Expression]): Expression = {
@@ -99,6 +137,7 @@ private[hive] class HiveFunctionRegistry(
           // If the exception is an AnalysisException, just throw it.
           throw analysisException
         case throwable: Throwable =>
+          logError(throwable.getMessage, throwable)
           // If there is any other error, we throw an AnalysisException.
           val errorMessage = s"No handler for Hive udf ${functionInfo.getFunctionClass} " +
             s"because: ${throwable.getMessage}."
@@ -356,7 +395,8 @@ private[spark] object ResolveHiveWindowFunction extends Rule[LogicalPlan] {
 
 /**
  * A [[WindowFunction]] implementation wrapping Hive's window function.
- * @param funcWrapper The wrapper for the Hive Window Function.
+  *
+  * @param funcWrapper The wrapper for the Hive Window Function.
  * @param pivotResult If it is true, the Hive function will return a list of values representing
  *                    the values of the added columns. Otherwise, a single value is returned for
  *                    current row.

@@ -150,7 +150,7 @@ class DAGScheduler(
   // Stages that must be resubmitted due to fetch failures
   private[scheduler] val failedStages = new HashSet[Stage]
 
-  @volatile private[scheduler] var activeJobs = new HashSet[ActiveJob]
+  private[scheduler] var activeJobs = new HashSet[ActiveJob]
 
   /**
    * Contains the locations that each RDD's partitions are cached on.  This map's keys are RDD ids
@@ -183,14 +183,6 @@ class DAGScheduler(
 
   private[scheduler] val eventProcessLoop = new DAGSchedulerEventProcessLoop(this)
   taskScheduler.setDAGScheduler(this)
-
-  def containsJobGroup(jobGroup: String): Boolean = {
-    activeJobs.exists(_.properties.getProperty(SparkContext.SPARK_JOB_GROUP_ID) == jobGroup)
-  }
-
-  def containsJobId(jobId: Int): Boolean = {
-    jobIdToActiveJob.contains(jobId)
-  }
 
   /**
    * Called by the TaskSetManager to report task's starting.
@@ -1133,13 +1125,8 @@ class DAGScheduler(
       event.taskInfo.attemptNumber, // this is a task attempt number
       event.reason)
 
-    // The success case is dealt with separately below, since we need to compute accumulator
-    // updates before posting.
-    if (event.reason != Success) {
-      val attemptId = task.stageAttemptId
-      listenerBus.post(SparkListenerTaskEnd(stageId, attemptId, taskType, event.reason,
-        event.taskInfo, event.taskMetrics))
-    }
+    listenerBus.post(SparkListenerTaskEnd(stageId, task.stageAttemptId, taskType, event.reason,
+      event.taskInfo, event.taskMetrics))
 
     if (!stageIdToStage.contains(task.stageId)) {
       // Skip all the actions if the stage has been cancelled.
@@ -1149,8 +1136,6 @@ class DAGScheduler(
     val stage = stageIdToStage(task.stageId)
     event.reason match {
       case Success =>
-        listenerBus.post(SparkListenerTaskEnd(stageId, stage.latestInfo.attemptId, taskType,
-          event.reason, event.taskInfo, event.taskMetrics))
         stage.pendingPartitions -= task.partitionId
         task match {
           case rt: ResultTask[_, _] =>

@@ -94,9 +94,11 @@ private[ui] class JobPage(parent: JobsTab) extends WebUIPage("job") {
     }
   }
 
-  def makeExecutorEvent(executorUIDatas: HashMap[String, ExecutorUIData]): Seq[String] = {
+  val MAX_TIMELINE_EXECUTORS = parent.conf.getInt("spark.ui.timeline.executors.maximum", 1000)
+
+  def makeExecutorEvent(executorUIDatas: collection.Map[String, ExecutorUIData]): Seq[String] = {
     val events = ListBuffer[String]()
-    executorUIDatas.foreach {
+    executorUIDatas.toArray.reverse.take(MAX_TIMELINE_EXECUTORS).foreach {
       case (executorId, event) =>
         val addedEvent =
           s"""
@@ -142,7 +144,7 @@ private[ui] class JobPage(parent: JobsTab) extends WebUIPage("job") {
 
   private def makeTimeline(
       stages: Seq[StageInfo],
-      executors: HashMap[String, ExecutorUIData],
+      executors: collection.Map[String, ExecutorUIData],
       appStartTime: Long): Seq[Node] = {
 
     val stageEventJsonAsStrSeq = makeStageEvent(stages)

@@ -34,7 +34,7 @@ class ReceiverTrackerSuite extends TestSuiteBase {
 
   test("send rate update to receivers") {
     withStreamingContext(new StreamingContext(conf, Milliseconds(100))) { ssc =>
-      ssc.scheduler.listenerBus.start(ssc.sc)
+      ssc.scheduler.listenerBus.start()
 
       val newRateLimit = 100L
       val inputDStream = new RateTestInputDStream(ssc)

@@ -633,11 +633,13 @@ private[spark] class ApplicationMaster(
               localityAwareTasks, hostToLocalTaskCount)) {
               resetAllocatorInterval()
             }
+            logInfo(s"$threadName handle RequestExecutors complete.")
+            context.reply(true)
           case None =>
             logWarning(s"$threadName: Container allocator is not ready to request executors yet.")
+            context.reply(false)
         }
-        logInfo(s"$threadName handle RequestExecutors complete.")
-        context.reply(true)
+
 
       case KillExecutors(executorIds) =>
         val threadName = Thread.currentThread().getName
