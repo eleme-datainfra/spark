@@ -95,7 +95,7 @@ object OrcUtil {
                   offset: Long,
                   length: Long,
                   blockSize: Long,
-                  locations: util.TreeMap[Long, BlockLocation]): StripeSplit = {
+                  locations: util.TreeMap[java.lang.Long, BlockLocation]): StripeSplit = {
     var hosts: Array[String] = null
     val startEntry = locations.floorEntry(offset)
     val start = startEntry.getValue
