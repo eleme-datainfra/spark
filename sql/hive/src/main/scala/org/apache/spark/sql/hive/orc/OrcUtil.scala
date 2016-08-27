@@ -21,12 +21,13 @@ import java.io.IOException
 import java.util
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{BlockLocation, FileSystem, Path}
+import org.apache.hadoop.fs.{PathFilter, BlockLocation, FileSystem, Path}
 import org.apache.hadoop.hive.ql.io.orc.OrcFile
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.util.StringUtils
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.util.SerializableConfiguration
 
 import scala.collection.JavaConverters._
@@ -36,47 +37,56 @@ object OrcUtil {
 
   case class StripeSplit(path: String, offset: Long, length: Long, hosts: Array[String])
 
-  def getSplit(broadcastedConf: SerializableConfiguration, path: String):
-      Array[StripeSplit] = {
-
+  def getSplit(broadcastedConf: SerializableConfiguration, path: String): Array[StripeSplit] = {
     val conf = broadcastedConf.value
     val fs = FileSystem.get(conf)
-    val filePath = new Path(path)
-    val orcReader = OrcFile.createReader(fs, filePath)
+    val inputPath = new Path(path)
     var currentOffset = -1L
     var currentLength = 0L
-    val locations = ShimLoader.getHadoopShims.getLocations(fs, fs.getFileStatus(filePath))
-
     val minSize = conf.getLong("mapred.min.split.size", 16 * 1024 * 1024)
     val maxSize = conf.getLong("mapred.max.split.size", 256 * 1024 * 1024)
     val blockSize = conf.getLong("hive.exec.orc.default.block.size", 256 * 1024 * 1024)
     var splits = new ArrayBuffer[StripeSplit]()
-    orcReader.getStripes.asScala.foreach { stripe =>
-      // if we are working on a stripe, over the min stripe size, and
-      // crossed a block boundary, cut the input split here.
-      if (currentOffset != -1 && currentLength > minSize &&
-        (currentOffset / blockSize != stripe.getOffset() / blockSize)) {
-        splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
-        currentOffset = -1
-      }
+    val inputFiles = new ArrayBuffer[Path]()
+    if (fs.isDirectory(inputPath)) {
+      inputFiles += SparkHadoopUtil.get.listLeafStatuses(fs, inputPath)
+        .filter(f => !f.getPath.getName.startsWith("_"))
+    } else {
+      inputFiles += inputPath
+    }
+    inputFiles.foreach { file =>
+      val orcReader = OrcFile.createReader(fs, file)
+      val locations = ShimLoader.getHadoopShims.getLocations(fs, fs.getFileStatus(file))
 
-      // if we aren't building a split, start a new one.
-      if (currentOffset == -1) {
-        currentOffset = stripe.getOffset()
-        currentLength = stripe.getLength()
-      } else {
-        currentLength += stripe.getLength()
-      }
+      orcReader.getStripes.asScala.foreach { stripe =>
+        // if we are working on a stripe, over the min stripe size, and
+        // crossed a block boundary, cut the input split here.
+        if (currentOffset != -1 && currentLength > minSize &&
+          (currentOffset / blockSize != stripe.getOffset() / blockSize)) {
+          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+          currentOffset = -1
+        }
 
-      if (currentLength >= maxSize) {
-        splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
-        currentOffset = -1
-      }
+        // if we aren't building a split, start a new one.
+        if (currentOffset == -1) {
+          currentOffset = stripe.getOffset()
+          currentLength = stripe.getLength()
+        } else {
+          currentLength += stripe.getLength()
+        }
 
-      if (currentOffset != -1) {
-        splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+        if (currentLength >= maxSize) {
+          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+          currentOffset = -1
+        }
+
+        if (currentOffset != -1) {
+          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+        }
       }
     }
+
+
     splits.toArray
   }
 
