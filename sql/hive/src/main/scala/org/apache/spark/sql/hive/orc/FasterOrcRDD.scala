@@ -100,7 +100,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       val inputPaths = OrcUtil.getInputPaths(jobConf)
       var result: Array[Partition] = null
       var splits: Seq[StripeSplit] = null
-      val wrappedConf = new SerializableConfiguration(conf)
+      val wrappedConf = new SerializableConfiguration(jobConf)
 
       if (inputPaths.size <= 10) {
         val exec = Executors.newFixedThreadPool(inputPaths.size)
