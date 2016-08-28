@@ -249,7 +249,7 @@ class HadoopTableReader(
             sc,
             _broadcastedHiveConf,
             Some(initializeJobConfFunc),
-            includedColumnsInfo,
+            sc.sparkContext.broadcast(includedColumnsInfo),
             inputFormatClass,
             classOf[InternalRow])
         }

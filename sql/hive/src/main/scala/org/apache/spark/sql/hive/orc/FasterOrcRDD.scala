@@ -19,7 +19,6 @@ package org.apache.spark.sql.hive.orc
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.concurrent.{ExecutorCompletionService, Callable, Executors}
 
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
@@ -28,11 +27,10 @@ import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
+import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
-import OrcUtil.StripeSplit
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
 import org.apache.spark.broadcast.Broadcast
@@ -41,7 +39,6 @@ import org.apache.spark.rdd._
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 private[hive] case class SerializableColumnInfo(
@@ -54,7 +51,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     sqlContext: SQLContext,
     broadcastedConf: Broadcast[SerializableConfiguration],
     initLocalJobConfFuncOpt: Option[JobConf => Unit],
-    columnInfo: SerializableColumnInfo,
+    columnInfo: Broadcast[SerializableColumnInfo],
     inputFormatClass: Class[_ <: InputFormat[NullWritable, V]],
     valueClass: Class[V])
   extends RDD[V](sqlContext.sparkContext, Nil)
@@ -75,7 +72,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     this(sqlContext,
       sqlContext.sparkContext.broadcast(new SerializableConfiguration(jobConf)),
       initLocalJobConfFuncOpt = None,
-      columnInfo,
+      sqlContext.sparkContext.broadcast(columnInfo),
       inputFormatClass,
       valueClass
     )
@@ -98,47 +95,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     */
   override protected def getPartitions: Array[Partition] = {
     val jobConf = getJobConf()
-    if (sqlContext.conf.useStripeBasedSplitStrategy) {
-      val inputPaths = OrcUtil.getInputPaths(jobConf)
-      var result: Array[Partition] = null
-      var splits: Seq[StripeSplit] = null
-      val wrappedConf = new SerializableConfiguration(jobConf)
-
-      if (inputPaths.size <= 10) {
-        val exec = Executors.newFixedThreadPool(inputPaths.size)
-        val completionService = new ExecutorCompletionService[Array[StripeSplit]](exec)
-        inputPaths.foreach { path =>
-          completionService.submit(new Callable[Array[StripeSplit]] {
-            override def call(): Array[StripeSplit] = {
-              OrcUtil.getSplit(wrappedConf, path)
-            }
-          })
-        }
-
-        splits = new ArrayBuffer[StripeSplit]()
-        for (i <- 0 until inputPaths.size) {
-          splits ++= completionService.take().get()
-        }
-
-        result = new Array[Partition](splits.size)
-        exec.shutdown()
-      } else {
-        val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
-          OrcUtil.getSplit(wrappedConf, path)
-        }.collect().flatten
-        result = new Array[Partition](splits.size)
-      }
-
-      for (i <- 0 until splits.size) {
-        result(i) = new NewHadoopPartition(id, i,
-          new FileSplit(new Path(splits(i).path),
-            splits(i).offset,
-            splits(i).length,
-            splits(i).hosts))
-      }
-      result
-
-    } else {
+    val inputPaths = OrcUtil.getInputPaths(jobConf)
+    if (inputPaths.size <= 10) {
       val inputFormat = inputFormatClass.newInstance
       inputFormat match {
         case configurable: Configurable =>
@@ -155,8 +113,32 @@ private[hive] class FasterOrcRDD[V: ClassTag](
           new NewHadoopPartition(id, i, rawSplits(i).asInstanceOf[InputSplit with Writable])
       }
       result
+    } else {
+      val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
+        val conf = broadcastedConf.value.value
+        val newJobConf = new JobConf(conf)
+        FileInputFormat.setInputPaths(newJobConf, new Path(path))
+        val inputFormat = inputFormatClass.newInstance
+        inputFormat match {
+          case configurable: Configurable =>
+            configurable.setConf(newJobConf)
+          case _ =>
+        }
+
+        val jobContext = newJobContext(newJobConf, jobId)
+        val rawSplits = inputFormat.getSplits(jobContext).toArray
+        rawSplits
+      }.collect().flatten
+      val result = new Array[Partition](splits.size)
+
+      for (i <- 0 until splits.size) {
+        result(i) =
+          new NewHadoopPartition(id, i, splits(i).asInstanceOf[InputSplit with Writable])
+      }
+      result
     }
   }
+
 
   private val shouldCloneJobConf = sparkContext.conf.getBoolean("spark.hadoop.cloneConf", false)
 
@@ -246,8 +228,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * TODO: plumb this through a different way?
         */
       if (useFasterOrcReader) {
-        val orcReader = new FasterOrcRecordReader(columnInfo.output, columnInfo.partitions,
-          columnInfo.columnReferences)
+        val orcReader = new FasterOrcRecordReader(columnInfo.value.output,
+          columnInfo.value.partitions, columnInfo.value.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
           hadoopAttemptContext)) {
           orcReader.close()
