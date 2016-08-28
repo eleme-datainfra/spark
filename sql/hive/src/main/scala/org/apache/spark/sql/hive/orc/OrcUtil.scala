@@ -64,7 +64,7 @@ object OrcUtil {
         // crossed a block boundary, cut the input split here.
         if (currentOffset != -1 && currentLength > minSize &&
           (currentOffset / blockSize != stripe.getOffset() / blockSize)) {
-          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+          splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
           currentOffset = -1
         }
 
@@ -73,20 +73,19 @@ object OrcUtil {
           currentOffset = stripe.getOffset()
           currentLength = stripe.getLength()
         } else {
-          currentLength += stripe.getLength()
+          currentLength = (stripe.getOffset + stripe.getLength) - currentOffset
         }
 
         if (currentLength >= maxSize) {
-          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
+          splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
           currentOffset = -1
         }
+      }
 
-        if (currentOffset != -1) {
-          splits += createSplit(path, currentOffset, currentLength, blockSize, locations)
-        }
+      if (currentOffset != -1) {
+        splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
       }
     }
-
 
     splits.toArray
   }
