@@ -43,8 +43,6 @@ object OrcUtil extends Logging {
     val inputPath = new Path(path)
     var currentOffset = -1L
     var currentLength = 0L
-    val minSize = conf.getLong("mapred.min.split.size", 16 * 1024 * 1024)
-    val maxSize = conf.getLong("mapred.max.split.size", 256 * 1024 * 1024)
     val blockSize = conf.getLong("hive.exec.orc.default.block.size", 256 * 1024 * 1024)
     var splits = new ArrayBuffer[StripeSplit]()
     val inputFiles = new ArrayBuffer[Path]()
