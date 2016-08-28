@@ -96,7 +96,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
   override protected def getPartitions: Array[Partition] = {
     val jobConf = getJobConf()
     val jobContext = newJobContext(jobConf, jobId)
-    val inputPaths = FileInputFormat.getInputPaths(jobConf).map(p => p.toString)
+    val inputPaths = FileInputFormat.getInputPaths(jobContext).map(p => p.toString)
     if (inputPaths.size <= 10) {
       val inputFormat = inputFormatClass.newInstance
       inputFormat match {
