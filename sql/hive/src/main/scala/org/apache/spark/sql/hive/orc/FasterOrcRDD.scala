@@ -120,12 +120,12 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         val inputFormat = inputFormatClass.newInstance
         inputFormat match {
           case configurable: Configurable =>
-            configurable.setConf(newJobConf)
+            configurable.setConf(conf)
           case _ =>
         }
 
-        val newJobContext = newJobContext(newJobConf, jobId)
-        val rawSplits = inputFormat.getSplits(newJobContext).toArray
+        val jobContext = newJobContext(conf, jobId)
+        val rawSplits = inputFormat.getSplits(jobContext).toArray
         rawSplits
       }.collect().flatten
       val result = new Array[Partition](splits.size)
