@@ -90,6 +90,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
 
   @transient protected val jobId = new JobID(jobTrackerId, id)
 
+  val useFasterOrcReader = sqlContext.conf.useFasterOrcReader
+
   /**
     * Implemented by subclasses to return the set of partitions in this RDD. This method will only
     * be called once, so it is safe to implement a time-consuming computation in it.
@@ -243,7 +245,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * fails (for example, unsupported schema), try with the normal reader.
         * TODO: plumb this through a different way?
         */
-      if (sqlContext.conf.useFasterOrcReader) {
+      if (useFasterOrcReader) {
         val orcReader = new FasterOrcRecordReader(columnInfo.output, columnInfo.partitions,
           columnInfo.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
