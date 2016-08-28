@@ -26,8 +26,8 @@ import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
-import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit, FileSplit}
+import org.apache.hadoop.mapred.{FileInputFormat, JobConf}
+import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
