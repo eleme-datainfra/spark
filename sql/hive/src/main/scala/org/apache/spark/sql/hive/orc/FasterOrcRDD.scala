@@ -116,7 +116,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     } else {
       val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
         val conf = broadcastedConf.value.value
-        FileInputFormat.setInputPaths(new Job(conf), Seq[Path](new Path(path)))
+        FileInputFormat.setInputPaths(new Job(conf), path)
         val inputFormat = inputFormatClass.newInstance
         inputFormat match {
           case configurable: Configurable =>
