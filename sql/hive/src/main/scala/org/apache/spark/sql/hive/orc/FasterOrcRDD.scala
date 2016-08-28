@@ -26,8 +26,8 @@ import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
-import org.apache.hadoop.mapred.{FileInputFormat, JobConf}
-import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
+import org.apache.hadoop.mapred.JobConf
+import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
@@ -95,7 +95,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     */
   override protected def getPartitions: Array[Partition] = {
     val jobConf = getJobConf()
-    val inputPaths = OrcUtil.getInputPaths(jobConf)
+    val jobContext = newJobContext(jobConf, jobId)
+    val inputPaths = FileInputFormat.getInputPaths(jobConf).map(p => p.toString)
     if (inputPaths.size <= 10) {
       val inputFormat = inputFormatClass.newInstance
       inputFormat match {
@@ -104,7 +105,6 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         case _ =>
       }
 
-      val jobContext = newJobContext(jobConf, jobId)
       val rawSplits = inputFormat.getSplits(jobContext).toArray
       val result = new Array[Partition](rawSplits.size)
 
@@ -116,8 +116,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     } else {
       val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
         val conf = broadcastedConf.value.value
-        val newJobConf = new JobConf(conf)
-        FileInputFormat.setInputPaths(newJobConf, Seq[Path](new Path(path)): _*)
+        FileInputFormat.setInputPaths(new Job(conf), Seq[Path](new Path(path): _*))
         val inputFormat = inputFormatClass.newInstance
         inputFormat match {
           case configurable: Configurable =>
@@ -125,8 +124,8 @@ private[hive] class FasterOrcRDD[V: ClassTag](
           case _ =>
         }
 
-        val jobContext = newJobContext(newJobConf, jobId)
-        val rawSplits = inputFormat.getSplits(jobContext).toArray
+        val newJobContext = newJobContext(newJobConf, jobId)
+        val rawSplits = inputFormat.getSplits(newJobContext).toArray
         rawSplits
       }.collect().flatten
       val result = new Array[Partition](splits.size)
