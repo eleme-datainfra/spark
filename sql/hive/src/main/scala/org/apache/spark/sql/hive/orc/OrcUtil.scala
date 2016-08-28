@@ -21,19 +21,19 @@ import java.io.IOException
 import java.util
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{PathFilter, BlockLocation, FileSystem, Path}
+import org.apache.hadoop.fs.{BlockLocation, FileSystem, Path}
 import org.apache.hadoop.hive.ql.io.orc.OrcFile
 import org.apache.hadoop.hive.shims.ShimLoader
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.util.StringUtils
-import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.Logging
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.util.SerializableConfiguration
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-object OrcUtil {
+object OrcUtil extends Logging {
 
   case class StripeSplit(path: String, offset: Long, length: Long, hosts: Array[String])
 
@@ -59,30 +59,14 @@ object OrcUtil {
       val orcReader = OrcFile.createReader(fs, file)
       val locations = ShimLoader.getHadoopShims.getLocationsWithOffset(fs, fs.getFileStatus(file))
 
-      orcReader.getStripes.asScala.foreach { stripe =>
-        // if we are working on a stripe, over the min stripe size, and
-        // crossed a block boundary, cut the input split here.
-        if (currentOffset != -1 && currentLength > minSize &&
-          (currentOffset / blockSize != stripe.getOffset() / blockSize)) {
-          splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
-          currentOffset = -1
-        }
-
-        // if we aren't building a split, start a new one.
-        if (currentOffset == -1) {
-          currentOffset = stripe.getOffset()
-          currentLength = stripe.getLength()
-        } else {
-          currentLength = (stripe.getOffset + stripe.getLength) - currentOffset
-        }
-
-        if (currentLength >= maxSize) {
-          splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
-          currentOffset = -1
-        }
+      locations.values().asScala.foreach { block =>
+        logDebug(s"${file.toString} {${block.getOffset}, ${block.getLength}")
       }
 
-      if (currentOffset != -1) {
+      orcReader.getStripes.asScala.foreach { stripe =>
+        currentOffset = stripe.getOffset()
+        currentLength = stripe.getLength()
+        logDebug(s"Stripe {${currentOffset}, ${currentLength}")
         splits += createSplit(file.toString, currentOffset, currentLength, blockSize, locations)
       }
     }
@@ -98,7 +82,7 @@ object OrcUtil {
     var hosts: Array[String] = null
     val startEntry = locations.floorEntry(offset)
     val start = startEntry.getValue
-    if (offset + length <= start.getOffset + start.getLength) {
+    if ((offset + length) <= (start.getOffset + start.getLength)) {
       hosts = start.getHosts
     } else {
       val endEntry = locations.floorEntry(offset + length)
@@ -120,8 +104,8 @@ object OrcUtil {
             maxSize = Math.max(maxSize, size.get())
           }
         } else {
-          throw new IOException("File " + path +
-            " should have had overlap on block starting at " + block.getOffset)
+          throw new IOException(s"File ${path}  {${offset}, ${length}} " +
+            s"should have had overlap on block {${block.getOffset}, ${block.getLength})")
         }
       }
 
