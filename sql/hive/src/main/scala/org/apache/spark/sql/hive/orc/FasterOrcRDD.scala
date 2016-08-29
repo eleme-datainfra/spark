@@ -44,14 +44,14 @@ import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-private[hive] case class SerializableColumnInfo(
+case class SerializableColumnInfo(
     @transient var nonPartitionKeyAttrs: Seq[(Attribute, Int)],
     @transient var partitionKeyAttrs: Seq[(Attribute, Int)],
     @transient var partValues: Seq[String],
     @transient var schemaPartitionKeys: Seq[AttributeReference])
   extends Serializable
 
-private[hive] case class ColumnInfo(
+case class ColumnInfo(
     output: Array[(Int, DataType, Type)],
     partitions: Map[Int, (DataType, String)],
     columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
