@@ -20,7 +20,7 @@ package org.apache.spark.ui.exec
 import scala.collection.mutable
 import scala.collection.mutable.HashMap
 
-import org.apache.spark.{SparkEnv, Resubmitted, ExceptionFailure, SparkContext}
+import org.apache.spark._
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.scheduler._
 import org.apache.spark.storage.{StorageStatus, StorageStatusListener}
@@ -44,7 +44,8 @@ private[ui] class ExecutorsTab(parent: SparkUI) extends SparkUITab(parent, "exec
  * A SparkListener that prepares information to be displayed on the ExecutorsTab
  */
 @DeveloperApi
-class ExecutorsListener(storageStatusListener: StorageStatusListener) extends SparkListener {
+class ExecutorsListener(conf: SparkConf, storageStatusListener: StorageStatusListener)
+    extends SparkListener {
   val executorToTasksActive = HashMap[String, Int]()
   val executorToTasksComplete = HashMap[String, Int]()
   val executorToTasksFailed = HashMap[String, Int]()
@@ -58,7 +59,7 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
   val executorToLogUrls = HashMap[String, Map[String, String]]()
   val executorEvents = new mutable.ListBuffer[SparkListenerEvent]()
 
-  val MAX_EXECUTOR_LIMIT = SparkEnv.get.conf.getInt("spark.ui.timeline.executors.maximum", 1000)
+  val MAX_EXECUTOR_LIMIT = conf.getInt("spark.ui.timeline.executors.maximum", 1000)
 
   def storageStatusList: Seq[StorageStatus] = storageStatusListener.storageStatusList
 
