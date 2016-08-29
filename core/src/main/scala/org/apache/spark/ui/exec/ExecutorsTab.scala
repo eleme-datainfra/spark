@@ -11,7 +11,7 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 
@@ -25,7 +25,6 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.scheduler._
 import org.apache.spark.storage.{StorageStatus, StorageStatusListener}
 import org.apache.spark.ui.{SparkUI, SparkUITab}
-import org.apache.spark.ui.jobs.UIData.ExecutorUIData
 
 private[ui] class ExecutorsTab(parent: SparkUI) extends SparkUITab(parent, "executors") {
   val listener = parent.executorsListener
@@ -57,45 +56,34 @@ class ExecutorsListener(storageStatusListener: StorageStatusListener) extends Sp
   val executorToShuffleRead = HashMap[String, Long]()
   val executorToShuffleWrite = HashMap[String, Long]()
   val executorToLogUrls = HashMap[String, Map[String, String]]()
-  val executorIdToData = new mutable.LinkedHashMap[String, ExecutorUIData]()
+  val executorEvents = new mutable.ListBuffer[SparkListenerEvent]()
 
-  val EXECUTOR_MAX_LIMIT = SparkEnv.get.conf.getInt("spark.ui.retainedExecutors", 1000)
+  val MAX_EXECUTOR_LIMIT = SparkEnv.get.conf.getInt("spark.ui.timeline.executors.maximum", 1000)
 
   def storageStatusList: Seq[StorageStatus] = storageStatusListener.storageStatusList
 
   override def onExecutorAdded(executorAdded: SparkListenerExecutorAdded): Unit = synchronized {
     val eid = executorAdded.executorId
     executorToLogUrls(eid) = executorAdded.executorInfo.logUrlMap
-    executorIdToData(eid) = ExecutorUIData(executorAdded.time)
+    executorEvents += executorAdded
   }
 
   override def onExecutorRemoved(
       executorRemoved: SparkListenerExecutorRemoved): Unit = synchronized {
     val eid = executorRemoved.executorId
-    val uiData = executorIdToData(eid)
-    uiData.finishTime = Some(executorRemoved.time)
-    uiData.finishReason = Some(executorRemoved.reason)
-    if (executorIdToData.size > EXECUTOR_MAX_LIMIT) {
-      val iterator = executorIdToData.iterator
-      var flag = true
-      while (iterator.hasNext && flag) {
-        val entry = iterator.next()
-        if (entry._2.finishTime.isDefined) {
-          val eid = entry._1
-          executorIdToData.remove(eid)
-          executorToTasksActive.remove(eid)
-          executorToTasksComplete.remove(eid)
-          executorToTasksFailed.remove(eid)
-          executorToDuration.remove(eid)
-          executorToInputBytes.remove(eid)
-          executorToOutputBytes.remove(eid)
-          executorToOutputRecords.remove(eid)
-          executorToShuffleRead.remove(eid)
-          executorToShuffleWrite.remove(eid)
-          executorToLogUrls.remove(eid)
-          flag = false
-        }
-      }
+    executorEvents += executorRemoved
+    executorToTasksActive.remove(eid)
+    executorToTasksComplete.remove(eid)
+    executorToTasksFailed.remove(eid)
+    executorToDuration.remove(eid)
+    executorToInputBytes.remove(eid)
+    executorToOutputBytes.remove(eid)
+    executorToOutputRecords.remove(eid)
+    executorToShuffleRead.remove(eid)
+    executorToShuffleWrite.remove(eid)
+    executorToLogUrls.remove(eid)
+    if (executorEvents.size > MAX_EXECUTOR_LIMIT) {
+      executorEvents.drop(0)
     }
   }
 
