@@ -97,13 +97,6 @@ class FasterOrcRecordReader(
   }
 
   def initialize(fileSplit: FileSplit, conf: Configuration): Unit = {
-    output.foreach { col =>
-      val dt = col._2
-      if (dt.isInstanceOf[UserDefinedType[_]]) {
-        throw new IOException("Unsupported type: " + dt)
-      }
-    }
-
     var orcDataSource: OrcDataSource = null
     val metadataReader: MetadataReader = new OrcMetadataReader
     val maxMergeDistance: DataSize = new DataSize(1, DataSize.Unit.MEGABYTE)
@@ -214,7 +207,7 @@ class FasterOrcRecordReader(
     }
 
     def init(): Unit = {
-      for (i <- 0 to output.size) {
+      for (i <- 0 until output.size) {
         valueIsNull.setByte(i, 0)
       }
     }
@@ -315,7 +308,7 @@ class FasterOrcRecordReader(
         val part = partitions.get(ordinal).get
         return Cast(Literal(part._2), part._1)
       }
-      val block = columns(ordinal)
+      val block = columns(ordinal - partitions.size)
       val index = batchIdx - 1
       if (block.isNull(index) || dataType.isInstanceOf[NullType]) {
         return null

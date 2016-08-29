@@ -44,18 +44,14 @@ import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-case class SerializableColumnInfo(
-    @transient var nonPartitionKeyAttrs: Seq[(Attribute, Int)],
-    @transient var partitionKeyAttrs: Seq[(Attribute, Int)],
-    @transient var partValues: Seq[String],
-    @transient var schemaPartitionKeys: Seq[AttributeReference])
+case class SerializableColumnInfo(outputCols: Array[Column], partitionCols: Array[PartitionColumn])
   extends Serializable
+case class Column(name: String, dataTypeJson: String, index: Int) extends Serializable
+case class PartitionColumn(index: Int, dataTypeJson: String, value: String) extends Serializable
 
-case class ColumnInfo(
-    output: Array[(Int, DataType, Type)],
+case class ColumnInfo(output: Array[(Int, DataType, Type)],
     partitions: Map[Int, (DataType, String)],
     columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
-  extends Serializable
 
 private[hive] class FasterOrcRDD[V: ClassTag](
     sqlContext: SQLContext,
@@ -237,7 +233,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * TODO: plumb this through a different way?
         */
       if (useFasterOrcReader) {
-        val columns = addIncludeColumnsInfo(columnInfo)
+        val columns = deserializeColumnInfo(columnInfo)
         val orcReader = new FasterOrcRecordReader(columns.output, columns.partitions,
           columns.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
@@ -322,6 +318,37 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     iter
   }
 
+  def deserializeColumnInfo(serializableColumnInfo: SerializableColumnInfo): ColumnInfo = {
+    val outputCols = serializableColumnInfo.outputCols
+    val partitionCols = serializableColumnInfo.partitionCols
+
+
+    val typeManager = new TypeRegistry()
+    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
+    var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+
+    outputCols.foreach { case c: Column =>
+      val dt = DataType.fromJson(c.dataTypeJson)
+      val mType = HiveMetastoreTypes.toMetastoreType(dt)
+      val hiveType = HiveType.valueOf(mType)
+      val pType = typeManager.getType(hiveType.getTypeSignature)
+      columnReferences.add(new ColumnReference(
+        new HiveColumnHandle("", c.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
+        c.index,
+        pType))
+      nonPartitionOutputAttrs += ((c.index, dt, pType))
+    }
+
+    var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
+    partitionCols.foreach { case p: PartitionColumn =>
+      val dt = DataType.fromJson(p.dataTypeJson)
+      partitionOutputAttrs += p.index -> (dt, p.value)
+    }
+
+    ColumnInfo(nonPartitionOutputAttrs.toArray,
+      partitionOutputAttrs.toMap, columnReferences)
+  }
+
   override def getPreferredLocations(hsplit: Partition): Seq[String] = {
     val split = hsplit.asInstanceOf[NewHadoopPartition].serializableHadoopSplit.value
     val locs = HadoopRDD.SPLIT_INFO_REFLECTIONS match {
@@ -338,35 +365,4 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     }
     locs.getOrElse(split.getLocations.filter(_ != "localhost"))
   }
-
-  def addIncludeColumnsInfo(serColumnInfo: SerializableColumnInfo): ColumnInfo = {
-    val nonPartitionKeyAttrs = serColumnInfo.nonPartitionKeyAttrs
-    val partitionKeyAttrs = serColumnInfo.partitionKeyAttrs
-    val partValues = serColumnInfo.partValues
-    val schemaPartitionKeys = serColumnInfo.schemaPartitionKeys
-    val typeManager = new TypeRegistry()
-    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
-    var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
-
-    nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
-      val hiveType = HiveType.valueOf(mType)
-      val pType = typeManager.getType(hiveType.getTypeSignature)
-      columnReferences.add(new ColumnReference(
-        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
-        fieldIndex,
-        pType))
-      nonPartitionOutputAttrs += ((fieldIndex, a.dataType, pType))
-    }
-
-    var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
-    partitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      val partOrdinal = schemaPartitionKeys.indexOf(a)
-      partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
-    }
-
-    ColumnInfo(nonPartitionOutputAttrs.toArray,
-      partitionOutputAttrs.toMap, columnReferences)
-  }
-
 }

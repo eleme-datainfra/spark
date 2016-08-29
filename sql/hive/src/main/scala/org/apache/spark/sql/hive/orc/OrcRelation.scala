@@ -266,14 +266,13 @@ private[orc] case class OrcTableScan(
   def addIncludeColumnsInfo(
       output: Seq[Attribute],
       dataSchema: StructType): SerializableColumnInfo = {
-    val nonPartitionKeyAttrs = new mutable.ArrayBuffer[(Attribute, Int)]
+    val outputCols = new mutable.ArrayBuffer[Column]
     output.foreach { a =>
       val fieldIndex = dataSchema.fieldIndex(a.name)
-      nonPartitionKeyAttrs += ((a, fieldIndex))
+      outputCols += Column(a.name, a.dataType.json, fieldIndex)
     }
 
-    SerializableColumnInfo(nonPartitionKeyAttrs, Seq.empty[(Attribute, Int)],
-      Seq.empty[String], Seq.empty[AttributeReference])
+    SerializableColumnInfo(outputCols, Array.empty[PartitionColumn])
   }
 
   // Transform all given raw `Writable`s into `InternalRow`s.

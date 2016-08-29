@@ -44,7 +44,7 @@ import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
-import org.apache.spark.sql.hive.orc.{ColumnInfo, SerializableColumnInfo, FasterOrcRDD}
+import org.apache.spark.sql.hive.orc._
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
@@ -247,8 +247,7 @@ class HadoopTableReader(
             sc,
             _broadcastedHiveConf,
             Some(initializeJobConfFunc),
-            SerializableColumnInfo(nonPartitionKeyAttrs, partitionKeyAttrs,
-              partValues, relation.partitionKeys),
+            addIncludeColumnsInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
             inputFormatClass,
             classOf[InternalRow])
         }
@@ -277,6 +276,26 @@ class HadoopTableReader(
     } else {
       new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
     }
+  }
+
+  def addIncludeColumnsInfo(
+      nonPartitionKeyAttrs: Seq[(Attribute, Int)],
+      partitionKeyAttrs: Seq[(Attribute, Int)],
+      partValues: Seq[String]): SerializableColumnInfo = {
+
+    var outputCols = new mutable.ArrayBuffer[Column]
+    var partitionCols = new mutable.ArrayBuffer[PartitionColumn]
+
+    nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
+      outputCols += Column(a.name, a.dataType.json, fieldIndex)
+    }
+
+    partitionKeyAttrs.foreach { case (a, fieldIndex) =>
+      val partOrdinal = relation.partitionKeys.indexOf(a)
+      partitionCols += PartitionColumn(fieldIndex, a.dataType.json, partValues(partOrdinal))
+    }
+
+    SerializableColumnInfo(outputCols, partitionCols)
   }
 
   /**
