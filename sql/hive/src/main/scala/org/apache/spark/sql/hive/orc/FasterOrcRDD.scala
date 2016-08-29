@@ -103,6 +103,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     val jobConf = getJobConf()
     val jobContext = newJobContext(jobConf, jobId)
     val inputPaths = FileInputFormat.getInputPaths(jobContext).map(p => p.toString)
+    logInfo(jobConf.get("mapreduce.input.fileinputformat.inputdir", ""))
     if (inputPaths.size <= 10) {
       val inputFormat = inputFormatClass.newInstance
       inputFormat match {
@@ -143,7 +144,6 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       result
     }
   }
-
 
   private val shouldCloneJobConf = sparkContext.conf.getBoolean("spark.hadoop.cloneConf", false)
 
@@ -321,8 +321,6 @@ private[hive] class FasterOrcRDD[V: ClassTag](
   def deserializeColumnInfo(serializableColumnInfo: SerializableColumnInfo): ColumnInfo = {
     val outputCols = serializableColumnInfo.outputCols
     val partitionCols = serializableColumnInfo.partitionCols
-
-
     val typeManager = new TypeRegistry()
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
     var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
