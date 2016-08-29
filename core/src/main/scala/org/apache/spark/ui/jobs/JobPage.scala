@@ -314,7 +314,7 @@ private[ui] class JobPage(parent: JobsTab) extends WebUIPage("job") {
       val operationGraphListener = parent.operationGraphListener
 
       content ++= makeTimeline(activeStages ++ completedStages ++ failedStages,
-          executorListener.executorIdToData, appStartTime)
+          executorListener.executorEvents, appStartTime)
 
       content ++= UIUtils.showDagVizForJob(
         jobId, operationGraphListener.getOperationGraphForJob(jobId))

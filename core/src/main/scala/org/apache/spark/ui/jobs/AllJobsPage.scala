@@ -126,7 +126,7 @@ private[ui] class AllJobsPage(parent: JobsTab) extends WebUIPage("") {
              |{
              |  'className': 'executor added',
              |  'group': 'executors',
-             |  'start': new Date(${a.startTime}),
+             |  'start': new Date(${a.time}),
              |  'content': '<div class="executor-event-content"' +
              |    'data-toggle="tooltip" data-placement="bottom"' +
              |    'data-title="Executor ${a.executorId}<br>' +
@@ -148,12 +148,12 @@ private[ui] class AllJobsPage(parent: JobsTab) extends WebUIPage("") {
              |    'Removed at ${UIUtils.formatDate(new Date(e.time))}' +
              |    '${
                       if (e.reason != null) {
-                        s"""<br>Reason: ${event.finishReason.get.replace("\n", " ")}"""
+                        s"""<br>Reason: ${e.reason.replace("\n", " ")}"""
                       } else {
                         ""
                       }
                    }"' +
-             |    'data-html="true">Executor ${executorId} removed</div>'
+             |    'data-html="true">Executor ${e.executorId} removed</div>'
              |}
            """.stripMargin
         events += removedEvent
