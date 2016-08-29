@@ -44,7 +44,7 @@ import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-case class SerializableColumnInfo(outputCols: Array[Column], partitionCols: Array[PartitionColumn])
+case class SerializableColumnInfo(outputCols: Seq[Column], partitionCols: Seq[PartitionColumn])
   extends Serializable
 case class Column(name: String, dataTypeJson: String, index: Int) extends Serializable
 case class PartitionColumn(index: Int, dataTypeJson: String, value: String) extends Serializable
