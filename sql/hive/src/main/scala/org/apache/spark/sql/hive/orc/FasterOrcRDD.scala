@@ -20,17 +20,19 @@ package org.apache.spark.sql.hive.orc
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.facebook.presto.hive.HiveColumnHandle
+import com.facebook.presto.`type`.TypeRegistry
+import com.facebook.presto.hive.{HiveType, HiveColumnHandle}
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
 import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.hive.HiveMetastoreTypes
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
 import org.apache.spark.broadcast.Broadcast
@@ -39,19 +41,26 @@ import org.apache.spark.rdd._
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 private[hive] case class SerializableColumnInfo(
-    @transient var output: Array[(Int, DataType, Type)],
-    @transient var partitions: Map[Int, (DataType, String)],
-    @transient var columnReferences: java.util.List[ColumnReference[HiveColumnHandle]])
+    @transient var nonPartitionKeyAttrs: Seq[(Attribute, Int)],
+    @transient var partitionKeyAttrs: Seq[(Attribute, Int)],
+    @transient var partValues: Array[String])
+  extends Serializable
+
+private[hive] case class ColumnInfo(
+    output: Array[(Int, DataType, Type)],
+    partitions: Map[Int, (DataType, String)],
+    columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
   extends Serializable
 
 private[hive] class FasterOrcRDD[V: ClassTag](
     sqlContext: SQLContext,
     broadcastedConf: Broadcast[SerializableConfiguration],
     initLocalJobConfFuncOpt: Option[JobConf => Unit],
-    columnInfo: Broadcast[SerializableColumnInfo],
+    columnInfo: SerializableColumnInfo,
     inputFormatClass: Class[_ <: InputFormat[NullWritable, V]],
     valueClass: Class[V])
   extends RDD[V](sqlContext.sparkContext, Nil)
@@ -72,7 +81,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     this(sqlContext,
       sqlContext.sparkContext.broadcast(new SerializableConfiguration(jobConf)),
       initLocalJobConfFuncOpt = None,
-      sqlContext.sparkContext.broadcast(columnInfo),
+      columnInfo,
       inputFormatClass,
       valueClass
     )
@@ -227,8 +236,9 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         * TODO: plumb this through a different way?
         */
       if (useFasterOrcReader) {
-        val orcReader = new FasterOrcRecordReader(columnInfo.value.output,
-          columnInfo.value.partitions, columnInfo.value.columnReferences)
+        val columns = addIncludeColumnsInfo(columnInfo)
+        val orcReader = new FasterOrcRecordReader(columns.output, columns.partitions,
+          columns.columnReferences)
         if (!orcReader.tryInitialize(inputSplit.serializableHadoopSplit.value,
           hadoopAttemptContext)) {
           orcReader.close()
@@ -326,6 +336,35 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       case None => None
     }
     locs.getOrElse(split.getLocations.filter(_ != "localhost"))
+  }
+
+  def addIncludeColumnsInfo(serColumnInfo: SerializableColumnInfo): ColumnInfo = {
+    val nonPartitionKeyAttrs = serColumnInfo.nonPartitionKeyAttrs
+    val partitionKeyAttrs = serColumnInfo.partitionKeyAttrs
+    val partValues = serColumnInfo.partValues
+    val typeManager = new TypeRegistry()
+    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
+    var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+
+    nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
+      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
+      val hiveType = HiveType.valueOf(mType)
+      val pType = typeManager.getType(hiveType.getTypeSignature)
+      columnReferences.add(new ColumnReference(
+        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
+        fieldIndex,
+        pType))
+      nonPartitionOutputAttrs += ((fieldIndex, a.dataType, pType))
+    }
+
+    var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
+    partitionKeyAttrs.foreach { case (a, fieldIndex) =>
+      val partOrdinal = relation.partitionKeys.indexOf(a)
+      partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
+    }
+
+    ColumnInfo(nonPartitionOutputAttrs.toArray,
+      partitionOutputAttrs.toMap, columnReferences)
   }
 
 }

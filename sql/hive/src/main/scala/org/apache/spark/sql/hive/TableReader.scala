@@ -44,7 +44,7 @@ import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
-import org.apache.spark.sql.hive.orc.{SerializableColumnInfo, FasterOrcRDD}
+import org.apache.spark.sql.hive.orc.{ColumnInfo, SerializableColumnInfo, FasterOrcRDD}
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
@@ -240,8 +240,6 @@ class HadoopTableReader(
         Utils.withDummyCallSite[RDD[InternalRow]](sc.sparkContext) {
           val inputFormatClass = classOf[OrcNewInputFormat]
             .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
-          val includedColumnsInfo = addIncludeColumnsInfo(nonPartitionKeyAttrs,
-            partitionKeyAttrs, partValues)
           val initializeJobConfFunc =
             HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
 
@@ -249,7 +247,7 @@ class HadoopTableReader(
             sc,
             _broadcastedHiveConf,
             Some(initializeJobConfFunc),
-            sc.sparkContext.broadcast(includedColumnsInfo),
+            SerializableColumnInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
             inputFormatClass,
             classOf[InternalRow])
         }
@@ -278,35 +276,6 @@ class HadoopTableReader(
     } else {
       new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
     }
-  }
-
-  def addIncludeColumnsInfo(nonPartitionKeyAttrs: Seq[(Attribute, Int)],
-                            partitionKeyAttrs: Seq[(Attribute, Int)],
-                            partValues: Array[String]): SerializableColumnInfo = {
-
-    val typeManager = new TypeRegistry()
-    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
-    var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
-
-    nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
-      val hiveType = HiveType.valueOf(mType)
-      val pType = typeManager.getType(hiveType.getTypeSignature)
-      columnReferences.add(new ColumnReference(
-        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
-        fieldIndex,
-        pType))
-      nonPartitionOutputAttrs += ((fieldIndex, a.dataType, pType))
-    }
-
-    var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
-    partitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      val partOrdinal = relation.partitionKeys.indexOf(a)
-      partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
-    }
-
-    SerializableColumnInfo(nonPartitionOutputAttrs.toArray,
-      partitionOutputAttrs.toMap, columnReferences)
   }
 
   /**

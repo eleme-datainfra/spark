@@ -266,24 +266,13 @@ private[orc] case class OrcTableScan(
   def addIncludeColumnsInfo(
       output: Seq[Attribute],
       dataSchema: StructType): SerializableColumnInfo = {
-    val typeManager = new TypeRegistry()
-    val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
-    var outputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
+    val nonPartitionKeyAttrs = new mutable.ArrayBuffer[(Attribute, Int)]
     output.foreach { a =>
       val fieldIndex = dataSchema.fieldIndex(a.name)
-      val mType = HiveMetastoreTypes.toMetastoreType(a.dataType)
-      val hiveType = HiveType.valueOf(mType)
-      val pType = typeManager.getType(hiveType.getTypeSignature)
-      columnReferences.add(new ColumnReference(
-        new HiveColumnHandle("", a.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
-        fieldIndex,
-        pType))
-      outputAttrs += ((fieldIndex, a.dataType, pType))
+      nonPartitionKeyAttrs += (a, fieldIndex)
     }
 
-    SerializableColumnInfo(outputAttrs.toArray,
-      Map.empty[Int, (DataType, String)],
-      columnReferences)
+    SerializableColumnInfo(nonPartitionKeyAttrs, Seq.empty[(Attribute, Int)], Array.empty[String])
   }
 
   private def mapDataTypeToType(dataType: DataType, typeManager: TypeRegistry): Type = {
