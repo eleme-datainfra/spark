@@ -22,7 +22,7 @@ import javax.servlet.http.HttpServletRequest
 
 import org.apache.spark.scheduler.{SparkListenerExecutorRemoved, SparkListenerExecutorAdded, SparkListenerEvent}
 
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.xml._
 
 import org.apache.commons.lang3.StringEscapeUtils
