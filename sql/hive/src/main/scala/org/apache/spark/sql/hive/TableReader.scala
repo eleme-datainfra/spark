@@ -19,10 +19,6 @@ package org.apache.spark.sql.hive
 
 import java.util
 
-import com.facebook.presto.`type`.TypeRegistry
-import com.facebook.presto.hive.{HiveType, HiveColumnHandle}
-import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
-import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
@@ -39,13 +35,11 @@ import org.apache.hadoop.mapreduce.{InputFormat => NewInputFormat}
 
 import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.hive.orc._
-import org.apache.spark.sql.types.DataType
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
 
@@ -283,11 +277,11 @@ class HadoopTableReader(
       partitionKeyAttrs: Seq[(Attribute, Int)],
       partValues: Seq[String]): SerializableColumnInfo = {
 
-    var outputCols = new mutable.ArrayBuffer[Column]
+    var outputCols = new mutable.ArrayBuffer[OutputColumn]
     var partitionCols = new mutable.ArrayBuffer[PartitionColumn]
 
     nonPartitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      outputCols += Column(a.name, a.dataType.json, fieldIndex)
+      outputCols += OutputColumn(a.name, a.dataType.json, fieldIndex)
     }
 
     partitionKeyAttrs.foreach { case (a, fieldIndex) =>

@@ -31,7 +31,6 @@ import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit,
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
 import org.apache.spark.sql.hive.HiveMetastoreTypes
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
@@ -44,9 +43,9 @@ import org.apache.spark.util.{ShutdownHookManager, SerializableConfiguration}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-case class SerializableColumnInfo(outputCols: Seq[Column], partitionCols: Seq[PartitionColumn])
+case class SerializableColumnInfo(outputCols: Seq[OutputColumn], partitionCols: Seq[PartitionColumn])
   extends Serializable
-case class Column(name: String, dataTypeJson: String, index: Int) extends Serializable
+case class OutputColumn(name: String, dataTypeJson: String, index: Int) extends Serializable
 case class PartitionColumn(index: Int, dataTypeJson: String, value: String) extends Serializable
 
 case class ColumnInfo(output: Array[(Int, DataType, Type)],
@@ -325,7 +324,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
     var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
 
-    outputCols.foreach { case c: Column =>
+    outputCols.foreach { case c: OutputColumn =>
       val dt = DataType.fromJson(c.dataTypeJson)
       val mType = HiveMetastoreTypes.toMetastoreType(dt)
       val hiveType = HiveType.valueOf(mType)

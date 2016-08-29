@@ -19,10 +19,7 @@ package org.apache.spark.sql.hive.orc
 
 import java.util.Properties
 
-import com.facebook.presto.`type`.TypeRegistry
-import com.facebook.presto.hive.{HiveColumnHandle, HiveType}
-import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
-import com.facebook.presto.spi.`type`.Type
+
 import com.google.common.base.Objects
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
@@ -39,7 +36,7 @@ import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.mapred.SparkHadoopMapRedUtil
-import org.apache.spark.rdd.{SqlNewHadoopRDD, HadoopRDD, RDD}
+import org.apache.spark.rdd.{HadoopRDD, RDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.execution.datasources.PartitionSpec
@@ -49,9 +46,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.util.{Utils, SerializableConfiguration}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 private[sql] class DefaultSource extends HadoopFsRelationProvider with DataSourceRegister {
 
@@ -266,10 +261,10 @@ private[orc] case class OrcTableScan(
   def addIncludeColumnsInfo(
       output: Seq[Attribute],
       dataSchema: StructType): SerializableColumnInfo = {
-    val outputCols = new mutable.ArrayBuffer[Column]
+    val outputCols = new mutable.ArrayBuffer[OutputColumn]
     output.foreach { a =>
       val fieldIndex = dataSchema.fieldIndex(a.name)
-      outputCols += Column(a.name, a.dataType.json, fieldIndex)
+      outputCols += OutputColumn(a.name, a.dataType.json, fieldIndex)
     }
 
     SerializableColumnInfo(outputCols, Array.empty[PartitionColumn])
