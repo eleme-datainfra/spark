@@ -269,16 +269,11 @@ private[orc] case class OrcTableScan(
     val nonPartitionKeyAttrs = new mutable.ArrayBuffer[(Attribute, Int)]
     output.foreach { a =>
       val fieldIndex = dataSchema.fieldIndex(a.name)
-      nonPartitionKeyAttrs += (a, fieldIndex)
+      nonPartitionKeyAttrs += ((a, fieldIndex))
     }
 
-    SerializableColumnInfo(nonPartitionKeyAttrs, Seq.empty[(Attribute, Int)], Array.empty[String])
-  }
-
-  private def mapDataTypeToType(dataType: DataType, typeManager: TypeRegistry): Type = {
-    val mType = HiveMetastoreTypes.toMetastoreType(dataType)
-    val hiveType = HiveType.valueOf(mType)
-    typeManager.getType(hiveType.getTypeSignature)
+    SerializableColumnInfo(nonPartitionKeyAttrs, Seq.empty[(Attribute, Int)],
+      Seq.empty[String], Seq.empty[AttributeReference])
   }
 
   // Transform all given raw `Writable`s into `InternalRow`s.

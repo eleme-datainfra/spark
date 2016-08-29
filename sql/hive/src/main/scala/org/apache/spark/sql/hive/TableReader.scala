@@ -247,7 +247,8 @@ class HadoopTableReader(
             sc,
             _broadcastedHiveConf,
             Some(initializeJobConfFunc),
-            SerializableColumnInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
+            SerializableColumnInfo(nonPartitionKeyAttrs, partitionKeyAttrs,
+              partValues, relation.partitionKeys),
             inputFormatClass,
             classOf[InternalRow])
         }
@@ -266,6 +267,7 @@ class HadoopTableReader(
           // fill the non partition key attributes
           HadoopTableReader.fillObject(iter, deserializer, nonPartitionKeyAttrs,
             mutableRow, tableSerDe)
+          relation.partitionKeys
          }
       }
     }.toSeq

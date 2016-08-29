@@ -31,7 +31,7 @@ import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit,
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
-import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
 import org.apache.spark.sql.hive.HiveMetastoreTypes
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.{TaskKilledException, Partition, TaskContext, Logging}
@@ -47,7 +47,8 @@ import scala.reflect.ClassTag
 private[hive] case class SerializableColumnInfo(
     @transient var nonPartitionKeyAttrs: Seq[(Attribute, Int)],
     @transient var partitionKeyAttrs: Seq[(Attribute, Int)],
-    @transient var partValues: Array[String])
+    @transient var partValues: Seq[String],
+    @transient var schemaPartitionKeys: Seq[AttributeReference])
   extends Serializable
 
 private[hive] case class ColumnInfo(
@@ -342,6 +343,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     val nonPartitionKeyAttrs = serColumnInfo.nonPartitionKeyAttrs
     val partitionKeyAttrs = serColumnInfo.partitionKeyAttrs
     val partValues = serColumnInfo.partValues
+    val schemaPartitionKeys = serColumnInfo.schemaPartitionKeys
     val typeManager = new TypeRegistry()
     val columnReferences = new java.util.ArrayList[ColumnReference[HiveColumnHandle]]
     var nonPartitionOutputAttrs = new mutable.ArrayBuffer[(Int, DataType, Type)]
@@ -359,7 +361,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
 
     var partitionOutputAttrs = new mutable.HashMap[Int, (DataType, String)]
     partitionKeyAttrs.foreach { case (a, fieldIndex) =>
-      val partOrdinal = relation.partitionKeys.indexOf(a)
+      val partOrdinal = schemaPartitionKeys.indexOf(a)
       partitionOutputAttrs += fieldIndex -> (a.dataType, partValues(partOrdinal))
     }
 
