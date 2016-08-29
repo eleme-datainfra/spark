@@ -27,7 +27,7 @@ import com.facebook.presto.spi.`type`.Type
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.io.{NullWritable, Writable}
 import org.apache.hadoop.mapred.JobConf
-import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, CombineFileSplit, FileSplit}
+import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileSplit}
 import org.apache.hadoop.mapreduce._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.DataReadMethod
@@ -101,47 +101,21 @@ private[hive] class FasterOrcRDD[V: ClassTag](
   override protected def getPartitions: Array[Partition] = {
     val jobConf = getJobConf()
     val jobContext = newJobContext(jobConf, jobId)
-    val inputPaths = FileInputFormat.getInputPaths(jobContext).map(p => p.toString)
-    logInfo(jobConf.get("mapreduce.input.fileinputformat.inputdir", ""))
-    if (inputPaths.size <= 10) {
-      val inputFormat = inputFormatClass.newInstance
-      inputFormat match {
-        case configurable: Configurable =>
-          configurable.setConf(jobConf)
-        case _ =>
-      }
-
-      val rawSplits = inputFormat.getSplits(jobContext).toArray
-      val result = new Array[Partition](rawSplits.size)
-
-      for (i <- 0 until rawSplits.size) {
-        result(i) =
-          new NewHadoopPartition(id, i, rawSplits(i).asInstanceOf[InputSplit with Writable])
-      }
-      result
-    } else {
-      val splits = sqlContext.sparkContext.parallelize(inputPaths, inputPaths.size).map { path =>
-        val conf = broadcastedConf.value.value
-        FileInputFormat.setInputPaths(new Job(conf), path)
-        val inputFormat = inputFormatClass.newInstance
-        inputFormat match {
-          case configurable: Configurable =>
-            configurable.setConf(conf)
-          case _ =>
-        }
-
-        val jobContext = newJobContext(conf, jobId)
-        val rawSplits = inputFormat.getSplits(jobContext).toArray
-        rawSplits
-      }.collect().flatten
-      val result = new Array[Partition](splits.size)
-
-      for (i <- 0 until splits.size) {
-        result(i) =
-          new NewHadoopPartition(id, i, splits(i).asInstanceOf[InputSplit with Writable])
-      }
-      result
+    val inputFormat = inputFormatClass.newInstance
+    inputFormat match {
+      case configurable: Configurable =>
+        configurable.setConf(jobConf)
+      case _ =>
     }
+
+    val rawSplits = inputFormat.getSplits(jobContext).toArray
+    val result = new Array[Partition](rawSplits.size)
+
+    for (i <- 0 until rawSplits.size) {
+      result(i) =
+        new NewHadoopPartition(id, i, rawSplits(i).asInstanceOf[InputSplit with Writable])
+    }
+    result
   }
 
   private val shouldCloneJobConf = sparkContext.conf.getBoolean("spark.hadoop.cloneConf", false)
