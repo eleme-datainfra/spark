@@ -333,7 +333,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
       val hiveType = HiveType.valueOf(mType)
       val pType = typeManager.getType(hiveType.getTypeSignature)
       columnReferences.add(new ColumnReference(
-        new HiveColumnHandle("", c.name, hiveType, hiveType.getTypeSignature, fieldIndex, false),
+        new HiveColumnHandle("", c.name, hiveType, hiveType.getTypeSignature, c.index, false),
         c.index,
         pType))
       nonPartitionOutputAttrs += ((c.index, dt, pType))
