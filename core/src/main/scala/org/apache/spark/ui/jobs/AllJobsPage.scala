@@ -20,13 +20,15 @@ package org.apache.spark.ui.jobs
 import java.util.Date
 import javax.servlet.http.HttpServletRequest
 
+import org.apache.spark.scheduler.{SparkListenerExecutorRemoved, SparkListenerExecutorAdded, SparkListenerEvent}
+
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.xml._
 
 import org.apache.commons.lang3.StringEscapeUtils
 
 import org.apache.spark.JobExecutionStatus
-import org.apache.spark.ui.jobs.UIData.{ExecutorUIData, JobUIData}
+import org.apache.spark.ui.jobs.UIData.JobUIData
 import org.apache.spark.ui.{ToolTips, UIUtils, WebUIPage}
 
 /** Page showing list of all ongoing and recently finished jobs */
@@ -114,58 +116,55 @@ private[ui] class AllJobsPage(parent: JobsTab) extends WebUIPage("") {
     }
   }
 
-  val MAX_TIMELINE_EXECUTORS = parent.conf.getInt("spark.ui.timeline.executors.maximum", 1000)
-
-  private def makeExecutorEvent(executorUIDatas: collection.Map[String, ExecutorUIData]):
+  private def makeExecutorEvent(executorUIDatas: Seq[SparkListenerEvent]):
       Seq[String] = {
     val events = ListBuffer[String]()
-    executorUIDatas.toArray.reverse.take(MAX_TIMELINE_EXECUTORS).foreach {
-      case (executorId, event) =>
+    executorUIDatas.foreach {
+      case a: SparkListenerExecutorAdded =>
         val addedEvent =
           s"""
              |{
              |  'className': 'executor added',
              |  'group': 'executors',
-             |  'start': new Date(${event.startTime}),
+             |  'start': new Date(${a.startTime}),
              |  'content': '<div class="executor-event-content"' +
              |    'data-toggle="tooltip" data-placement="bottom"' +
-             |    'data-title="Executor ${executorId}<br>' +
-             |    'Added at ${UIUtils.formatDate(new Date(event.startTime))}"' +
-             |    'data-html="true">Executor ${executorId} added</div>'
+             |    'data-title="Executor ${a.executorId}<br>' +
+             |    'Added at ${UIUtils.formatDate(new Date(a.time))}"' +
+             |    'data-html="true">Executor ${a.executorId} added</div>'
              |}
            """.stripMargin
         events += addedEvent
+      case e: SparkListenerExecutorRemoved =>
+        val removedEvent =
+          s"""
+             |{
+             |  'className': 'executor removed',
+             |  'group': 'executors',
+             |  'start': new Date(${e.time}),
+             |  'content': '<div class="executor-event-content"' +
+             |    'data-toggle="tooltip" data-placement="bottom"' +
+             |    'data-title="Executor ${e.executorId}<br>' +
+             |    'Removed at ${UIUtils.formatDate(new Date(e.time))}' +
+             |    '${
+                      if (e.reason != null) {
+                        s"""<br>Reason: ${event.finishReason.get.replace("\n", " ")}"""
+                      } else {
+                        ""
+                      }
+                   }"' +
+             |    'data-html="true">Executor ${executorId} removed</div>'
+             |}
+           """.stripMargin
+        events += removedEvent
 
-        if (event.finishTime.isDefined) {
-          val removedEvent =
-            s"""
-               |{
-               |  'className': 'executor removed',
-               |  'group': 'executors',
-               |  'start': new Date(${event.finishTime.get}),
-               |  'content': '<div class="executor-event-content"' +
-               |    'data-toggle="tooltip" data-placement="bottom"' +
-               |    'data-title="Executor ${executorId}<br>' +
-               |    'Removed at ${UIUtils.formatDate(new Date(event.finishTime.get))}' +
-               |    '${
-                        if (event.finishReason.isDefined) {
-                          s"""<br>Reason: ${event.finishReason.get.replace("\n", " ")}"""
-                        } else {
-                          ""
-                        }
-                     }"' +
-               |    'data-html="true">Executor ${executorId} removed</div>'
-               |}
-             """.stripMargin
-          events += removedEvent
-        }
     }
     events.toSeq
   }
 
   private def makeTimeline(
       jobs: Seq[JobUIData],
-      executors: collection.Map[String, ExecutorUIData],
+      executors: Seq[SparkListenerEvent],
       startTime: Long): Seq[Node] = {
 
     val jobEventJsonAsStrSeq = makeJobEvent(jobs)
@@ -340,7 +339,7 @@ private[ui] class AllJobsPage(parent: JobsTab) extends WebUIPage("") {
       var content = summary
       val executorListener = parent.executorListener
       content ++= makeTimeline(activeJobs ++ completedJobs ++ failedJobs,
-          executorListener.executorIdToData, startTime)
+          executorListener.executorEvents, startTime)
 
       if (shouldShowActiveJobs) {
         content ++= <h4 id="active">Active Jobs ({activeJobs.size})</h4> ++
