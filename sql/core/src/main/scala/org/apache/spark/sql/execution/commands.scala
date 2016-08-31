@@ -67,7 +67,7 @@ private[sql] case class ExecutedCommand(cmd: RunnableCommand) extends SparkPlan 
   override def executeTake(limit: Int): Array[InternalRow] = sideEffectResult.take(limit).toArray
 
   protected override def doExecute(): RDD[InternalRow] = {
-    sqlContext.sparkContext.emptyRDD[InternalRow]
+    sqlContext.sparkContext.parallelize(sideEffectResult, 1)
   }
 
   override def argString: String = cmd.toString
