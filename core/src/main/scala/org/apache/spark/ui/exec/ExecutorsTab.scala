@@ -67,6 +67,9 @@ class ExecutorsListener(conf: SparkConf, storageStatusListener: StorageStatusLis
     val eid = executorAdded.executorId
     executorToLogUrls(eid) = executorAdded.executorInfo.logUrlMap
     executorEvents += executorAdded
+    if (executorEvents.size > MAX_EXECUTOR_LIMIT) {
+      executorEvents = executorEvents.drop(1)
+    }
   }
 
   override def onExecutorRemoved(
