@@ -27,8 +27,9 @@ import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.metrics.source.Source
 
-private[spark]
-class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, reqMemoryMB: Int = 1024, reqCores: Int = 1) extends Source {
+private[spark] class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String,
+    reqMemoryMB: Int = 1024, reqCores: Int = 1)
+  extends Source {
 
   def getJvmId(): Int = {
     val pidStr = ManagementFactory.getRuntimeMXBean().getName()
@@ -66,7 +67,7 @@ class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String, reqMemo
   })
 
   // Gauge for executor physical cpu core slot usage rate.
-  metricRegistry.register(MetricRegistry.name("cpu", "cpuSlotUsageRate"), new Gauge[Double] {
+  metricRegistry.register(MetricRegistry.name("cpu", "cpuUsageRate"), new Gauge[Double] {
     override def getValue: Double =
       threadPool.getActiveCount() / reqCores.toDouble
   })

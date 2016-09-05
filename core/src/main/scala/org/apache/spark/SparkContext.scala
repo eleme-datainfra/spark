@@ -518,10 +518,10 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
         math.max((memoryOverheadFactor * _executorMemory).toInt, 384))
       _executorMemory + memoryOverhead
     } else {
-      //has been formatted to MB
+      // has been formatted to MB
       _executorMemory
     }
-    conf.set("spark.executor.memory.resourcereq.mb", execReqMemory.toString)
+    conf.set("spark.executor.totalMemory.mb", execReqMemory.toString)
 
     // Convert java options to env vars as a work around
     // since we can't set env vars directly in sbt.
