@@ -97,7 +97,7 @@ class EstimatorListener(conf: SparkConf) extends SparkListener {
   /**
     * Called when a task starts
     */
-  override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
+  override def onTaskStart(event: SparkListenerTaskStart): Unit = {
     handleEvents(event)
   }
 
