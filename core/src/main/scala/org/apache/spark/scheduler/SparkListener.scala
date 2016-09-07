@@ -41,6 +41,9 @@ trait SparkListenerEvent {
 }
 
 @DeveloperApi
+case class EstimatorEvent(json: String) extends SparkListenerEvent
+
+@DeveloperApi
 case class SparkListenerStageSubmitted(stageInfo: StageInfo, properties: Properties = null)
   extends SparkListenerEvent
 
@@ -248,6 +251,11 @@ trait SparkListener {
    * Called when other events like SQL-specific events are posted.
    */
   def onOtherEvent(event: SparkListenerEvent) { }
+
+  /**
+    * Called when other events like estimator events are posted.
+    */
+  def onEstimatorEvent(event: EstimatorEvent) { }
 }
 
 /**

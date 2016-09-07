@@ -61,6 +61,8 @@ private[spark] trait SparkListenerBus extends ListenerBus[SparkListener, SparkLi
       case blockUpdated: SparkListenerBlockUpdated =>
         listener.onBlockUpdated(blockUpdated)
       case logStart: SparkListenerLogStart => // ignore event log metadata
+      case estimatorEvent: EstimatorEvent =>
+        listener.onEstimatorEvent(estimatorEvent)
       case _ => listener.onOtherEvent(event)
     }
   }

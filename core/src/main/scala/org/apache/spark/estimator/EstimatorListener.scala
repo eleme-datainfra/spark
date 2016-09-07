@@ -19,23 +19,24 @@ package org.apache.spark.estimator
 
 import java.io.File
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkEnv, SparkConf}
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 
 import scala.collection.mutable.ListBuffer
 
 
-abstract class Estimator(conf: SparkConf) {
+abstract class Estimator(conf: SparkConf, liveListenerBus: LiveListenerBus) {
   def estimate(event: SparkListenerEvent): Unit
 }
 
-class EstimatorListener(conf: SparkConf) extends SparkListener {
+class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) extends SparkListener {
   private val estimators = new ListBuffer[Estimator]()
 
   def init(): Unit = {
     getEstimators().foreach { estimator =>
-      val constructor = estimator.getDeclaredConstructor(classOf[SparkConf])
+      val constructor = estimator.getDeclaredConstructor(classOf[SparkConf],
+        classOf[LiveListenerBus])
       constructor.setAccessible(true)
       estimators += constructor.newInstance(conf).asInstanceOf[Estimator]
     }
@@ -174,8 +175,7 @@ class EstimatorListener(conf: SparkConf) extends SparkListener {
   /**
     * Called when the driver receives task metrics from an executor in a heartbeat.
     */
-  override def onExecutorMetricsUpdate(event: SparkListenerExecutorMetricsUpdate)
-      : Unit = {
+  override def onExecutorMetricsUpdate(event: SparkListenerExecutorMetricsUpdate): Unit = {
     handleEvents(event)
   }
 
