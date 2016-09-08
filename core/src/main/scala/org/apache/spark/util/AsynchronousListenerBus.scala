@@ -47,15 +47,17 @@ private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E]
    * an OOM exception) if it's perpetually being added to more quickly than it's being drained. */
   private val eventQueue = new LinkedBlockingQueue[E](EVENT_QUEUE_CAPACITY)
 
+  private val QUEUE_SIZE = 10000
+
   private def validateAndGetQueueSize(): Int = {
     if (sc != null) {
-      val queueSize = sc.config.getInt("spark.scheduler.listenerbus.eventqueue.size", 10000)
+      val queueSize = sc.config.getInt("spark.scheduler.listenerbus.eventqueue.size", QUEUE_SIZE)
       if (queueSize <= 0) {
         throw new SparkException("spark.scheduler.listenerbus.eventqueue.size must be > 0!")
       }
       queueSize
     } else {
-      10000
+      QUEUE_SIZE
     }
   }
 
