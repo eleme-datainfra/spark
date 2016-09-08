@@ -58,8 +58,7 @@ class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) exten
 
     dir.listFiles().foreach { f =>
       val name = f.getName()
-      if (name.endsWith(".class") && name.endsWith("Estimator.class")
-        && name != "Estimator.class") {
+      if (name.endsWith("Estimator.class") && name != "Estimator.class") {
         val cls = Utils.classForName(packageName + "." + name.substring(0, name.length() - 6))
         classes += cls
       }
