@@ -123,4 +123,9 @@ public class SparkFirehoseListener implements SparkListener {
         onEvent(event);
     }
 
+    @Override
+    public void onEstimatorEvent(EstimatorEvent event) {
+        onEvent(event);
+    }
+
 }

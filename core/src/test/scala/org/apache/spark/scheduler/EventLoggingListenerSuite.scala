@@ -20,6 +20,8 @@ package org.apache.spark.scheduler
 import java.io.{File, FileOutputStream, InputStream, IOException}
 import java.net.URI
 
+import org.apache.spark.estimator.EstimatorListener
+
 import scala.collection.mutable
 import scala.io.Source
 
@@ -149,6 +151,8 @@ class EventLoggingListenerSuite extends SparkFunSuite with LocalSparkContext wit
     // A comprehensive test on JSON de/serialization of all events is in JsonProtocolSuite
     eventLogger.start()
     listenerBus.start()
+    val estimatorListener = new EstimatorListener(conf, listenerBus)
+    listenerBus.addListener(estimatorListener)
     listenerBus.addListener(eventLogger)
     listenerBus.postToAll(applicationStart)
     listenerBus.postToAll(applicationEnd)
@@ -277,6 +281,7 @@ object EventLoggingListenerSuite {
       conf.set("spark.eventLog.compress", "true")
       conf.set("spark.io.compression.codec", codec)
     }
+    conf.set("spark.estimatorLog.dir", logDir.toString)
     conf
   }
 

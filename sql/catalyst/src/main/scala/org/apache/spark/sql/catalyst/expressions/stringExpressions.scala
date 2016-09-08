@@ -730,7 +730,7 @@ case class Substring(str: Expression, pos: Expression, len: Expression)
 /**
  * A function that return the length of the given string or binary expression.
  */
-case class Length(child: Expression) extends UnaryExpression with ExpectsInputTypes {
+case class Length(child: Expression) extends UnaryExpression with ImplicitCastInputTypes {
   override def dataType: DataType = IntegerType
   override def inputTypes: Seq[AbstractDataType] = Seq(TypeCollection(StringType, BinaryType))
 

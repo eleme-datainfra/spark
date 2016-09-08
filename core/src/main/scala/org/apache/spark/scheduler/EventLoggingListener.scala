@@ -100,7 +100,7 @@ private[spark] class EventLoggingListener(
 
 
   val estimatorLogDir = Utils.resolveURI(sparkConf.get("spark.estimatorLog.dir",
-    EventLoggingListener.DEFAULT_ESTIMATOR_DIR).stripSuffix("/"))
+    EventLoggingListener.DEFAULT_ESTIMATOR_LOG_DIR).stripSuffix("/"))
 
   private[scheduler] val estimatorLogPath =
     getEstimatorFilePath(estimatorLogDir, appId, appAttemptId)
@@ -123,7 +123,7 @@ private[spark] class EventLoggingListener(
     val defaultFs = FileSystem.getDefaultUri(hadoopConf).getScheme
     val isDefaultLocal = defaultFs == null || defaultFs == "file"
 
-    val estimatorWorkingPath = estimatorFilePath + IN_PROGRESS
+    val estimatorWorkingPath = estimatorLogPath + IN_PROGRESS
     val estimatorUri = new URI(estimatorWorkingPath)
     val estimatorPath = new Path(estimatorUri)
 
@@ -249,10 +249,6 @@ private[spark] class EventLoggingListener(
   }
 
   override def onExecutorRemoved(event: SparkListenerExecutorRemoved): Unit = {
-    logEvent(event, flushLogger = true)
-  }
-
-  override def onEstimatorEvent(event: SparkListenerExecutorRemoved): Unit = {
     logEvent(event, flushLogger = true)
   }
 

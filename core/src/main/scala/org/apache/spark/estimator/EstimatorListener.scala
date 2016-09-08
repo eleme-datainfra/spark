@@ -19,7 +19,7 @@ package org.apache.spark.estimator
 
 import java.io.File
 
-import org.apache.spark.{SparkEnv, SparkConf}
+import org.apache.spark.SparkConf
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 
@@ -33,12 +33,14 @@ abstract class Estimator(conf: SparkConf, liveListenerBus: LiveListenerBus) {
 class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) extends SparkListener {
   private val estimators = new ListBuffer[Estimator]()
 
+  init()
+
   def init(): Unit = {
     getEstimators().foreach { estimator =>
       val constructor = estimator.getDeclaredConstructor(classOf[SparkConf],
         classOf[LiveListenerBus])
       constructor.setAccessible(true)
-      estimators += constructor.newInstance(conf).asInstanceOf[Estimator]
+      estimators += constructor.newInstance(conf, liveListenerBus).asInstanceOf[Estimator]
     }
   }
 
@@ -54,18 +56,12 @@ class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) exten
       return classes
     }
 
-    val estimatorClass = classOf[Estimator]
-
     dir.listFiles().foreach { f =>
-      if (f.isDirectory()) {
-        classes.addAll(getClasses(f, packageName + "." + f.getName()))
-      }
       val name = f.getName()
-      if (name.endsWith(".class")) {
+      if (name.endsWith(".class") && name.endsWith("Estimator.class")
+        && name != "Estimator.class") {
         val cls = Utils.classForName(packageName + "." + name.substring(0, name.length() - 6))
-        if (cls.isAssignableFrom(estimatorClass) && !cls.equals(estimatorClass)) {
-          classes.add(cls)
-        }
+        classes += cls
       }
     }
 

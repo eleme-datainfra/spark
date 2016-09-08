@@ -24,7 +24,7 @@ import scala.language.implicitConversions
 import java.io._
 import java.lang.reflect.Constructor
 import java.net.URI
-import java.util.{Timer, Arrays, Properties, UUID, TimerTask}
+import java.util.{Arrays, Properties, UUID}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
@@ -462,8 +462,6 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
     // "SparkEnv", some messages will be posted to "listenerBus" and we should not miss them.
     _jobProgressListener = new JobProgressListener(_conf)
     listenerBus.addListener(jobProgressListener)
-    _estimatorListener = new EstimatorListener(_conf, listenerBus)
-    listenerBus.addListener(_estimatorListener)
 
     // Create the Spark execution environment (cache, map output tracker, etc)
     _env = createSparkEnv(_conf, isLocal, listenerBus)
@@ -588,6 +586,9 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
       } else {
         None
       }
+
+    _estimatorListener = new EstimatorListener(_conf, listenerBus)
+    listenerBus.addListener(_estimatorListener)
 
     // Optionally scale number of executors dynamically based on workload. Exposed for testing.
     val dynamicAllocationEnabled = Utils.isDynamicAllocationEnabled(_conf)
