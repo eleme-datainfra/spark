@@ -56,10 +56,12 @@ class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) exten
       return classes
     }
 
+    val strLen = ".class".length
+
     dir.listFiles().foreach { f =>
       val name = f.getName()
       if (name.endsWith("Estimator.class") && name != "Estimator.class") {
-        val cls = Utils.classForName(packageName + "." + name.substring(0, name.length() - 6))
+        val cls = Utils.classForName(packageName + "." + name.substring(0, name.length() - strLen))
         classes += cls
       }
     }
@@ -132,6 +134,7 @@ class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) exten
   override def onEnvironmentUpdate(event: SparkListenerEnvironmentUpdate): Unit = {
     handleEvents(event)
   }
+
   /**
     * Called when a new block manager has joined
     */
@@ -142,10 +145,10 @@ class EstimatorListener(conf: SparkConf, liveListenerBus: LiveListenerBus) exten
   /**
     * Called when an existing block manager has been removed
     */
-  override def onBlockManagerRemoved(event: SparkListenerBlockManagerRemoved)
-      : Unit = {
+  override def onBlockManagerRemoved(event: SparkListenerBlockManagerRemoved): Unit = {
     handleEvents(event)
   }
+
   /**
     * Called when an RDD is manually unpersisted by the application
     */
