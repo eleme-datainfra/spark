@@ -17,15 +17,18 @@
 
 package org.apache.spark.util.collection
 
+import scala.collection.JavaConverters._
 
-import org.apache.spark.util.CompletionIterator
-import org.apache.spark.{TaskContext, InternalAccumulator, Logging, SparkEnv}
+import com.google.common.collect.{Ordering => GuavaOrdering}
+
+import org.apache.spark.{InternalAccumulator, SparkEnv, TaskContext}
 import org.apache.spark.serializer.Serializer
+import org.apache.spark.util.CompletionIterator
 
 /**
  * Utility functions for collections.
  */
-private[spark] object Utils extends Logging {
+private[spark] object Utils {
 
   /**
    * Returns the first K elements from the input as defined by the specified implicit Ordering[T]
@@ -34,14 +37,21 @@ private[spark] object Utils extends Logging {
   def takeOrdered[T](input: Iterator[T], num: Int,
       ser: Serializer = SparkEnv.get.serializer)(implicit ord: Ordering[T]): Iterator[T] = {
     val context = TaskContext.get()
-    val sorter =
-      new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
-    sorter.insertAll(input.map(x => (x, null)))
-    context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
-    context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
-    context.taskMetrics().incSpillTime(sorter.spillTime)
-    context.internalMetricsToAccumulators(
-      InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)
-    CompletionIterator[T, Iterator[T]](sorter.iterator.map(_._1).take(num), sorter.stop())
+    if (context == null) {
+      val ordering = new GuavaOrdering[T] {
+        override def compare(l: T, r: T): Int = ord.compare(l, r)
+      }
+      ordering.leastOf(input.asJava, num).iterator.asScala
+    } else {
+      val sorter =
+        new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
+      sorter.insertAll(input.map(x => (x, null)))
+      context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
+      context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
+      context.taskMetrics().incSpillTime(sorter.spillTime)
+      context.internalMetricsToAccumulators(
+        InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)
+      CompletionIterator[T, Iterator[T]](sorter.iterator.map(_._1).take(num), sorter.stop())
+    }
   }
 }
