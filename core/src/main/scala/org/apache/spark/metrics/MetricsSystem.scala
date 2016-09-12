@@ -114,6 +114,10 @@ private[spark] class MetricsSystem private (
     sinks.foreach(_.report())
   }
 
+  def getMetricRegistry: MetricRegistry = {
+    registry
+  }
+
   /**
    * Build a name that uniquely identifies each metric source.
    * The name is structured as follows: <app ID>.<executor ID (or "driver")>.<source name>.

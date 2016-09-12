@@ -24,6 +24,9 @@ import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
 
+import com.codahale
+import com.codahale.metrics.MetricFilter
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.util.control.NonFatal
@@ -497,6 +500,14 @@ private[spark] class Executor(
         }
       }
     }
+
+    val filter = new MetricFilter {
+      override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+        true
+      }
+    }
+
+    env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
 
     val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId)
     try {

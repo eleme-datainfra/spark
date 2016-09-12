@@ -26,7 +26,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.rpc.{ThreadSafeRpcEndpoint, RpcEnv, RpcCallContext}
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.scheduler._
-import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
+import org.apache.spark.util._
 
 /**
  * A heartbeat from executors to the driver. This is a shared message used by several internal
@@ -36,7 +36,8 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
 private[spark] case class Heartbeat(
     executorId: String,
     taskMetrics: Array[(Long, TaskMetrics)], // taskId -> TaskMetrics
-    blockManagerId: BlockManagerId)
+    blockManagerId: BlockManagerId,
+    timeSeriesMetrics: Array[Metric])
 
 /**
  * An event that SparkContext uses to notify HeartbeatReceiver that SparkContext.taskScheduler is
