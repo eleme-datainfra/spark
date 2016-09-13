@@ -100,8 +100,20 @@ private[spark] object JsonProtocol {
         executorMetricsUpdateToJson(metricsUpdate)
       case blockUpdated: SparkListenerBlockUpdated =>
         throw new MatchError(blockUpdated)  // TODO(ekl) implement this
+      case timeSeriesMetric: TimeSeriesMetricEvent =>
+        timeSeriesMetricToJson(timeSeriesMetric)
       case _ => parse(mapper.writeValueAsString(event))
     }
+  }
+
+  def timeSeriesMetricToJson(metric: TimeSeriesMetricEvent): JValue = {
+    ("Event" -> Utils.getFormattedClassName(metric)) ~
+    ("Executor ID" -> metric.executorId) ~
+    ("Name" -> metric.name) ~
+    ("Mean" -> metric.stat.mean) ~
+    ("Max" -> metric.stat.max) ~
+    ("Min" -> metric.stat.min) ~
+    ("Count" -> metric.stat.count)
   }
 
   def stageSubmittedToJson(stageSubmitted: SparkListenerStageSubmitted): JValue = {

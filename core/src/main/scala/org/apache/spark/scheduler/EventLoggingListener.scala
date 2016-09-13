@@ -77,9 +77,6 @@ private[spark] class EventLoggingListener(
   // Only defined if the file system scheme is not local
   private var hadoopDataStream: Option[FSDataOutputStream] = None
 
-  // Only defined if the file system scheme is not local
-  private var estimatorHadoopDataStream: Option[FSDataOutputStream] = None
-
   // The Hadoop APIs have changed over time, so we use reflection to figure out
   // the correct method to use to flush a hadoop data stream. See SPARK-1518
   // for details.
@@ -90,20 +87,11 @@ private[spark] class EventLoggingListener(
 
   private var writer: Option[PrintWriter] = None
 
-  private var estimatorWriter: Option[PrintWriter] = None
-
   // For testing. Keep track of all JSON serialized events that have been logged.
   private[scheduler] val loggedEvents = new ArrayBuffer[JValue]
 
   // Visible for tests only.
   private[scheduler] val logPath = getLogPath(logBaseDir, appId, appAttemptId, compressionCodecName)
-
-
-  val estimatorLogDir = Utils.resolveURI(sparkConf.get("spark.estimatorLog.dir",
-    EventLoggingListener.DEFAULT_ESTIMATOR_LOG_DIR).stripSuffix("/"))
-
-  private[scheduler] val estimatorLogPath =
-    getEstimatorFilePath(estimatorLogDir, appId, appAttemptId)
 
   /**
    * Creates the log file in the configured log directory.
@@ -113,31 +101,16 @@ private[spark] class EventLoggingListener(
       throw new IllegalArgumentException(s"Log directory $logBaseDir does not exist.")
     }
 
-    if (!fileSystem.getFileStatus(new Path(estimatorLogDir)).isDir) {
-      throw new IllegalArgumentException(s"Log directory $estimatorLogDir does not exist.")
-    }
-
     val workingPath = logPath + IN_PROGRESS
     val uri = new URI(workingPath)
     val path = new Path(workingPath)
     val defaultFs = FileSystem.getDefaultUri(hadoopConf).getScheme
     val isDefaultLocal = defaultFs == null || defaultFs == "file"
 
-    val estimatorWorkingPath = estimatorLogPath + IN_PROGRESS
-    val estimatorUri = new URI(estimatorWorkingPath)
-    val estimatorPath = new Path(estimatorUri)
-
     if (shouldOverwrite && fileSystem.exists(path)) {
       logWarning(s"Event log $path already exists. Overwriting...")
       if (!fileSystem.delete(path, true)) {
         logWarning(s"Error deleting $path")
-      }
-    }
-
-    if (shouldOverwrite && fileSystem.exists(estimatorPath)) {
-      logWarning(s"Estimator log $path already exists. Overwriting...")
-      if (!fileSystem.delete(estimatorPath, true)) {
-        logWarning(s"Error deleting $estimatorPath")
       }
     }
 
@@ -151,31 +124,17 @@ private[spark] class EventLoggingListener(
         hadoopDataStream.get
       }
 
-    val estream =
-      if ((isDefaultLocal && estimatorUri.getScheme == null) || estimatorUri.getScheme == "file") {
-        new FileOutputStream(estimatorUri.getPath)
-      } else {
-        estimatorHadoopDataStream = Some(fileSystem.create(estimatorPath))
-        estimatorHadoopDataStream.get
-      }
-
     try {
       val cstream = compressionCodec.map(_.compressedOutputStream(dstream)).getOrElse(dstream)
       val bstream = new BufferedOutputStream(cstream, outputBufferSize)
-      val bestream = new BufferedOutputStream(estream, outputBufferSize)
 
       EventLoggingListener.initEventLog(bstream)
-      EventLoggingListener.initEventLog(bestream)
       fileSystem.setPermission(path, LOG_FILE_PERMISSIONS)
-      fileSystem.setPermission(estimatorPath, LOG_FILE_PERMISSIONS)
       writer = Some(new PrintWriter(bstream))
-      estimatorWriter = Some(new PrintWriter(bestream))
       logInfo("Logging events to %s".format(logPath))
-      logInfo("Logging events to %s".format(estimatorLogPath))
     } catch {
       case e: Exception =>
         dstream.close()
-        estream.close()
         throw e
     }
   }
@@ -192,16 +151,6 @@ private[spark] class EventLoggingListener(
     }
     if (testing) {
       loggedEvents += eventJson
-    }
-  }
-
-  private def logEstimatorEvent(event: EstimatorEvent, flushLogger: Boolean = false) {
-    // scalastyle:off println
-    estimatorWriter.foreach(_.println(event.json))
-    // scalastyle:on println
-    if (flushLogger) {
-      estimatorWriter.foreach(_.flush())
-      estimatorHadoopDataStream.foreach(hadoopFlushMethod.invoke(_))
     }
   }
 
@@ -262,8 +211,8 @@ private[spark] class EventLoggingListener(
     logEvent(event, flushLogger = true)
   }
 
-  override def onEstimatorEvent(event: EstimatorEvent): Unit = {
-    logEstimatorEvent(event, flushLogger = true)
+  override def onTimeSeriesMetricEvent(event: TimeSeriesMetricEvent): Unit = {
+    logEvent(event, flushLogger = true)
   }
 
   /**
@@ -272,7 +221,6 @@ private[spark] class EventLoggingListener(
    */
   def stop(): Unit = {
     writer.foreach(_.close())
-    estimatorWriter.foreach(_.close())
 
     val target = new Path(logPath)
     if (fileSystem.exists(target)) {
@@ -285,21 +233,7 @@ private[spark] class EventLoggingListener(
         throw new IOException("Target log file already exists (%s)".format(logPath))
       }
     }
-
-    val targetEstimatorLog = new Path(estimatorLogPath)
-    if (fileSystem.exists(targetEstimatorLog)) {
-      if (shouldOverwrite) {
-        logWarning(s"Event log $targetEstimatorLog already exists. Overwriting...")
-        if (!fileSystem.delete(targetEstimatorLog, true)) {
-          logWarning(s"Error deleting $targetEstimatorLog")
-        }
-      } else {
-        throw new IOException("Target log file already exists (%s)".format(estimatorLogPath))
-      }
-    }
-
     fileSystem.rename(new Path(logPath + IN_PROGRESS), target)
-    fileSystem.rename(new Path(estimatorLogPath + IN_PROGRESS), targetEstimatorLog)
   }
 
 }
@@ -308,7 +242,6 @@ private[spark] object EventLoggingListener extends Logging {
   // Suffix applied to the names of files still being written by applications.
   val IN_PROGRESS = ".inprogress"
   val DEFAULT_LOG_DIR = "/tmp/spark-events"
-  val DEFAULT_ESTIMATOR_LOG_DIR = "/tmp/spark-estimators"
   val SPARK_VERSION_KEY = "SPARK_VERSION"
   val COMPRESSION_CODEC_KEY = "COMPRESSION_CODEC"
 
@@ -359,18 +292,6 @@ private[spark] object EventLoggingListener extends Logging {
       base + "_" + sanitize(appAttemptId.get) + codec
     } else {
       base + codec
-    }
-  }
-
-  def getEstimatorFilePath(
-      logBaseDir: URI,
-      appId: String,
-      appAttemptId: Option[String]): String = {
-    val base = logBaseDir.toString.stripSuffix("/") + "/" + sanitize(appId) + "_estimator"
-    if (appAttemptId.isDefined) {
-      base + "_" + sanitize(appAttemptId.get)
-    } else {
-      base
     }
   }
 

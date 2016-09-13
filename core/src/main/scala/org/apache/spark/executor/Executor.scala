@@ -66,6 +66,9 @@ private[spark] class Executor(
 
   private val conf = env.conf
 
+  private val reportMetrics = conf.get("spark.executor.metrics.sendToDriver", "")
+    .split(",").toSet
+
   // No ip or host:port - just hostname
   Utils.checkHost(executorHostname, "Expected executed slave to be a hostname")
   // must not have port specified.
@@ -501,15 +504,20 @@ private[spark] class Executor(
       }
     }
 
-    val filter = new MetricFilter {
-      override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
-        true
+    var timeSeriesMetric = Array.empty[Metric]
+    if (!reportMetrics.isEmpty) {
+      val filter = new MetricFilter {
+        override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+          reportMetrics.contains(name)
+        }
       }
+      val timestamp = System.currentTimeMillis()
+      timeSeriesMetric = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+        .map(g => Metric(g._1, g._2.getValue.toString, timestamp)).toArray
     }
 
-    env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
-
-    val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId)
+    val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId,
+      timeSeriesMetric)
     try {
       val response = heartbeatReceiverRef.askWithRetry[HeartbeatResponse](
           message, RpcTimeout(conf, "spark.executor.heartbeatInterval", "10s"))

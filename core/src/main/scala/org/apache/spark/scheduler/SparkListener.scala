@@ -31,7 +31,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.cluster.ExecutorInfo
 import org.apache.spark.storage.{BlockManagerId, BlockUpdatedInfo}
 import org.apache.spark.ui.SparkUI
-import org.apache.spark.util.{Distribution, Utils}
+import org.apache.spark.util.{StatCounter, Distribution, Utils}
 
 @DeveloperApi
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "Event")
@@ -42,6 +42,10 @@ trait SparkListenerEvent {
 
 @DeveloperApi
 case class EstimatorEvent(json: String) extends SparkListenerEvent
+
+@DeveloperApi
+case class TimeSeriesMetricEvent(executorId: String, name: String, stat: StatCounter)
+  extends SparkListenerEvent
 
 @DeveloperApi
 case class SparkListenerStageSubmitted(stageInfo: StageInfo, properties: Properties = null)
@@ -256,6 +260,11 @@ trait SparkListener {
     * Called when other events like estimator events are posted.
     */
   def onEstimatorEvent(event: EstimatorEvent) { }
+
+  /**
+    * Called when other events like timeseries metric events are posted.
+    */
+  def onTimeSeriesMetricEvent(event: TimeSeriesMetricEvent) { }
 }
 
 /**
