@@ -261,7 +261,9 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
       statMap.foreach { s =>
-        val (execId, name) = s._1.split("_")
+        val splits = s._1.split("_")
+        val execId = splits(0)
+        val name = splits(1)
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
@@ -269,8 +271,10 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   }
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
-    statMap.foreach {
-      val (execId, name) = s._1.split("_")
+    statMap.foreach { s =>
+      val splits = s._1.split("_")
+      val execId = splits(0)
+      val name = splits(1)
       sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
