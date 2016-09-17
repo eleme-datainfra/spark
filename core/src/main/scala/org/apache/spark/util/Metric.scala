@@ -20,5 +20,5 @@ package org.apache.spark.util
 /**
  * Used for shipping metrics from the executors to driver
  */
-private[spark] case class Metric(name: String, value: String, timestamp: Long)
+private[spark] case class Metric(name: String, value: String)
 

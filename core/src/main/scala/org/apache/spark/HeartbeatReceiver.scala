@@ -117,7 +117,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   def handleTimeSeriesMetrics(executorId: String, metrics: Array[Metric]): Unit = {
     metrics.foreach { m =>
       try {
-        val key = executor + "_" + m.name
+        val key = executorId + "_" + m.name
         val stat = statMap.getOrElseUpdate(key, new StatCounter())
         stat.merge(m.value.toDouble)
       } catch {
@@ -152,9 +152,8 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         }
       }
 
-      val timestamp = System.currentTimeMillis()
       timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
-        .map(g => Metric(g._1, g._2.getValue.toString, timestamp)).toArray
+        .map(g => Metric(g._1, g._2.getValue.toString)).toArray
       handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
     }
   }
@@ -237,12 +236,12 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    *         indicate if this operation is successful.
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
-    Option(self).map(_.ask[Boolean](ExecutorRemoved(executorId)))
     reportMetrics.foreach { m =>
       statMap.remove(executorId + "_" + m).foreach { stat =>
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
       }
     }
+    Option(self).map(_.ask[Boolean](ExecutorRemoved(executorId)))
   }
 
   /**
@@ -261,8 +260,9 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
 
   override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
-      statMap.foreach {
-        sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
+      statMap.foreach { s =>
+        val (execId, name) = s._1.split("_")
+        sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
     }
@@ -270,11 +270,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
     statMap.foreach {
-      sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
+      val (execId, name) = s._1.split("_")
+      sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
   }
-
 
   private def expireDeadHosts(): Unit = {
     logTrace("Checking for hosts with no recent heartbeats in HeartbeatReceiver.")

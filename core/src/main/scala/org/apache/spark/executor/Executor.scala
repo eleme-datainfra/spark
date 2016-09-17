@@ -511,9 +511,8 @@ private[spark] class Executor(
           reportMetrics.contains(name)
         }
       }
-      val timestamp = System.currentTimeMillis()
       timeSeriesMetrics = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
-        .map(g => Metric(g._1, g._2.getValue.toString, timestamp)).toArray
+        .map(g => Metric(g._1, g._2.getValue.toString)).toArray
     }
 
     val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId,

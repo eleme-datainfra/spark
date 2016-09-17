@@ -2007,11 +2007,10 @@ private[spark] object Utils extends Logging {
         Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
     }
 
-    val timestamp = System.currentTimeMillis()
     val registry = new MetricRegistry()
     registry.registerAll(new MemoryUsageGaugeSet())
     registry.getGauges.asScala.foreach(x => {
-      metrics += Metric(x._1, formatMetric(x._2.getValue), timestamp)
+      metrics += Metric(x._1, formatMetric(x._2.getValue))
     })
 
     metrics.toArray
