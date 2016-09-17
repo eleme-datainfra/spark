@@ -504,7 +504,7 @@ private[spark] class Executor(
       }
     }
 
-    var timeSeriesMetric = Array.empty[Metric]
+    var timeSeriesMetrics = Array.empty[Metric]
     if (!reportMetrics.isEmpty) {
       val filter = new MetricFilter {
         override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
@@ -512,12 +512,12 @@ private[spark] class Executor(
         }
       }
       val timestamp = System.currentTimeMillis()
-      timeSeriesMetric = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+      timeSeriesMetrics = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
         .map(g => Metric(g._1, g._2.getValue.toString, timestamp)).toArray
     }
 
     val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId,
-      timeSeriesMetric)
+      timeSeriesMetrics)
     try {
       val response = heartbeatReceiverRef.askWithRetry[HeartbeatResponse](
           message, RpcTimeout(conf, "spark.executor.heartbeatInterval", "10s"))

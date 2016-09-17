@@ -19,6 +19,9 @@ package org.apache.spark
 
 import java.util.concurrent.{ConcurrentHashMap, ScheduledFuture, TimeUnit}
 
+import com.codahale
+import com.codahale.metrics.MetricFilter
+
 import scala.collection.mutable
 import scala.concurrent.Future
 import scala.collection.concurrent
@@ -85,10 +88,16 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   // "spark.storage.blockManagerTimeoutIntervalMs" uses "milliseconds"
   private val timeoutIntervalMs =
     sc.conf.getTimeAsMs("spark.storage.blockManagerTimeoutIntervalMs", "60s")
+
+  private val heartbeatIntervalMs =
+    sc.conf.getTimeAsMs("spark.executor.heartbeatInterval", "10s")
+
   private val checkTimeoutIntervalMs =
     sc.conf.getTimeAsSeconds("spark.network.timeoutInterval", s"${timeoutIntervalMs}ms") * 1000
 
   private var timeoutCheckingTask: ScheduledFuture[_] = null
+
+  private var reportDriverMetricTask: ScheduledFuture[_] = null
 
   // "eventLoopThread" is used to run some pretty fast actions. The actions running in it should not
   // block the thread for a long time.
@@ -124,6 +133,30 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         Option(self).foreach(_.ask[Boolean](ExpireDeadHosts))
       }
     }, 0, checkTimeoutIntervalMs, TimeUnit.MILLISECONDS)
+
+    if (sc.isEventLogEnabled && !reportMetrics.isEmpty) {
+      reportDriverMetricTask = metricStatThread.scheduleAtFixedRate(new Runnable {
+        override def run(): Unit = Utils.tryLogNonFatalError {
+          reportDriverMetric()
+        }
+      }, 0, heartbeatIntervalMs, TimeUnit.MILLISECONDS)
+    }
+  }
+
+  def reportDriverMetric(): Unit = {
+    var timeSeriesMetrics = Array.empty[Metric]
+    if (!reportMetrics.isEmpty) {
+      val filter = new MetricFilter {
+        override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+          reportMetrics.contains(name)
+        }
+      }
+
+      val timestamp = System.currentTimeMillis()
+      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+        .map(g => Metric(g._1, g._2.getValue.toString, timestamp)).toArray
+      handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
+    }
   }
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
@@ -155,7 +188,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
               context.reply(response)
             }
           })
-          if (sc.isEventLogEnabled && !timeSeriesMetrics.isEmpty) {
+          if (sc.isEventLogEnabled && !reportMetrics.isEmpty) {
             metricStatThread.submit(new Runnable {
               override def run(): Unit = {
                 handleTimeSeriesMetrics(executorId, timeSeriesMetrics)
@@ -269,7 +302,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (timeoutCheckingTask != null) {
       timeoutCheckingTask.cancel(true)
     }
+    if (reportDriverMetricTask != null) {
+      reportDriverMetricTask.cancel(true)
+    }
     eventLoopThread.shutdownNow()
+    metricStatThread.shutdownNow()
     killExecutorThread.shutdownNow()
   }
 }
