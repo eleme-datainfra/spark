@@ -128,4 +128,9 @@ public class SparkFirehoseListener implements SparkListener {
         onEvent(event);
     }
 
+    @Override
+    public void onTimeSeriesMetricEvent(TimeSeriesMetricEvent event) {
+        onEvent(event);
+    }
+
 }
