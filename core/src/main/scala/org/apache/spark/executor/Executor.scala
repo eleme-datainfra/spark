@@ -508,7 +508,7 @@ private[spark] class Executor(
     if (!reportMetrics.isEmpty) {
       val filter = new MetricFilter {
         override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
-          reportMetrics.contains(name)
+          reportMetrics.exists(m => m.endsWith(name))
         }
       }
       timeSeriesMetrics = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala

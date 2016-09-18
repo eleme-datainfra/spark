@@ -148,17 +148,8 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (!reportMetrics.isEmpty) {
       val filter = new MetricFilter {
         override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
-          reportMetrics.contains(name)
+          reportMetrics.exists(m => m.endsWith(name))
         }
-      }
-
-      // scalastyle:off
-      println("report metrics")
-      // scalastyle:on
-      sc.env.metricsSystem.getMetricRegistry.getGauges.asScala.foreach { g =>
-        // scalastyle:off
-        println(g._1 + " " + g._2.getValue)
-        // scalastyle:on
       }
 
       timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
