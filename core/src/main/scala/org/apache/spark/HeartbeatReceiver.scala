@@ -115,6 +115,9 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     new ConcurrentHashMap[String, StatCounter]().asScala
 
   def handleTimeSeriesMetrics(executorId: String, metrics: Array[Metric]): Unit = {
+    // scalastyle:off
+    println("handdle " + executorId + " " + metrics.size + " , Has " + statMap.size)
+    // scalastyle:on
     metrics.foreach { m =>
       try {
         val key = executorId + "_" + m.name
@@ -237,7 +240,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
     reportMetrics.foreach { m =>
-      statMap.remove(executorId + "_" + m).foreach { stat =>
+      statMap.remove(s"${executorId}_${sc.applicationId}.executor.${m}").foreach { stat =>
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
       }
     }
