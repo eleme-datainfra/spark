@@ -151,7 +151,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (!reportMetrics.isEmpty) {
       val filter = new MetricFilter {
         override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
-          reportMetrics.exists(m => m.endsWith(name))
+          reportMetrics.exists(m => name.endsWith(m))
         }
       }
 
