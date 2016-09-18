@@ -117,8 +117,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   def handleTimeSeriesMetrics(executorId: String, metrics: Array[Metric]): Unit = {
     metrics.foreach { m =>
       try {
-        val key = executorId + "_" + m.name
-        val stat = statMap.getOrElseUpdate(key, new StatCounter())
+        val stat = statMap.getOrElseUpdate(m.name, new StatCounter())
         stat.merge(m.value.toDouble)
       } catch {
         case e: Exception =>
@@ -237,7 +236,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
     reportMetrics.foreach { m =>
-      statMap.remove(s"${executorId}_${sc.applicationId}_executor.${m}").foreach { stat =>
+      val key = s"${sc.applicationId}.${executorId}.${m}"
+      // scalastyle:off
+      println("remove " + key)
+      // scalastyle:on
+      statMap.remove(key).foreach { stat =>
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
       }
     }
@@ -259,10 +262,10 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   }
 
   override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
-    val regex = """(.*)_(application_[0-9]+_[0-9]+).(.*)""".r
+    val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
       statMap.foreach { s =>
-        val regex(execId, _, name) = s._1
+        val regex(_, execId, name) = s._1
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
@@ -270,9 +273,9 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   }
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
-    val regex = """(.*)_(application_[0-9]+_[0-9]+).(.*)""".r
+    val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
     statMap.foreach { s =>
-      val regex(execId, _, name) = s._1
+      val regex(_, execId, name) = s._1
       sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
