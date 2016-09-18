@@ -115,9 +115,6 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     new ConcurrentHashMap[String, StatCounter]().asScala
 
   def handleTimeSeriesMetrics(executorId: String, metrics: Array[Metric]): Unit = {
-    // scalastyle:off
-    println("handdle " + executorId + " " + metrics.size + " , Has " + statMap.size)
-    // scalastyle:on
     metrics.foreach { m =>
       try {
         val key = executorId + "_" + m.name
@@ -240,7 +237,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
     reportMetrics.foreach { m =>
-      statMap.remove(s"${executorId}_${sc.applicationId}.executor.${m}").foreach { stat =>
+      statMap.remove(s"${executorId}_${sc.applicationId}_executor.${m}").foreach { stat =>
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
       }
     }
@@ -262,11 +259,10 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   }
 
   override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
+    val regex = """(.*)_(application_[0-9]+_[0-9]+).(.*)""".r
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
       statMap.foreach { s =>
-        val splits = s._1.split("_")
-        val execId = splits(0)
-        val name = splits(1)
+        val regex(execId, _, name) = s._1
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
@@ -274,10 +270,9 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   }
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    val regex = """(.*)_(application_[0-9]+_[0-9]+).(.*)""".r
     statMap.foreach { s =>
-      val splits = s._1.split("_")
-      val execId = splits(0)
-      val name = splits(1)
+      val regex(execId, _, name) = s._1
       sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
