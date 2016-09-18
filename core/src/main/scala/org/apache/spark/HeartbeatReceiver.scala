@@ -152,6 +152,15 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         }
       }
 
+      // scalastyle:off
+      println("report metrics")
+      // scalastyle:on
+      sc.env.metricsSystem.getMetricRegistry.getGauges.asScala.foreach { g =>
+        // scalastyle:off
+        println(g._1 + " " + g._2.getValue)
+        // scalastyle:on
+      }
+
       timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
         .map(g => Metric(g._1, g._2.getValue.toString)).toArray
       handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
