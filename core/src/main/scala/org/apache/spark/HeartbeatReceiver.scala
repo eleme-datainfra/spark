@@ -236,10 +236,6 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
     reportMetrics.foreach { m =>
-      val key = s"${sc.applicationId}.${executorId}.${m}"
-      // scalastyle:off
-      println("remove " + key)
-      // scalastyle:on
       statMap.remove(key).foreach { stat =>
         sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
       }

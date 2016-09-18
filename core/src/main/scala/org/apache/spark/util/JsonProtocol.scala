@@ -110,9 +110,9 @@ private[spark] object JsonProtocol {
     ("Event" -> Utils.getFormattedClassName(metric)) ~
     ("Executor ID" -> metric.executorId) ~
     ("Name" -> metric.name) ~
-    ("Mean" -> f"${metric.stat.mean}%1.2f") ~
-    ("Max" -> f"${metric.stat.max}%1.2f") ~
-    ("Min" -> f"${metric.stat.min}%1.2f") ~
+    ("Mean" -> f"${metric.stat.mean}%1.2f".toDouble) ~
+    ("Max" -> f"${metric.stat.max}%1.2f".toDouble) ~
+    ("Min" -> f"${metric.stat.min}%1.2f".toDouble) ~
     ("Count" -> metric.stat.count)
   }
 
