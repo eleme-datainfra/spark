@@ -113,7 +113,7 @@ private[spark] object JsonProtocol {
     ("Mean" -> f"${metric.stat.mean}%1.2f".toDouble) ~
     ("Max" -> f"${metric.stat.max}%1.2f".toDouble) ~
     ("Min" -> f"${metric.stat.min}%1.2f".toDouble) ~
-    ("StdDev") -> f"${metric.stat.stdev}%1.2f".toDouble ~
+    ("StdDev" -> f"${metric.stat.stdev}%1.2f".toDouble) ~
     ("Count" -> metric.stat.count)
   }
 
