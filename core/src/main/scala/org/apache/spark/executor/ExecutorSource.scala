@@ -42,6 +42,8 @@ private[spark] class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: 
   }
 
   val pid = getJvmId()
+  
+  val procfsBasedGetter = new ProcfsBasedGetter(pid)
 
   val MB = 1024 * 1024
   val reqMemoryByte = reqMemoryMB.toDouble * MB
@@ -63,13 +65,13 @@ private[spark] class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: 
   // Gauge for executor physical memory usage rate.
   metricRegistry.register(MetricRegistry.name("memory", "memoryUsageRate"), new Gauge[Double] {
     override def getValue: Double =
-      ProcfsBasedGetter.getProcessRss(pid) / reqMemoryByte
+      procfsBasedGetter.getProcessRssSize() / reqMemoryByte
   })
 
   // Gauge for executor physical cpu core slot usage rate.
   metricRegistry.register(MetricRegistry.name("cpu", "cpuUsageRate"), new Gauge[Double] {
     override def getValue: Double =
-      threadPool.getActiveCount() / reqCores.toDouble
+      procfsBasedGetter.getCpuUsagePercent() / reqCores.toDouble
   })
 
   // Gauge for executor thread pool's actively executing task counts
