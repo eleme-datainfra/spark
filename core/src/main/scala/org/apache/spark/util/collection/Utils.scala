@@ -25,6 +25,8 @@ import org.apache.spark.{InternalAccumulator, SparkEnv, TaskContext}
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.{SizeEstimator, CompletionIterator}
 
+import scala.reflect.ClassTag
+
 /**
  * Utility functions for collections.
  */
@@ -45,8 +47,8 @@ private[spark] object Utils {
    * Returns the first K elements from the input as defined by the specified implicit Ordering[T]
    * and maintains the ordering.
    */
-  def takeOrdered[T](input: Iterator[T], num: Int,
-      ser: Serializer = SparkEnv.get.serializer)(implicit ord: Ordering[T]): Iterator[T] = {
+  def takeOrdered[T: ClassTag](input: Iterator[T], num: Int, ser: Serializer)
+      (implicit ord: Ordering[T]): Iterator[T] = {
     val context = TaskContext.get()
     if (context == null || !input.hasNext) {
       return takeOrdered(input, num)(ord)
@@ -57,14 +59,14 @@ private[spark] object Utils {
     if (size == 0) {
       size = 1024
     }
-
-    val executorMemory = SparkEnv.get.conf.getOption("spark.executor.memory")
-      .orElse(Option(System.getenv("SPARK_EXECUTOR_MEMORY")))
-      .orElse(Option(System.getenv("SPARK_MEM")))
-      .map(Utils.memoryStringToMb)
-      .getOrElse(1024L) * 1024 * 1024
-
-    val limit = (executorMemory / size) * 0.1
+    // scalastyle:off
+    println(size)
+    // scalastyle:on
+    val maxMemory = Runtime.getRuntime.maxMemory()
+    val limit = (maxMemory / size) * 0.1
+    // scalastyle:off
+    println(limit)
+    // scalastyle:on
 
     if (num < limit) {
       takeOrdered(iter, num)(ord)

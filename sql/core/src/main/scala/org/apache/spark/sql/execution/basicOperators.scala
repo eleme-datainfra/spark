@@ -26,11 +26,11 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeRowJoiner
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.execution.metric.SQLMetrics
-import org.apache.spark.util.MutablePair
+import org.apache.spark.util.{CompletionIterator, SizeEstimator, MutablePair}
 import org.apache.spark.util.random.PoissonSampler
-import org.apache.spark.{HashPartitioner, SparkEnv}
+import org.apache.spark.{InternalAccumulator, TaskContext, HashPartitioner, SparkEnv}
 import scala.reflect.classTag
-import org.apache.spark.util.collection.{Utils => CUtils}
+import org.apache.spark.util.collection.{Utils => CUtils, ExternalSorter}
 
 
 case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends UnaryNode {
@@ -224,14 +224,15 @@ case class TakeOrderedAndProject(
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {
       child.execute().map(_.copy()).mapPartitions { iter =>
-        CUtils.takeOrdered(iter, limit, serializer)(ord)
+        CUtils.takeOrdered(iter, limit, serializer)(classTag[InternalRow], ord)
       }
     }
 
     val shuffled = new ShuffledRowRDD(
       Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
     shuffled.mapPartitions { iter =>
-      val topK = CUtils.takeOrdered(iter.map(_.copy()), limit, serializer)(ord)
+      val topK = CUtils.takeOrdered(iter.map(_.copy()),
+        limit, serializer)(classTag[InternalRow], ord)
       if (projectList.isDefined) {
         val proj = UnsafeProjection.create(projectList.get, child.output)
         topK.map(r => proj(r))
