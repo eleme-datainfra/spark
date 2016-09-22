@@ -210,7 +210,7 @@ case class TakeOrderedAndProject(
   private val ord: InterpretedOrdering = new InterpretedOrdering(sortOrder, child.output)
 
   override def executeCollect(): Array[InternalRow] = {
-    val data = child.execute().map(_.copy()).takeOrdered(limit, serializer)(ord)
+    val data = child.execute().map(_.copy()).takeOrdered(limit)(ord)
     if (projectList.isDefined) {
       val proj = UnsafeProjection.create(projectList.get, child.output)
       data.map(r => proj(r))
