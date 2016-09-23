@@ -26,6 +26,7 @@ import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.{SizeEstimator, CompletionIterator}
 
 import scala.reflect.ClassTag
+import scala.runtime.ScalaRunTime
 
 /**
  * Utility functions for collections.
@@ -55,10 +56,18 @@ private[spark] object Utils {
     }
 
     val iter = input.buffered
-    var size = SizeEstimator.estimate(iter.head)
+    val head = iter.head
+    var size =
+      if (ScalaRunTime.isAnyVal(head)) {
+        size = SizeEstimator.primitiveSize(head.getClass)
+      } else {
+        size = SizeEstimator.estimate(head.asInstanceOf[AnyRef])
+      }
+
     if (size == 0) {
       size = 1024
     }
+
     // scalastyle:off
     println(size)
     // scalastyle:on

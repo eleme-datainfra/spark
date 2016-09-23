@@ -287,7 +287,7 @@ object SizeEstimator extends Logging {
     size
   }
 
-  private def primitiveSize(cls: Class[_]): Int = {
+  def primitiveSize(cls: Class[_]): Int = {
     if (cls == classOf[Byte]) {
       BYTE_SIZE
     } else if (cls == classOf[Boolean]) {
