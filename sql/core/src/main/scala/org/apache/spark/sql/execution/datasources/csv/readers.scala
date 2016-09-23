@@ -34,7 +34,7 @@ import com.univocity.parsers.csv.CsvParserSettings
  * @param inputBufSize size of buffer to use for parsing input, tune for performance
  * @param maxCols maximum number of columns allowed, for safety against bad inputs
  */
-private[readers] abstract class CsvReader(
+private abstract class CsvReader(
     fieldSep: Char = ',',
     lineSep: String = "\n",
     quote: Char = '"',
