@@ -29,9 +29,10 @@ import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, PrunedSca
 import org.apache.spark.sql.types._
 import org.slf4j.LoggerFactory
 
-
 import scala.util.control.NonFatal
+// scalastyle:off
 import scala.collection.JavaConversions._
+// scalastyle:on
 
 
 case class CsvRelation protected[spark] (
