@@ -18,6 +18,7 @@
 package org.apache.spark.sql.execution.datasources.csv
 
 import java.io.StringReader
+import com.univocity.parsers.csv.{CsvParser => UnivocityCsvParser}
 
 import com.univocity.parsers.csv.CsvParserSettings
 
@@ -46,7 +47,7 @@ private abstract class CsvReader(
     inputBufSize: Int = 128,
     maxCols: Int = 20480,
     maxCharsPerCol: Int = 100000) {
-  protected lazy val parser: CsvParser = {
+  protected lazy val parser: UnivocityCsvParser = {
     val settings = new CsvParserSettings()
     val format = settings.getFormat
     format.setDelimiter(fieldSep)
@@ -63,7 +64,7 @@ private abstract class CsvReader(
     settings.setMaxCharsPerColumn(maxCharsPerCol)
     if (headers != null) settings.setHeaders(headers: _*)
 
-    new CsvParser(settings)
+    new UnivocityCsvParser(settings)
   }
 }
 
