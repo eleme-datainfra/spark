@@ -87,13 +87,9 @@ object TypeCast {
    */
   @throws[IllegalArgumentException]
   private[csv] def toChar(str: String): Char = {
-    // scalastyle:off
-    println(str)
-    // scalastyle:on
-    if (str.charAt(0) == '\\') {
-      // scalastyle:off
-      println(str.charAt(1))
-      // scalastyle:on
+    if (str == "\001") {
+      '\001'
+    } else if (str.charAt(0) == '\\') {
       str.charAt(1)
       match {
         case 't' => '\t'
@@ -102,8 +98,6 @@ object TypeCast {
         case 'f' => '\f'
         case '\"' => '\"' // In case user changes quote char and uses \" as delimiter in options
         case '\'' => '\''
-        case '\001' => '\001'
-        case 'u' if str == """\u0001""" => '\u0001'
         case 'u' if str == """\u0000""" => '\u0000'
         case _ =>
           throw new IllegalArgumentException(s"Unsupported special character for delimiter: $str")
