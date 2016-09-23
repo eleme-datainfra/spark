@@ -462,7 +462,7 @@ private[spark] object SQLConf {
   )
 
   val CSV_DELIMITER = stringConf("spark.sql.csv.delimiter",
-    defaultValue = Some(","),
+    defaultValue = Some("\001"),
     doc = "Csv default delimiter"
   )
 

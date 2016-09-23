@@ -54,7 +54,7 @@ class DefaultSource
       parameters: Map[String, String],
       schema: StructType): CsvRelation = {
     val path = checkPath(parameters)
-    val defaultDelimiter = sqlContext.getConf(SQLConf.CSV_DELIMITER)
+    val defaultDelimiter = sqlContext.getConf(SQLConf.CSV_DELIMITER).trim
     val delimiter = TypeCast.toChar(parameters.getOrElse("delimiter", defaultDelimiter))
 
     val quote = parameters.getOrElse("quote", "\"")
