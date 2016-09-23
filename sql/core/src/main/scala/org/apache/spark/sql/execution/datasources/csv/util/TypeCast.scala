@@ -87,7 +87,13 @@ object TypeCast {
    */
   @throws[IllegalArgumentException]
   private[csv] def toChar(str: String): Char = {
+    // scalastyle:off
+    println(str)
+    // scalastyle:on
     if (str.charAt(0) == '\\') {
+      // scalastyle:off
+      println(str.charAt(1))
+      // scalastyle:on
       str.charAt(1)
       match {
         case 't' => '\t'
