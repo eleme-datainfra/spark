@@ -23,10 +23,9 @@ import com.google.common.collect.{Ordering => GuavaOrdering}
 
 import org.apache.spark.{InternalAccumulator, SparkEnv, TaskContext}
 import org.apache.spark.serializer.Serializer
-import org.apache.spark.util.{SizeEstimator, CompletionIterator}
+import org.apache.spark.util.CompletionIterator
 
 import scala.reflect.ClassTag
-import scala.runtime.ScalaRunTime
 
 /**
  * Utility functions for collections.
@@ -51,34 +50,9 @@ private[spark] object Utils {
   def takeOrdered[T: ClassTag](input: Iterator[T], num: Int, ser: Serializer)
       (implicit ord: Ordering[T]): Iterator[T] = {
     val context = TaskContext.get()
-    if (context == null || !input.hasNext) {
-      return takeOrdered(input, num)(ord)
-    }
-
-    val iter = input.buffered
-    val head = iter.head
-    var size =
-      if (ScalaRunTime.isAnyVal(head)) {
-        size = SizeEstimator.primitiveSize(head.getClass)
-      } else {
-        size = SizeEstimator.estimate(head.asInstanceOf[AnyRef])
-      }
-
-    if (size == 0) {
-      size = 1024
-    }
-
-    // scalastyle:off
-    println(size)
-    // scalastyle:on
-    val maxMemory = Runtime.getRuntime.maxMemory()
-    val limit = (maxMemory / size) * 0.1
-    // scalastyle:off
-    println(limit)
-    // scalastyle:on
-
-    if (num < limit) {
-      takeOrdered(iter, num)(ord)
+    val limit = SparkEnv.get.conf.getInt("spark.sql.limit.maximum", 1000000)
+    if (context == null || !input.hasNext || num <= limit) {
+      takeOrdered(input, num)(ord)
     } else {
       val sorter = new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
       sorter.insertAll(iter.map(x => (x, null)))

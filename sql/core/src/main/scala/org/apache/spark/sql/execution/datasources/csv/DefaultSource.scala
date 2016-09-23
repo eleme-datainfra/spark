@@ -20,7 +20,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.execution.datasources.csv.util.{CompressionCodecs, TextFile, ParserLibs, TypeCast}
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.{SQLConf, DataFrame, SQLContext, SaveMode}
 
 /**
  * Provides access to CSV data from pure SQL statements (i.e. for users of the
@@ -54,7 +54,8 @@ class DefaultSource
       parameters: Map[String, String],
       schema: StructType): CsvRelation = {
     val path = checkPath(parameters)
-    val delimiter = TypeCast.toChar(parameters.getOrElse("delimiter", ","))
+    val defaultDelimiter = sqlContext.getConf(SQLConf.CSV_DELIMITER)
+    val delimiter = TypeCast.toChar(parameters.getOrElse("delimiter", defaultDelimiter))
 
     val quote = parameters.getOrElse("quote", "\"")
     val quoteChar: Character = if (quote == null) {

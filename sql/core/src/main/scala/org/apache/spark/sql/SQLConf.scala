@@ -461,6 +461,12 @@ private[spark] object SQLConf {
     doc = "When true, we could use `datasource`.`path` as table in SQL query"
   )
 
+  val CSV_DELIMITER = stringConf("spark.sql.csv.delimiter",
+    defaultValue = ",",
+    isPublic = false,
+    doc = "Csv default delimiter"
+  )
+
   val SPECIALIZE_SINGLE_DISTINCT_AGG_PLANNING =
     booleanConf("spark.sql.specializeSingleDistinctAggPlanning",
       defaultValue = Some(false),
