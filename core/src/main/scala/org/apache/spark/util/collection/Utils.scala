@@ -55,7 +55,7 @@ private[spark] object Utils {
       takeOrdered(input, num)(ord)
     } else {
       val sorter = new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
-      sorter.insertAll(iter.map(x => (x, null)))
+      sorter.insertAll(input.map(x => (x, null)))
       context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
       context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
       context.taskMetrics().incSpillTime(sorter.spillTime)
