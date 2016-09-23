@@ -23,7 +23,7 @@ import com.univocity.parsers.csv.{CsvParser => UnivocityCsvParser}
 import com.univocity.parsers.csv.CsvParserSettings
 
 /**
-  * Read and parse CSV-like input
+ * Read and parse CSV-like input
  *
  * @param fieldSep the delimiter used to separate fields in a line
  * @param lineSep the delimiter used to separate lines
@@ -105,7 +105,7 @@ private[csv] class LineCsvReader(
     maxCharsPerCol) {
   /**
    * parse a line
- *
+   *
    * @param line a String with no newline at the end
    * @return array of strings where each string is a field in the CSV record
    */
@@ -165,7 +165,7 @@ private[csv] class BulkCsvReader(
 
   /**
    * get the next parsed line.
- *
+   *
    * @return array of strings where each string is a field in the CSV record
    */
   override def next(): Array[String] = {
