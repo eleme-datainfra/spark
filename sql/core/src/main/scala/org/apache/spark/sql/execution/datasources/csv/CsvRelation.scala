@@ -22,6 +22,7 @@ import java.text.SimpleDateFormat
 
 import org.apache.commons.csv._
 import org.apache.hadoop.fs.Path
+import org.apache.spark.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.execution.datasources.csv.util._
@@ -54,20 +55,18 @@ case class CsvRelation protected[spark] (
     nullValue: String = "",
     dateFormat: String = null,
     maxCharsPerCol: Int = 100000)(@transient val sqlContext: SQLContext)
-  extends BaseRelation with TableScan with PrunedScan with InsertableRelation {
+  extends BaseRelation with TableScan with PrunedScan with InsertableRelation with Logging {
 
   // Share date format object as it is expensive to parse date pattern.
   private val dateFormatter = if (dateFormat != null) new SimpleDateFormat(dateFormat) else null
 
-  private val logger = LoggerFactory.getLogger(CsvRelation.getClass)
-
   // Parse mode flags
   if (!ParseModes.isValidMode(parseMode)) {
-    logger.warn(s"$parseMode is not a valid parse mode. Using ${ParseModes.DEFAULT}.")
+    logWarning(s"$parseMode is not a valid parse mode. Using ${ParseModes.DEFAULT}.")
   }
 
   if ((ignoreLeadingWhiteSpace || ignoreLeadingWhiteSpace) && ParserLibs.isCommonsLib(parserLib)) {
-    logger.warn(s"Ignore white space options may not work with Commons parserLib option")
+    logWarning(s"Ignore white space options may not work with Commons parserLib option")
   }
 
   private val failFast = ParseModes.isFailFastMode(parseMode)
@@ -111,7 +110,7 @@ case class CsvRelation protected[spark] (
     tokenRdd(schemaFields.map(_.name)).flatMap { tokens =>
 
       if (dropMalformed && schemaFields.length != tokens.length) {
-        logger.warn(s"Dropping malformed line: ${tokens.mkString(",")}")
+        logWarning(s"Dropping malformed line: ${tokens.mkString(",")}")
         None
       } else if (failFast && schemaFields.length != tokens.length) {
         throw new RuntimeException(s"Malformed line in FAILFAST mode: ${tokens.mkString(",")}")
@@ -132,11 +131,11 @@ case class CsvRelation protected[spark] (
             Some(Row.fromSeq(rowArray))
           case _: java.lang.NumberFormatException |
                _: IllegalArgumentException if dropMalformed =>
-            logger.warn("Number format exception. " +
+            logWarning("Number format exception. " +
               s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
             None
           case pe: java.text.ParseException if dropMalformed =>
-            logger.warn("Parse exception. " +
+            logWarning("Parse exception. " +
               s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
             None
         }
@@ -177,7 +176,7 @@ case class CsvRelation protected[spark] (
       tokenRdd(schemaFields.map(_.name)).flatMap { tokens =>
 
         if (dropMalformed && schemaFields.length != tokens.length) {
-          logger.warn(s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
+          logWarning(s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
           None
         } else if (failFast && schemaFields.length != tokens.length) {
           throw new RuntimeException(s"Malformed line in FAILFAST mode: " +
@@ -210,11 +209,11 @@ case class CsvRelation protected[spark] (
           } catch {
             case _: java.lang.NumberFormatException |
                  _: IllegalArgumentException if dropMalformed =>
-              logger.warn("Number format exception. " +
+              logWarning("Number format exception. " +
                 s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
               None
             case pe: java.text.ParseException if dropMalformed =>
-              logger.warn("Parse exception. " +
+              logWarning("Parse exception. " +
                 s"Dropping malformed line: ${tokens.mkString(delimiter.toString)}")
               None
           }
@@ -306,14 +305,14 @@ case class CsvRelation protected[spark] (
       try {
         val records = CSVParser.parse(line, csvFormat).getRecords
         if (records.isEmpty) {
-          logger.warn(s"Ignoring empty line: $line")
+          logWarning(s"Ignoring empty line: $line")
           None
         } else {
           Some(records.head.toArray)
         }
       } catch {
         case NonFatal(e) if !failFast =>
-          logger.error(s"Exception while parsing line: $line. ", e)
+          logError(s"Exception while parsing line: $line. ", e)
           None
       }
     }
