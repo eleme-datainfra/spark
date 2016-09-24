@@ -87,27 +87,33 @@ object TypeCast {
    */
   @throws[IllegalArgumentException]
   private[csv] def toChar(str: String): Char = {
-    if (str == "\001") {
-      return '\u0001'
-    } else if (str.charAt(0) == '\\') {
-      str.charAt(1)
-      match {
-        case 't' => '\t'
-        case 'r' => '\r'
-        case 'b' => '\b'
-        case 'f' => '\f'
-        case '\"' => '\"' // In case user changes quote char and uses \" as delimiter in options
-        case '\'' => '\''
-        case 'u' if str == """\u0000""" => '\u0000'
-        case _ =>
-          return '\u0001'
-          throw new IllegalArgumentException(s"Unsupported special character for delimiter: $str")
+    try {
+      if (str == "\001") {
+        return '\u0001'
+      } else if (str.charAt(0) == '\\') {
+        str.charAt(1)
+        match {
+          case 't' => '\t'
+          case 'r' => '\r'
+          case 'b' => '\b'
+          case 'f' => '\f'
+          case '\"' => '\"' // In case user changes quote char and uses \" as delimiter in options
+          case '\'' => '\''
+          case 'u' if str == """\u0000""" => '\u0000'
+          case _ =>
+            return '\u0001'
+            throw new IllegalArgumentException(s"Unsupported special character for delimiter: $str")
+        }
+      } else if (str.length == 1) {
+        str.charAt(0)
+      } else {
+        return '\u0001'
+        throw new IllegalArgumentException(s"Delimiter cannot be more than one character: $str")
       }
-    } else if (str.length == 1) {
-      str.charAt(0)
-    } else {
-      return '\u0001'
-      throw new IllegalArgumentException(s"Delimiter cannot be more than one character: $str")
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        '\u0001'
     }
   }
 }
