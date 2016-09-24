@@ -98,6 +98,7 @@ object TypeCast {
         case 'f' => '\f'
         case '\"' => '\"' // In case user changes quote char and uses \" as delimiter in options
         case '\'' => '\''
+        case 'u' if str == """\u0001""" => '\u0001'
         case 'u' if str == """\u0000""" => '\u0000'
         case _ =>
           throw new IllegalArgumentException(s"Unsupported special character for delimiter: $str")
