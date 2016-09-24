@@ -87,12 +87,6 @@ object TypeCast {
    */
   @throws[IllegalArgumentException]
   private[csv] def toChar(str: String): Char = {
-    val len = str.length
-    for(i <- 0 until len) {
-      // scalastyle:off
-      println(str.charAt(i))
-      // scalastyle:on
-    }
     if (str == "\001") {
       return '\u0001'
     } else if (str.charAt(0) == '\\') {
