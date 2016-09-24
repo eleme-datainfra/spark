@@ -264,7 +264,7 @@ case class CsvRelation protected[spark] (
       }
     } catch {
       case e: Exception =>
-        logError(e)
+        logError(e.getMessage)
         return null
     }
   }
