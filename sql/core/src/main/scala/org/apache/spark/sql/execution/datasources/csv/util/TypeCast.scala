@@ -87,11 +87,14 @@ object TypeCast {
    */
   @throws[IllegalArgumentException]
   private[csv] def toChar(str: String): Char = {
-    // scalastyle:off
-    str.getBytes.foreach(b => println(b.asInstanceOf[Char]))
-    // scalastyle:on
+    val len = str.length
+    for(i <- 0 until len) {
+      // scalastyle:off
+      println(str.charAt(i))
+      // scalastyle:on
+    }
     if (str == "\001") {
-      '\001'
+      return '\u0001'
     } else if (str.charAt(0) == '\\') {
       str.charAt(1)
       match {
@@ -103,13 +106,13 @@ object TypeCast {
         case '\'' => '\''
         case 'u' if str == """\u0000""" => '\u0000'
         case _ =>
-          return '\001'
+          return '\u0001'
           throw new IllegalArgumentException(s"Unsupported special character for delimiter: $str")
       }
     } else if (str.length == 1) {
       str.charAt(0)
     } else {
-      return '\001'
+      return '\u0001'
       throw new IllegalArgumentException(s"Delimiter cannot be more than one character: $str")
     }
   }
