@@ -28,7 +28,6 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.execution.datasources.csv.util._
 import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation, PrunedScan, TableScan}
 import org.apache.spark.sql.types._
-import org.slf4j.LoggerFactory
 
 import scala.util.control.NonFatal
 // scalastyle:off
@@ -223,41 +222,50 @@ case class CsvRelation protected[spark] (
   }
 
   private def inferSchema(): StructType = {
-    if (this.userSchema != null) {
-      userSchema
-    } else {
-      val firstRow = if (ParserLibs.isUnivocityLib(parserLib)) {
-        val escapeVal = if (escape == null) '\\' else escape.charValue()
-        val commentChar: Char = if (comment == null) '\0' else comment
-        val quoteChar: Char = if (quote == null) '\0' else quote
-        new LineCsvReader(
-          fieldSep = delimiter,
-          quote = quoteChar,
-          escape = escapeVal,
-          commentMarker = commentChar).parseLine(firstLine)
+    try {
+      if (this.userSchema != null) {
+        userSchema
       } else {
-        val csvFormat = defaultCsvFormat
-          .withDelimiter(delimiter)
-          .withQuote(quote)
-          .withEscape(escape)
-          .withSkipHeaderRecord(false)
-        CSVParser.parse(firstLine, csvFormat).getRecords.head.toArray
-      }
-      val header = if (useHeader) {
-        firstRow
-      } else {
-        firstRow.zipWithIndex.map { case (value, index) => s"C$index"}
-      }
-      if (this.inferCsvSchema) {
-        val simpleDateFormatter = dateFormatter
-        InferSchema(tokenRdd(header), header, nullValue, simpleDateFormatter)
-      } else {
-        // By default fields are assumed to be StringType
-        val schemaFields = header.map { fieldName =>
-          StructField(fieldName.toString, StringType, nullable = true)
+        val firstRow = if (ParserLibs.isUnivocityLib(parserLib)) {
+          val escapeVal = if (escape == null) '\\' else escape.charValue()
+          val commentChar: Char = if (comment == null) '\0' else comment
+          val quoteChar: Char = if (quote == null) '\0' else quote
+          new LineCsvReader(
+            fieldSep = delimiter,
+            quote = quoteChar,
+            escape = escapeVal,
+            commentMarker = commentChar).parseLine(firstLine)
+        } else {
+          val csvFormat = defaultCsvFormat
+            .withDelimiter(delimiter)
+            .withQuote(quote)
+            .withEscape(escape)
+            .withSkipHeaderRecord(false)
+          CSVParser.parse(firstLine, csvFormat).getRecords.head.toArray
         }
-        StructType(schemaFields)
+        val header = if (useHeader) {
+          firstRow
+        } else {
+          firstRow.zipWithIndex.map { case (value, index) => s"C$index"}
+        }
+        // scalastyle:off
+        println(header)
+        // scalastyle:on
+        if (this.inferCsvSchema) {
+          val simpleDateFormatter = dateFormatter
+          InferSchema(tokenRdd(header), header, nullValue, simpleDateFormatter)
+        } else {
+          // By default fields are assumed to be StringType
+          val schemaFields = header.map { fieldName =>
+            StructField(fieldName.toString, StringType, nullable = true)
+          }
+          StructType(schemaFields)
+        }
       }
+    } catch {
+      case e: Exception =>
+        logError(e)
+        return null
     }
   }
 
