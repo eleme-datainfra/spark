@@ -62,35 +62,14 @@ class UnionRDD[T: ClassTag](
     var rdds: Seq[RDD[T]])
   extends RDD[T](sc, Nil) {  // Nil since we implement getDependencies
 
-  // visible for testing
-  private[spark] val isPartitionListingParallel: Boolean =
-    rdds.length > conf.getInt("spark.rdd.parallelListingThreshold", 10)
-
   override def getPartitions: Array[Partition] = {
-    val partitions = if (isPartitionListingParallel) {
-      val map = rdds.zipWithIndex.map{ case (rdd, index) => rdd.id -> (index, rdd)}.toMap
-      val parts = sc.parallelize(rdds.map(_.firstParent[T]), rdds.length)
-        .map(rdd => (rdd.id, rdd.partitions)).collect()
-      var pos = 0
-      val array = new Array[Partition](parts.size)
-      parts.foreach { case (id, splits) =>
-        val rddInfo = map.get(id).get
-        splits.foreach { split =>
-          array(pos) = new UnionPartition(pos, rddInfo._2, rddInfo._1, split.index)
-          pos += 1
-        }
-      }
-      array
-    } else {
-      val array = new Array[Partition](rdds.map(_.partitions.length).sum)
-      var pos = 0
-      for ((rdd, rddIndex) <- rdds.zipWithIndex; split <- rdd.partitions) {
-        array(pos) = new UnionPartition(pos, rdd, rddIndex, split.index)
-        pos += 1
-      }
-      array
+    val array = new Array[Partition](rdds.map(_.partitions.length).sum)
+    var pos = 0
+    for ((rdd, rddIndex) <- rdds.zipWithIndex; split <- rdd.partitions) {
+      array(pos) = new UnionPartition(pos, rdd, rddIndex, split.index)
+      pos += 1
     }
-    partitions
+    array
   }
 
   override def getDependencies: Seq[Dependency[_]] = {
