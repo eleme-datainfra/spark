@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.execution
 
+import com.google.common.collect.{Ordering => GuavaOrdering}
 import org.apache.spark.rdd.{PartitionwiseSampledRDD, RDD, ShuffledRDD}
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.sort.SortShuffleManager
@@ -26,11 +27,12 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeRowJoiner
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.execution.metric.SQLMetrics
-import org.apache.spark.util.{CompletionIterator, SizeEstimator, MutablePair}
+import org.apache.spark.util.{BoundedPriorityQueue, CompletionIterator, MutablePair}
 import org.apache.spark.util.random.PoissonSampler
-import org.apache.spark.{InternalAccumulator, TaskContext, HashPartitioner, SparkEnv}
-import scala.reflect.classTag
-import org.apache.spark.util.collection.{Utils => CUtils, ExternalSorter}
+import org.apache.spark._
+import scala.collection.JavaConverters._
+
+import org.apache.spark.util.collection.ExternalSorter
 
 
 case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends UnaryNode {
@@ -210,7 +212,7 @@ case class TakeOrderedAndProject(
   private val ord: InterpretedOrdering = new InterpretedOrdering(sortOrder, child.output)
 
   override def executeCollect(): Array[InternalRow] = {
-    val data = child.execute().map(_.copy()).takeOrdered(limit)(ord)
+    val data = takeOrdered(child.execute().map(_.copy()), limit)(ord)
     if (projectList.isDefined) {
       val proj = UnsafeProjection.create(projectList.get, child.output)
       data.map(r => proj(r))
@@ -219,20 +221,65 @@ case class TakeOrderedAndProject(
     }
   }
 
+  def takeOrdered[T](rdd: RDD, num: Int)(implicit ord: Ordering[T]): Array[T] = withScope {
+    if (num == 0) {
+      Array.empty
+    } else {
+      val mapRDDs = rdd.mapPartitions { items =>
+        // Priority keeps the largest elements, so let's reverse the ordering.
+        val queue = new BoundedPriorityQueue[T](num)(ord.reverse)
+        queue ++= takeOrderedByExternalSort(items, limit, serializer)(ord)
+        Iterator.single(queue)
+      }
+      if (mapRDDs.partitions.length == 0) {
+        Array.empty
+      } else {
+        mapRDDs.reduce { (queue1, queue2) =>
+          queue1 ++= queue2
+          queue1
+        }.toArray.sorted(ord)
+      }
+    }
+  }
+
+  /**
+    * Returns the first K elements from the input as defined by the specified implicit Ordering[T]
+    * and maintains the ordering.
+    */
+  def takeOrderedByExternalSort[T](input: Iterator[T], num: Int, ser: Serializer)
+                                  (implicit ord: Ordering[T]): Iterator[T] = {
+    val context = TaskContext.get()
+    val limit = SparkEnv.get.conf.getInt("spark.sql.limit.maximum", 1000000)
+    if (num <= limit || context == null || !input.hasNext) {
+      val ordering = new GuavaOrdering[T] {
+        override def compare(l: T, r: T): Int = ord.compare(l, r)
+      }
+      ordering.leastOf(input.asJava, num).iterator.asScala
+    } else {
+      val sorter = new ExternalSorter[T, Any, Any](context, None, None, Some(ord), Some(ser))
+      sorter.insertAll(input.map(x => (x, null)))
+      context.taskMetrics().incMemoryBytesSpilled(sorter.memoryBytesSpilled)
+      context.taskMetrics().incDiskBytesSpilled(sorter.diskBytesSpilled)
+      context.taskMetrics().incSpillTime(sorter.spillTime)
+      context.internalMetricsToAccumulators(
+        InternalAccumulator.PEAK_EXECUTION_MEMORY).add(sorter.peakMemoryUsedBytes)
+      CompletionIterator[T, Iterator[T]](sorter.iterator.map(_._1).take(num), sorter.stop())
+    }
+  }
+
   private val serializer: Serializer = new SparkSqlSerializer(child.sqlContext.sparkContext.getConf)
 
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {
       child.execute().map(_.copy()).mapPartitions { iter =>
-        CUtils.takeOrdered(iter, limit, serializer)(classTag[InternalRow], ord)
+        takeOrderedByExternalSort(iter, limit, serializer)(ord)
       }
     }
 
     val shuffled = new ShuffledRowRDD(
       Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
     shuffled.mapPartitions { iter =>
-      val topK = CUtils.takeOrdered(iter.map(_.copy()),
-        limit, serializer)(classTag[InternalRow], ord)
+      val topK = takeOrderedByExternalSort(iter.map(_.copy()), limit, serializer)(ord)
       if (projectList.isDefined) {
         val proj = UnsafeProjection.create(projectList.get, child.output)
         topK.map(r => proj(r))
