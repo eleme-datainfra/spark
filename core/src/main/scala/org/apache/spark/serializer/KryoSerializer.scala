@@ -374,9 +374,7 @@ private[serializer] object KryoSerializer {
     classOf[Array[Short]],
     classOf[Array[Long]],
     classOf[BoundedPriorityQueue[_]],
-    classOf[SparkConf],
-    classOf[HadoopPartition],
-    classOf[NewHadoopPartition]
+    classOf[SparkConf]
   )
 
   private val toRegisterSerializer = Map[Class[_], KryoClassSerializer[_]](
