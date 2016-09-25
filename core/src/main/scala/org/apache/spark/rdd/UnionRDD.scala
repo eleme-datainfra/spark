@@ -20,8 +20,6 @@ package org.apache.spark.rdd
 import java.io.{IOException, ObjectOutputStream}
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.parallel.{ForkJoinTaskSupport, ThreadPoolTaskSupport}
-import scala.concurrent.forkjoin.ForkJoinPool
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
@@ -58,11 +56,6 @@ private[spark] class UnionPartition[T: ClassTag](
   }
 }
 
-object UnionRDD {
-  private[spark] lazy val partitionEvalTaskSupport =
-    new ForkJoinTaskSupport(new ForkJoinPool(8))
-}
-
 @DeveloperApi
 class UnionRDD[T: ClassTag](
     sc: SparkContext,
@@ -89,7 +82,7 @@ class UnionRDD[T: ClassTag](
       }
       array
     } else {
-      val array = new Array[Partition](parRDDs.map(_.partitions.length).seq.sum)
+      val array = new Array[Partition](rdds.map(_.partitions.length).sum)
       var pos = 0
       for ((rdd, rddIndex) <- rdds.zipWithIndex; split <- rdd.partitions) {
         array(pos) = new UnionPartition(pos, rdd, rddIndex, split.index)
