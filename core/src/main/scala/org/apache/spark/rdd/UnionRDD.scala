@@ -74,7 +74,7 @@ class UnionRDD[T: ClassTag](
       val parts = sc.parallelize(rdds, rdds.length)
         .map(rdd => RDDPartition(rdd.id, rdd.partitions)).collect()
 
-      val size = parts.map(_._2.size).sum
+      val size = parts.map(_.partitions.size).sum
       val array = new Array[Partition](size)
       var pos = 0
       parts.foreach { part =>
