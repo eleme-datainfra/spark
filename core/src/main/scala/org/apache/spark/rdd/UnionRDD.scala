@@ -66,16 +66,20 @@ class UnionRDD[T: ClassTag](
   private[spark] val isPartitionListingParallel: Boolean =
     rdds.length > conf.getInt("spark.rdd.parallelListingThreshold", 10)
 
+  case class RDDPartition(val rddId: Int, partitions: Array[Partition]) extends Serializable
+
   override def getPartitions: Array[Partition] = {
     val partitions = if (isPartitionListingParallel) {
       val map = rdds.zipWithIndex.map{ case (rdd, index) => rdd.id -> (index, rdd)}.toMap
       val parts = sc.parallelize(rdds, rdds.length)
-        .map(rdd => (rdd.id, rdd.partitions)).collect()
+        .map(rdd => RDDPartition(rdd.id, rdd.partitions)).collect()
+
+      val size = parts.map(_._2.size).sum
+      val array = new Array[Partition](size)
       var pos = 0
-      val array = new Array[Partition](parts.size)
-      parts.foreach { case (id, splits) =>
-        val rddInfo = map.get(id).get
-        splits.foreach { split =>
+      parts.foreach { part =>
+        val rddInfo = map.get(part.rddId).get
+        part.partitions.foreach { split =>
           array(pos) = new UnionPartition(pos, rddInfo._2, rddInfo._1, split.index)
           pos += 1
         }

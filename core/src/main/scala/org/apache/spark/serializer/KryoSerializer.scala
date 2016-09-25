@@ -21,6 +21,8 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
+import org.apache.spark.rdd.{NewHadoopPartition, HadoopPartition}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
@@ -372,7 +374,9 @@ private[serializer] object KryoSerializer {
     classOf[Array[Short]],
     classOf[Array[Long]],
     classOf[BoundedPriorityQueue[_]],
-    classOf[SparkConf]
+    classOf[SparkConf],
+    classOf[HadoopPartition],
+    classOf[NewHadoopPartition]
   )
 
   private val toRegisterSerializer = Map[Class[_], KryoClassSerializer[_]](
