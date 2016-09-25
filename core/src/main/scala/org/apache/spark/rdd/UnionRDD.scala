@@ -69,7 +69,7 @@ class UnionRDD[T: ClassTag](
   override def getPartitions: Array[Partition] = {
     val partitions = if (isPartitionListingParallel) {
       val map = rdds.zipWithIndex.map{ case (rdd, index) => rdd.id -> (index, rdd)}.toMap
-      val parts = sc.parallelize(rdds.map(_.firstParent[T]), rdds.length)
+      val parts = sc.parallelize(rdds, rdds.length)
         .map(rdd => (rdd.id, rdd.partitions)).collect()
       var pos = 0
       val array = new Array[Partition](parts.size)
