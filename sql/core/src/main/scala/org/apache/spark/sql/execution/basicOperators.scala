@@ -221,7 +221,7 @@ case class TakeOrderedAndProject(
     }
   }
 
-  def takeOrdered[T](rdd: RDD, num: Int)(implicit ord: Ordering[T]): Array[T] = withScope {
+  def takeOrdered[T](rdd: RDD[T], num: Int)(implicit ord: Ordering[T]): Array[T] = rdd.withScope {
     if (num == 0) {
       Array.empty
     } else {
