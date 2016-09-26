@@ -50,7 +50,7 @@ private[spark] object ProcfsBasedGetter extends Logging {
       case e: FileNotFoundException =>
         return ret
     }
-    
+
     try {
       val info = in.readLine()
       val m = INFO_REGEX.matcher(info)
@@ -76,5 +76,5 @@ private[spark] object ProcfsBasedGetter extends Logging {
 
     ret
   }
-    
+
 }
