@@ -576,7 +576,7 @@ class DAGScheduler(
       // Return immediately if the job is running 0 tasks
       return new JobWaiter[U](this, jobId, 0, resultHandler)
     }
-    
+
     properties.setProperty("user", Utils.getCurrentUserName())
 
     assert(partitions.size > 0)

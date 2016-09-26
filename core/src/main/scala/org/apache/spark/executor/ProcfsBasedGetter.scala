@@ -29,15 +29,14 @@ private[spark] class ProcfsBasedGetter {
 private[spark] object ProcfsBasedGetter extends Logging {
   val PROCFS = "/proc"
   val STAT_FILE = "stat"
-  
+
   val PAGE_SIZE = 4096
-    
+
   val INFO_REGEX = Pattern.compile(
     "^([0-9-]+)\\s([^\\s]+)\\s[^\\s]\\s([0-9-]+)\\s([0-9-]+)\\s([0-9-]+)\\s" +
     "([0-9-]+\\s){7}([0-9]+)\\s([0-9]+)\\s([0-9-]+\\s){7}([0-9]+)\\s([0-9]+)" +
-    "(\\s[0-9-]+){15}"
-    )
-    
+    "(\\s[0-9-]+){15}")
+
   def getProcessRss(pid: Int): Long = {
     var ret: Long = -1L
     var in: BufferedReader = null
@@ -74,7 +73,7 @@ private[spark] object ProcfsBasedGetter extends Logging {
         } catch { case e: IOException => logWarning("Error closing the stream " + in) }
       } catch { case e: IOException => logWarning("Error closing the stream " + fReader) }
     }
-    
+
     ret
   }
     
