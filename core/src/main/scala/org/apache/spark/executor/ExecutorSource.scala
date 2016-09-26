@@ -42,7 +42,7 @@ private[spark] class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: 
   }
 
   val pid = getJvmId()
-  
+
   val procfsBasedGetter = new ProcfsBasedGetter(pid)
 
   val MB = 1024 * 1024
