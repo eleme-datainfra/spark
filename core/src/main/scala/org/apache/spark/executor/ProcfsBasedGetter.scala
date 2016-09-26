@@ -16,26 +16,23 @@
  */
 package org.apache.spark.executor
 
-import java.io.{BufferedReader, File, FileNotFoundException, FileReader, IOException}
-import java.util.regex.Pattern
-
 import org.apache.hadoop.yarn.util.ProcfsBasedProcessTree
 import org.apache.spark.Logging
 
-private[spark] class ProcfsBasedGetter(pid :Int) extends Logging {
-  private val processTree : ProcfsBasedProcessTree = new ProcfsBasedProcessTree(pid.toString)
+private[spark] class ProcfsBasedGetter(pid: Int) extends Logging {
+  private val processTree = new ProcfsBasedProcessTree(pid.toString)
 
   def getCpuUsagePercent(): Float = {
     processTree.updateProcessTree()
-    var ret: Float = processTree.getCpuUsagePercent()
-    logDebug(s"Excutor CpuUsagePercent:$ret")
+    val ret = processTree.getCpuUsagePercent()
+    logDebug(s"Executor CpuUsagePercent:$ret")
     ret
   }
 
   def getProcessRssSize(): Long = {
     processTree.updateProcessTree()
-    var ret: Long = processTree.getRssMemorySize()
-    logDebug(s"Excutor RssMemorySize: $ret")
+    val ret = processTree.getRssMemorySize()
+    logDebug(s"Executor RssMemorySize: $ret")
     ret
   }
 }
