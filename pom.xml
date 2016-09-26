@@ -22,7 +22,7 @@
 
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent_2.10</artifactId>
-  <version>didi_1.6-SNAPSHOTS</version>
+  <version>1.6.0-SNAPSHOTS</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>http://spark.apache.org/</url>
