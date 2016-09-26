@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.spark.executor
 
 import java.io.{BufferedReader, File, FileNotFoundException, FileReader, IOException}
@@ -26,7 +27,7 @@ private[spark] class ProcfsBasedGetter {
 
 
 private[spark] object ProcfsBasedGetter extends Logging {
-  val PROCFS = "/proc";
+  val PROCFS = "/proc"
   val STAT_FILE = "stat"
   
   val PAGE_SIZE = 4096
@@ -58,7 +59,8 @@ private[spark] object ProcfsBasedGetter extends Logging {
         // Set (name) (ppid) (pgrpId) (session) (utime) (stime) (vsize) (rss)
         ret = (m.group(11).toLong * PAGE_SIZE)
       } else {
-        logWarning(s"Unexpected: procfs stat file is not in the expected format for pid: $pid, info: $info")
+        logWarning(s"Unexpected: procfs stat file is not in the expected format for pid: $pid, " +
+          s"info: $info")
       }
     }
     catch {
