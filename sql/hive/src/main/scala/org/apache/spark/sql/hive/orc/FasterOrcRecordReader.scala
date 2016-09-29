@@ -343,7 +343,7 @@ class FasterOrcRecordReader(
             } else if (dataType.isInstanceOf[StringType]) {
               row.update(i, getUTF8String(index))
             } else if (dataType.isInstanceOf[TimestampType]) {
-              block.getLong(index, 0).asInstanceOf[AnyRef]
+              row.setLong(i, getLong(index))
             } else if (dataType.isInstanceOf[ArrayType]) {
               row.update(i, getArray(index))
             } else if (dataType.isInstanceOf[MapType]) {
