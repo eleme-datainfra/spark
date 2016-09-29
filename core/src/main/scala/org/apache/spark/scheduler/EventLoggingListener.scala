@@ -211,6 +211,10 @@ private[spark] class EventLoggingListener(
     logEvent(event, flushLogger = true)
   }
 
+  override def onTimeSeriesMetricEvent(event: TimeSeriesMetricEvent): Unit = {
+    logEvent(event, flushLogger = true)
+  }
+
   /**
    * Stop logging events. The event log file will be renamed so that it loses the
    * ".inprogress" suffix.

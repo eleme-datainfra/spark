@@ -1383,7 +1383,7 @@ abstract class RDD[T: ClassTag](
    * @param ord the implicit ordering for T
    * @return an array of top elements
    */
-  def takeOrdered(num: Int, ser: Serializer = SparkEnv.get.serializer)
+  def takeOrdered(num: Int)
       (implicit ord: Ordering[T]): Array[T] = withScope {
     if (num == 0) {
       Array.empty
@@ -1391,7 +1391,7 @@ abstract class RDD[T: ClassTag](
       val mapRDDs = mapPartitions { items =>
         // Priority keeps the largest elements, so let's reverse the ordering.
         val queue = new BoundedPriorityQueue[T](num)(ord.reverse)
-        queue ++= util.collection.Utils.takeOrdered[T](items, num, ser)(ord)
+        queue ++= util.collection.Utils.takeOrdered[T](items, num)(ord)
         Iterator.single(queue)
       }
       if (mapRDDs.partitions.length == 0) {

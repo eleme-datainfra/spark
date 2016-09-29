@@ -17,12 +17,14 @@
 
 package org.apache.spark
 
+import org.apache.spark.estimator.EstimatorListener
+
 import scala.language.implicitConversions
 
 import java.io._
 import java.lang.reflect.Constructor
 import java.net.URI
-import java.util.{Timer, Arrays, Properties, UUID, TimerTask}
+import java.util.{Arrays, Properties, UUID}
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean, AtomicInteger}
 import java.util.UUID.randomUUID
 
@@ -223,6 +225,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   private var _env: SparkEnv = _
   private var _metadataCleaner: MetadataCleaner = _
   private var _jobProgressListener: JobProgressListener = _
+  private var _estimatorListener: EstimatorListener = _
   private var _statusTracker: SparkStatusTracker = _
   private var _progressBar: Option[ConsoleProgressBar] = None
   private var _ui: Option[SparkUI] = None
@@ -298,6 +301,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   private[spark] val persistentRdds = new TimeStampedWeakValueHashMap[Int, RDD[_]]
   private[spark] def metadataCleaner: MetadataCleaner = _metadataCleaner
   private[spark] def jobProgressListener: JobProgressListener = _jobProgressListener
+  private[spark] def estimatorListener: EstimatorListener = _estimatorListener
 
   def statusTracker: SparkStatusTracker = _statusTracker
 
@@ -381,7 +385,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   }
 
   /** Control our logLevel. This overrides any user-defined log settings.
-   * @param logLevel The desired log level as a string.
+    *
+    * @param logLevel The desired log level as a string.
    * Valid log levels include: ALL, DEBUG, ERROR, FATAL, INFO, OFF, TRACE, WARN
    */
   def setLogLevel(logLevel: String) {
@@ -502,6 +507,26 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
       .map(warnSparkMem))
       .map(Utils.memoryStringToMb)
       .getOrElse(1024)
+    // add executor memory parameter to executor
+    // adjust yarn mode
+    /**
+      * Add 'physical memory used' and 'physical core used' metrics
+      *
+      * 1) We set Memory Request Resource which not `getRuntime().maxMemory`
+      *     from configuration according to YARN mode or Standalone mode.
+      * 2) We set CPU core Request Resource from configuration `conf.getInt("spark.executor.cores")`.
+      *      And core-physical-used from `active task number of executor threadpool`
+      */
+    val execReqMemory = if (SparkHadoopUtil.get.isYarnMode()) {
+      val memoryOverheadFactor = conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.20)
+      val memoryOverhead: Int = conf.getInt("spark.yarn.executor.memoryOverhead",
+        math.max((memoryOverheadFactor * _executorMemory).toInt, 384))
+      _executorMemory + memoryOverhead
+    } else {
+      // has been formatted to MB
+      _executorMemory
+    }
+    conf.set("spark.executor.totalMemory.mb", execReqMemory.toString)
 
     // Convert java options to env vars as a work around
     // since we can't set env vars directly in sbt.
@@ -561,6 +586,9 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
       } else {
         None
       }
+
+    _estimatorListener = new EstimatorListener(_conf, listenerBus)
+    listenerBus.addListener(_estimatorListener)
 
     // Optionally scale number of executors dynamically based on workload. Exposed for testing.
     val dynamicAllocationEnabled = Utils.isDynamicAllocationEnabled(_conf)
@@ -759,8 +787,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
    * `step` every element.
    *
    * @note if we need to cache this RDD, we should make sure each partition does not exceed limit.
-   *
-   * @param start the start value.
+    * @param start the start value.
    * @param end the end value.
    * @param step the incremental step
    * @param numSlices the partition number of the new RDD.
@@ -883,8 +910,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
    * @note Small files are preferred, large file is also allowable, but may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    */
@@ -932,8 +958,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
    * @note Small files are preferred; very large files may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
-   * @param path Directory to the input data files, the path can be comma separated paths as the
+    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
    */
@@ -965,8 +990,7 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
    *             list of inputs.
    * @param recordLength The length at which to split the records
    * @param conf Configuration for setting up the dataset.
-   *
-   * @return An RDD of data with values, represented as byte arrays
+    * @return An RDD of data with values, represented as byte arrays
    */
   def binaryRecords(
       path: String,
@@ -1296,7 +1320,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   /**
    * Create an [[org.apache.spark.Accumulable]] shared variable, to which tasks can add values
    * with `+=`. Only the driver can access the accumuable's `value`.
-   * @tparam R accumulator result type
+    *
+    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
   def accumulable[R, T](initialValue: R)(implicit param: AccumulableParam[R, T])
@@ -1310,7 +1335,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
    * Create an [[org.apache.spark.Accumulable]] shared variable, with a name for display in the
    * Spark UI. Tasks can add values to the accumuable using the `+=` operator. Only the driver can
    * access the accumuable's `value`.
-   * @tparam R accumulator result type
+    *
+    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
   def accumulable[R, T](initialValue: R, name: String)(implicit param: AccumulableParam[R, T])
@@ -1426,7 +1452,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
-   * @param numExecutors The total number of executors we'd like to have. The cluster manager
+    *
+    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
    *                     we'd want to be allocated.
@@ -1454,7 +1481,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
   /**
    * :: DeveloperApi ::
    * Request an additional number of executors from the cluster manager.
-   * @return whether the request is received.
+    *
+    * @return whether the request is received.
    */
   @DeveloperApi
   override def requestExecutors(numAdditionalExecutors: Int): Boolean = {
@@ -1614,7 +1642,8 @@ class SparkContext(val config: SparkConf) extends Logging with ExecutorAllocatio
 
   /**
    * Gets the locality information associated with the partition in a particular rdd
-   * @param rdd of interest
+    *
+    * @param rdd of interest
    * @param partition to be looked up for locality
    * @return list of preferred locations for the partition
    */

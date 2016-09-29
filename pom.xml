@@ -19,14 +19,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <parent>
-    <groupId>org.apache</groupId>
-    <artifactId>apache</artifactId>
-    <version>14</version>
-  </parent>
+
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent_2.10</artifactId>
-  <version>1.6.0</version>
+  <version>didi_1.6-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>http://spark.apache.org/</url>
@@ -37,6 +33,18 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+
+  <distributionManagement>
+    <repository>
+      <id>xiaojukeji-releases</id>
+      <url>http://maven.intra.xiaojukeji.com:8081/nexus/content/repositories/releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>xiaojukeji-snapshots</id>
+      <url>http://maven.intra.xiaojukeji.com:8081/nexus/content/repositories/snapshots</url>
+    </snapshotRepository>
+  </distributionManagement>
+
   <scm>
     <connection>scm:git:git@github.com:apache/spark.git</connection>
     <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/spark.git</developerConnection>
@@ -172,7 +180,7 @@
     <jline.groupid>org.scala-lang</jline.groupid>
     <codehaus.jackson.version>1.9.13</codehaus.jackson.version>
     <fasterxml.jackson.version>2.4.4</fasterxml.jackson.version>
-    <snappy.version>1.1.2.1</snappy.version>
+    <snappy.version>1.1.2.6</snappy.version>
     <netlib.java.version>1.1.2</netlib.java.version>
     <calcite.version>1.2.0-incubating</calcite.version>
     <commons-codec.version>1.10</commons-codec.version>
@@ -2514,7 +2522,7 @@
     <profile>
       <id>hadoop-2.6</id>
       <properties>
-        <hadoop.version>2.6.0</hadoop.version>
+        <hadoop.version>2.7.2</hadoop.version>
         <jets3t.version>0.9.3</jets3t.version>
         <zookeeper.version>3.4.6</zookeeper.version>
         <curator.version>2.6.0</curator.version>

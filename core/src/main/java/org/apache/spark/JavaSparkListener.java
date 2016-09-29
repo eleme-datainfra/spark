@@ -85,4 +85,10 @@ public class JavaSparkListener implements SparkListener {
   @Override
   public void onOtherEvent(SparkListenerEvent event) { }
 
+  @Override
+  public void onEstimatorEvent(EstimatorEvent event) { }
+
+  @Override
+  public void onTimeSeriesMetricEvent(TimeSeriesMetricEvent event) { }
+
 }

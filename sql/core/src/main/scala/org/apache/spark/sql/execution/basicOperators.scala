@@ -26,11 +26,12 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeRowJoiner
 import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.execution.metric.SQLMetrics
-import org.apache.spark.util.MutablePair
+import org.apache.spark.util.{BoundedPriorityQueue, MutablePair}
 import org.apache.spark.util.random.PoissonSampler
-import org.apache.spark.{HashPartitioner, SparkEnv}
-import scala.reflect.classTag
-import org.apache.spark.util.collection.{Utils => CUtils}
+import org.apache.spark._
+
+
+import scala.reflect.ClassTag
 
 
 case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends UnaryNode {
@@ -210,7 +211,7 @@ case class TakeOrderedAndProject(
   private val ord: InterpretedOrdering = new InterpretedOrdering(sortOrder, child.output)
 
   override def executeCollect(): Array[InternalRow] = {
-    val data = child.execute().map(_.copy()).takeOrdered(limit, serializer)(ord)
+    val data = takeOrdered(child.execute().map(_.copy()), limit)(ord)
     if (projectList.isDefined) {
       val proj = UnsafeProjection.create(projectList.get, child.output)
       data.map(r => proj(r))
@@ -219,19 +220,41 @@ case class TakeOrderedAndProject(
     }
   }
 
+  def takeOrdered(rdd: RDD[InternalRow], num: Int)(implicit ord: Ordering[InternalRow])
+      : Array[InternalRow] = rdd.withScope {
+    if (num == 0) {
+      Array.empty
+    } else {
+      val mapRDDs = rdd.mapPartitions { items =>
+        // Priority keeps the largest elements, so let's reverse the ordering.
+        val queue = new BoundedPriorityQueue[InternalRow](num)(ord.reverse)
+        queue ++= util.collection.Utils.takeOrdered(items, limit, serializer)(ord)
+        Iterator.single(queue)
+      }
+      if (mapRDDs.partitions.length == 0) {
+        Array.empty
+      } else {
+        mapRDDs.reduce { (queue1, queue2) =>
+          queue1 ++= queue2
+          queue1
+        }.toArray.sorted(ord)
+      }
+    }
+  }
+
   private val serializer: Serializer = new SparkSqlSerializer(child.sqlContext.sparkContext.getConf)
 
   protected override def doExecute(): RDD[InternalRow] = {
     val localTopK: RDD[InternalRow] = {
       child.execute().map(_.copy()).mapPartitions { iter =>
-        CUtils.takeOrdered(iter, limit, serializer)(ord)
+        util.collection.Utils.takeOrdered(iter, limit, serializer)(ord)
       }
     }
 
     val shuffled = new ShuffledRowRDD(
       Exchange.prepareShuffleDependency(localTopK, child.output, SinglePartition, serializer))
     shuffled.mapPartitions { iter =>
-      val topK = CUtils.takeOrdered(iter.map(_.copy()), limit, serializer)(ord)
+      val topK = util.collection.Utils.takeOrdered(iter.map(_.copy()), limit, serializer)(ord)
       if (projectList.isDefined) {
         val proj = UnsafeProjection.create(projectList.get, child.output)
         topK.map(r => proj(r))

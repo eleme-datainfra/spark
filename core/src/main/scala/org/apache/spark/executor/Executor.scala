@@ -24,6 +24,9 @@ import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
 
+import com.codahale
+import com.codahale.metrics.MetricFilter
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.util.control.NonFatal
@@ -63,6 +66,9 @@ private[spark] class Executor(
 
   private val conf = env.conf
 
+  private val reportMetrics = conf.get("spark.executor.metrics.sendToDriver", "")
+    .split(",").toSet
+
   // No ip or host:port - just hostname
   Utils.checkHost(executorHostname, "Expected executed slave to be a hostname")
   // must not have port specified.
@@ -80,7 +86,9 @@ private[spark] class Executor(
 
   // Start worker thread pool
   private val threadPool = ThreadUtils.newDaemonCachedThreadPool("Executor task launch worker")
-  private val executorSource = new ExecutorSource(threadPool, executorId)
+  private val executorSource = new ExecutorSource(threadPool, executorId,
+    conf.getInt("spark.executor.totalMemory.mb", 1024),
+    conf.getInt("spark.executor.cores", 1))
 
   if (!isLocal) {
     env.metricsSystem.registerSource(executorSource)
@@ -496,7 +504,19 @@ private[spark] class Executor(
       }
     }
 
-    val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId)
+    var timeSeriesMetrics = Array.empty[Metric]
+    if (!reportMetrics.isEmpty) {
+      val filter = new MetricFilter {
+        override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+          reportMetrics.exists(m => name.endsWith(m))
+        }
+      }
+      timeSeriesMetrics = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+        .map(g => Metric(g._1, g._2.getValue.toString)).toArray
+    }
+
+    val message = Heartbeat(executorId, tasksMetrics.toArray, env.blockManager.blockManagerId,
+      timeSeriesMetrics)
     try {
       val response = heartbeatReceiverRef.askWithRetry[HeartbeatResponse](
           message, RpcTimeout(conf, "spark.executor.heartbeatInterval", "10s"))

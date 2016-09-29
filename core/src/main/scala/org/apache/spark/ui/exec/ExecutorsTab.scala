@@ -57,7 +57,7 @@ class ExecutorsListener(conf: SparkConf, storageStatusListener: StorageStatusLis
   val executorToShuffleRead = HashMap[String, Long]()
   val executorToShuffleWrite = HashMap[String, Long]()
   val executorToLogUrls = HashMap[String, Map[String, String]]()
-  val executorEvents = new mutable.ListBuffer[SparkListenerEvent]()
+  var executorEvents = new mutable.ListBuffer[SparkListenerEvent]()
 
   val MAX_EXECUTOR_LIMIT = conf.getInt("spark.ui.timeline.executors.maximum", 1000)
 
@@ -67,6 +67,9 @@ class ExecutorsListener(conf: SparkConf, storageStatusListener: StorageStatusLis
     val eid = executorAdded.executorId
     executorToLogUrls(eid) = executorAdded.executorInfo.logUrlMap
     executorEvents += executorAdded
+    if (executorEvents.size > MAX_EXECUTOR_LIMIT) {
+      executorEvents = executorEvents.drop(1)
+    }
   }
 
   override def onExecutorRemoved(
@@ -84,7 +87,7 @@ class ExecutorsListener(conf: SparkConf, storageStatusListener: StorageStatusLis
     executorToShuffleWrite.remove(eid)
     executorToLogUrls.remove(eid)
     if (executorEvents.size > MAX_EXECUTOR_LIMIT) {
-      executorEvents.drop(0)
+      executorEvents = executorEvents.drop(1)
     }
   }
 

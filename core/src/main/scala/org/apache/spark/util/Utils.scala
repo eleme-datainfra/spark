@@ -1989,16 +1989,22 @@ private[spark] object Utils extends Logging {
   def getMetrics(): Array[Metric] = {
 
     def fileStats[T](scheme: String, f: FileSystem.Statistics => T, defaultValue: T) : T = {
-      FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme)).map(f).getOrElse(defaultValue)
+      FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme))
+        .map(f).getOrElse(defaultValue)
     }
 
     var metrics = ArrayBuffer[Metric]()
     for (scheme <- Array("hdfs")) {
-      metrics += Metric(scheme + ".read.bytes", bytesToString(fileStats(scheme, _.getBytesRead(), 0L)))
-      metrics += Metric(scheme + ".write.bytes", bytesToString(fileStats(scheme, _.getBytesWritten(), 0L)))
-      metrics += Metric(scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString)
-      metrics += Metric(scheme + ".largeRead.ops", fileStats(scheme, _.getLargeReadOps(), 0).toString)
-      metrics += Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
+      metrics +=
+        Metric(scheme + ".read.bytes", bytesToString(fileStats(scheme, _.getBytesRead(), 0L)))
+      metrics +=
+        Metric(scheme + ".write.bytes", bytesToString(fileStats(scheme, _.getBytesWritten(), 0L)))
+      metrics +=
+        Metric(scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString)
+      metrics +=
+        Metric(scheme + ".largeRead.ops", fileStats(scheme, _.getLargeReadOps(), 0).toString)
+      metrics +=
+        Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
     }
 
     val registry = new MetricRegistry()
