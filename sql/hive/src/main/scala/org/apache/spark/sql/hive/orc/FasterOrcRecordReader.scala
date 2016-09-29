@@ -307,10 +307,10 @@ class FasterOrcRecordReader(
           row.setNullAt(i)
         } else {
           var dataType: DataType = null
-          if (partitions.contains(ordinal)) {
-            val part = partitions.get(ordinal).get
+          if (partitions.contains(i)) {
+            val part = partitions.get(i).get
             dataType = part._1
-            if (dataType.asInstanceOf[IntegerType]) {
+            if (dataType.isInstanceOf[IntegerType]) {
               row.setInt(i, part._2.toInt)
             } else {
               row.update(i, part._2)
@@ -349,7 +349,8 @@ class FasterOrcRecordReader(
             } else if (dataType.isInstanceOf[MapType]) {
               row.update(i, getMap(index))
             } else if (dataType.isInstanceOf[StructType]) {
-              row.update(i, getStruct(index))
+              val dt = dataType.asInstanceOf[StructType]
+              row.update(i, getStruct(index, dt.fields.size))
             } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
               row.update(i, get(i, dataType))
             } else {
