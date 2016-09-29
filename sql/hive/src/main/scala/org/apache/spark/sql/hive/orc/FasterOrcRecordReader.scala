@@ -302,7 +302,7 @@ class FasterOrcRecordReader(
     override def copy(): InternalRow = {
       val row = new GenericMutableRow(numFields)
       var index = 0
-      for (i <- 0 until numFields.length) {
+      for (i <- 0 until numFields) {
         if (isNullAt(i)) {
           row.setNullAt(i)
         } else {
