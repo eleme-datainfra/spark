@@ -300,7 +300,65 @@ class FasterOrcRecordReader(
       * Make a copy of the current [[InternalRow]] object.
       */
     override def copy(): InternalRow = {
-      throw new UnsupportedOperationException("Copy is not implemented.")
+      val row = new GenericMutableRow(numFields)
+      var index = 0
+      for (i <- 0 until numFields.length) {
+        if (isNullAt(i)) {
+          row.setNullAt(i)
+        } else {
+          var dataType: DataType = null
+          if (partitions.contains(ordinal)) {
+            val part = partitions.get(ordinal).get
+            dataType = part._1
+            if (dataType.asInstanceOf[IntegerType]) {
+              row.setInt(i, part._2.toInt)
+            } else {
+              row.update(i, part._2)
+            }
+          } else {
+            index = i - partitions.size
+            dataType = output(index)._2
+
+            if (dataType.isInstanceOf[BooleanType]) {
+              row.setBoolean(i, getBoolean(index))
+            } else if (dataType.isInstanceOf[ByteType]) {
+              row.setByte(i, getByte(index))
+            } else if (dataType.isInstanceOf[BinaryType]) {
+              row.update(i, getBinary(index))
+            } else if (dataType.isInstanceOf[IntegerType]) {
+              row.setInt(i, getInt(index))
+            } else if (dataType.isInstanceOf[ShortType]) {
+              row.setShort(i, getShort(index))
+            } else if (dataType.isInstanceOf[LongType]) {
+              row.setLong(i, getLong(index))
+            } else if (dataType.isInstanceOf[FloatType]) {
+              row.setFloat(i, getFloat(index))
+            } else if (dataType.isInstanceOf[DoubleType]) {
+              row.setDouble(i, getDouble(index))
+            } else if (dataType.isInstanceOf[DateType]) {
+              row.setInt(i, getInt(index))
+            } else if (dataType.isInstanceOf[DecimalType]) {
+              val dt = dataType.asInstanceOf[DecimalType]
+              row.setDecimal(i, getDecimal(index, dt.precision, dt.scale), dt.precision)
+            } else if (dataType.isInstanceOf[StringType]) {
+              row.update(i, getUTF8String(index))
+            } else if (dataType.isInstanceOf[TimestampType]) {
+              block.getLong(index, 0).asInstanceOf[AnyRef]
+            } else if (dataType.isInstanceOf[ArrayType]) {
+              row.update(i, getArray(index))
+            } else if (dataType.isInstanceOf[MapType]) {
+              row.update(i, getMap(index))
+            } else if (dataType.isInstanceOf[StructType]) {
+              row.update(i, getStruct(index))
+            } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
+              row.update(i, get(i, dataType))
+            } else {
+              throw new UnsupportedOperationException("Datatype not supported " + dataType)
+            }
+          }
+        }
+      }
+      row
     }
 
     override def get(ordinal: Int, dataType: DataType): Object = {
