@@ -558,7 +558,6 @@ class FasterOrcRecordReader(
     }
 
     override def getDouble(ordinal: Int): Double = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getDouble(batchIdx - 1, 0)
     }
 
@@ -584,12 +583,10 @@ class FasterOrcRecordReader(
     }
 
     override def getFloat(ordinal: Int): Float = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getDouble(batchIdx - 1, 0).toFloat
     }
 
     override def getLong(ordinal: Int): Long = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getLong(batchIdx - 1, 0)
     }
 
@@ -611,7 +608,6 @@ class FasterOrcRecordReader(
     }
 
     override def getByte(ordinal: Int): Byte = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getByte(batchIdx - 1, 0)
     }
 
@@ -621,12 +617,10 @@ class FasterOrcRecordReader(
     }
 
     override def getBoolean(ordinal: Int): Boolean = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getByte(batchIdx - 1, 0) != 0
     }
 
     override def getShort(ordinal: Int): Short = {
-      if (isNullAt(ordinal)) return null
       columns(ordinal).getShort(batchIdx - 1, 0)
     }
 
