@@ -216,7 +216,7 @@ class FasterOrcRecordReader(
     }
 
     partitionBlocks.foreach { p =>
-      columns(p._1) = partitionBlocks(p._2)
+      columns(p._1) = p._2
     }
 
     rowsReturned += numBatched
