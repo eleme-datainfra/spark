@@ -37,6 +37,7 @@ import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.hadoop.mapreduce.RecordReader
 import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
+import org.apache.spark.Logging
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
@@ -54,13 +55,13 @@ class FasterOrcRecordReader(
     output: Array[(Int, DataType, Type)],
     partitions: Map[Int, (DataType, String)],
     columnReferences: java .util.List[ColumnReference[HiveColumnHandle]])
-  extends RecordReader[NullWritable, InternalRow] {
+  extends RecordReader[NullWritable, InternalRow] with Logging {
 
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
   private val columns = new Array[Block](partitions.size + output.size)
   private var partitionBlocks: Array[Block] = _
-  private var row: BlockRow = new BlockRow()
+  private val row: BlockRow = new BlockRow()
 
   /**
     * The number of rows that have been returned.
@@ -85,6 +86,7 @@ class FasterOrcRecordReader(
       return true
     } catch {
       case e: Exception => {
+        logError(e.getMessage)
         return false
       }
     }
@@ -147,6 +149,16 @@ class FasterOrcRecordReader(
     recordReader = reader.createRecordReader(columns, predicate,
       fileSplit.getStart, fileSplit.getLength, hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
+
+    for (i <- 0 until output.size) {
+      logInfo(output(i)._1 + " " + output(i)._2 + " " + output(i)._3)
+    }
+
+    for (0 <- 0 until partitions.size) {
+      partitions.foreach { p =>
+        logInfo(p._1 + " " + p._2._1 + " " + p._2._2)
+      }
+    }
 
     if (!partitions.isEmpty) {
       partitionBlocks = new Array[Block](partitions.size)
@@ -323,64 +335,71 @@ class FasterOrcRecordReader(
       */
     override def copy(): InternalRow = {
       val row = new GenericMutableRow(numFields)
-      var index = 0
-      for (i <- 0 until numFields) {
-        if (isNullAt(i)) {
-          row.setNullAt(i)
-        } else {
-          var dataType: DataType = null
-          if (partitions.contains(i)) {
-            val part = partitions.get(i).get
-            dataType = part._1
-            if (dataType.isInstanceOf[IntegerType]) {
-              row.setInt(i, part._2.toInt)
-            } else {
-              row.update(i, part._2)
-            }
+      try {
+        var index = 0
+        for (i <- 0 until numFields) {
+          if (isNullAt(i)) {
+            row.setNullAt(i)
           } else {
-            index = i - partitions.size
-            dataType = output(index)._2
-
-            if (dataType.isInstanceOf[BooleanType]) {
-              row.setBoolean(i, getBoolean(i))
-            } else if (dataType.isInstanceOf[ByteType]) {
-              row.setByte(i, getByte(i))
-            } else if (dataType.isInstanceOf[BinaryType]) {
-              row.update(i, getBinary(i))
-            } else if (dataType.isInstanceOf[IntegerType]) {
-              row.setInt(i, getInt(i))
-            } else if (dataType.isInstanceOf[ShortType]) {
-              row.setShort(i, getShort(i))
-            } else if (dataType.isInstanceOf[LongType]) {
-              row.setLong(i, getLong(i))
-            } else if (dataType.isInstanceOf[FloatType]) {
-              row.setFloat(i, getFloat(i))
-            } else if (dataType.isInstanceOf[DoubleType]) {
-              row.setDouble(i, getDouble(i))
-            } else if (dataType.isInstanceOf[DateType]) {
-              row.setInt(i, getInt(i))
-            } else if (dataType.isInstanceOf[DecimalType]) {
-              val dt = dataType.asInstanceOf[DecimalType]
-              row.setDecimal(i, getDecimal(i, dt.precision, dt.scale), dt.precision)
-            } else if (dataType.isInstanceOf[StringType]) {
-              row.update(i, getUTF8String(i))
-            } else if (dataType.isInstanceOf[TimestampType]) {
-              row.setLong(i, getLong(i))
-            } else if (dataType.isInstanceOf[ArrayType]) {
-              row.update(i, getArray(i))
-            } else if (dataType.isInstanceOf[MapType]) {
-              row.update(i, getMap(i))
-            } else if (dataType.isInstanceOf[StructType]) {
-              val dt = dataType.asInstanceOf[StructType]
-              row.update(i, getStruct(i, dt.fields.size))
-            } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
-              row.update(i, get(i, dataType))
+            var dataType: DataType = null
+            if (partitions.contains(i)) {
+              val part = partitions.get(i).get
+              dataType = part._1
+              if (dataType.isInstanceOf[IntegerType]) {
+                row.setInt(i, part._2.toInt)
+              } else {
+                row.update(i, part._2)
+              }
             } else {
-              throw new UnsupportedOperationException("Datatype not supported " + dataType)
+              index = i - partitions.size
+              dataType = output(index)._2
+
+              if (dataType.isInstanceOf[BooleanType]) {
+                row.setBoolean(i, getBoolean(i))
+              } else if (dataType.isInstanceOf[ByteType]) {
+                row.setByte(i, getByte(i))
+              } else if (dataType.isInstanceOf[BinaryType]) {
+                row.update(i, getBinary(i))
+              } else if (dataType.isInstanceOf[IntegerType]) {
+                row.setInt(i, getInt(i))
+              } else if (dataType.isInstanceOf[ShortType]) {
+                row.setShort(i, getShort(i))
+              } else if (dataType.isInstanceOf[LongType]) {
+                row.setLong(i, getLong(i))
+              } else if (dataType.isInstanceOf[FloatType]) {
+                row.setFloat(i, getFloat(i))
+              } else if (dataType.isInstanceOf[DoubleType]) {
+                row.setDouble(i, getDouble(i))
+              } else if (dataType.isInstanceOf[DateType]) {
+                row.setInt(i, getInt(i))
+              } else if (dataType.isInstanceOf[DecimalType]) {
+                val dt = dataType.asInstanceOf[DecimalType]
+                row.setDecimal(i, getDecimal(i, dt.precision, dt.scale), dt.precision)
+              } else if (dataType.isInstanceOf[StringType]) {
+                row.update(i, getUTF8String(i))
+              } else if (dataType.isInstanceOf[TimestampType]) {
+                row.setLong(i, getLong(i))
+              } else if (dataType.isInstanceOf[ArrayType]) {
+                row.update(i, getArray(i))
+              } else if (dataType.isInstanceOf[MapType]) {
+                row.update(i, getMap(i))
+              } else if (dataType.isInstanceOf[StructType]) {
+                val dt = dataType.asInstanceOf[StructType]
+                row.update(i, getStruct(i, dt.fields.size))
+              } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
+                row.update(i, get(i, dataType))
+              } else {
+                throw new UnsupportedOperationException("Datatype not supported " + dataType)
+              }
             }
           }
         }
+      } catch {
+        case e: Exception =>
+          logError(e.getMessage)
+          throw new UnsupportedOperationException(e.getMessage, e.getCause)
       }
+
       row
     }
 
@@ -444,7 +463,7 @@ class FasterOrcRecordReader(
           val structBlock = block.getObject(index, classOf[Block])
           val values = new Array[Any](structBlock.getPositionCount)
           for (i <- 0 to structBlock.getPositionCount) {
-            values(i) = get(structBlock, i, dt.apply(i).dataType)
+            values(i) = get(structBlock, i, dt.apply(i).dataType)x
           }
           new GenericMutableRow(values)
         } else if (dataType.isInstanceOf[UserDefinedType[_]]) {

@@ -231,20 +231,18 @@ class HadoopTableReader(
       }
 
       if (sc.conf.useFasterOrcReader) {
-        Utils.withDummyCallSite[RDD[InternalRow]](sc.sparkContext) {
-          val inputFormatClass = classOf[OrcNewInputFormat]
-            .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
-          val initializeJobConfFunc =
-            HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
+        val inputFormatClass = classOf[OrcNewInputFormat]
+          .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
+        val initializeJobConfFunc =
+          HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
 
-          new FasterOrcRDD[InternalRow](
-            sc,
-            _broadcastedHiveConf,
-            Some(initializeJobConfFunc),
-            addIncludeColumnsInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
-            inputFormatClass,
-            classOf[InternalRow])
-        }
+        new FasterOrcRDD[InternalRow](
+          sc,
+          _broadcastedHiveConf,
+          Some(initializeJobConfFunc),
+          addIncludeColumnsInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
+          inputFormatClass,
+          classOf[InternalRow])
       } else {
         // Fill all partition keys to the given MutableRow object
         fillPartitionKeys(partValues, mutableRow)
