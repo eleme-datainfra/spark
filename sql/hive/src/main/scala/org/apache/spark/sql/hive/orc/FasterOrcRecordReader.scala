@@ -60,7 +60,7 @@ class FasterOrcRecordReader(
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
   private val columns = new Array[Block](partitions.size + output.size)
-  private var partitionBlocks = new scala.collection.mutable.HashMap[Int, Block]()
+  private val partitionBlocks = new scala.collection.mutable.HashMap[Int, Block]()
   private val row: BlockRow = new BlockRow()
 
   /**
@@ -212,8 +212,9 @@ class FasterOrcRecordReader(
     }
 
     for (i <- 0 until output.size) {
-      if (recordReader.isColumnPresent(i)) {
-        columns(i) = recordReader.readBlock(output(i)._3, i)
+      val hiveColumnInfo = output(i)
+      if (recordReader.isColumnPresent(hiveColumnInfo._1)) {
+        columns(i) = recordReader.readBlock(output(i)._3, hiveColumnInfo._1)
       } else {
         row.setNullAt(i)
       }
