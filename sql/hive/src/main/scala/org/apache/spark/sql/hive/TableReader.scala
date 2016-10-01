@@ -218,7 +218,7 @@ class HadoopTableReader(
 
       // Splits all attributes into two groups, partition key attributes and those that are not.
       // Attached indices indicate the position of each attribute in the output schema.
-      val (partitionKeyAttrs, nonPartitionKeyAttrs) =
+      var (partitionKeyAttrs, nonPartitionKeyAttrs) =
         attributes.zipWithIndex.partition { case (attr, _) =>
           relation.partitionKeys.contains(attr)
         }
@@ -235,6 +235,8 @@ class HadoopTableReader(
           .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]
         val initializeJobConfFunc =
           HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
+
+        nonPartitionKeyAttrs = nonPartitionKeyAttrs.map((_._1, relation.columnOrdinals.get(_._1)))
 
         new FasterOrcRDD[InternalRow](
           sc,

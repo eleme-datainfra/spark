@@ -354,11 +354,7 @@ class FasterOrcRecordReader(
             if (partitions.contains(i)) {
               val part = partitions(i)
               dataType = part._1
-              if (dataType.isInstanceOf[IntegerType]) {
-                row.setInt(i, part._2.toInt)
-              } else {
-                row.update(i, UTF8String.fromString(part._2))
-              }
+              row.update(i, Cast(Literal(part._2), dataType).eval(null))
             } else {
               dataType = output(i)._2
 
