@@ -151,7 +151,7 @@ class FasterOrcRecordReader(
     if (!partitions.isEmpty) {
       partitionBlocks = new Array[Block](partitions.size)
       for (i <- 0 until partitions.size) {
-        partitionBlocks(i) = buildSingleValueBlock(Slices.utf8Slice(shardUuid.toString))
+        partitionBlocks(i) = buildSingleValueBlock(Slices.utf8Slice(partitions(i)._2))
       }
     }
 
@@ -159,7 +159,8 @@ class FasterOrcRecordReader(
 
   def buildSingleValueBlock(value: Slice): Block = {
     val dictionary = new SliceArrayBlock(1, Array[Slice](value))
-    new DictionaryBlock(MAX_BATCH_SIZE, dictionary, wrappedIntArray(new Array[Int](MAX_BATCH_SIZE)))
+    new DictionaryBlock(MAX_BATCH_SIZE, dictionary,
+      wrappedIntArray(new Array[Int](MAX_BATCH_SIZE).asJava, 0, MAX_BATCH_SIZE))
   }
 
   def nextKeyValue: Boolean = {
@@ -205,7 +206,7 @@ class FasterOrcRecordReader(
     }
     for (i <- partitions.size until partitions.size + output.size) {
       val columnIndex = i - partitions.size
-      columns(i) = recordReader.readBlock(columnIndex, output(columnIndex)._3)
+      columns(i) = recordReader.readBlock(output(columnIndex)._3, columnIndex)
     }
 
     rowsReturned += numBatched
