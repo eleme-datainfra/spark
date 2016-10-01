@@ -60,7 +60,7 @@ class FasterOrcRecordReader(
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
   private val columns = new Array[Block](partitions.size + output.size)
-  private var partitionBlocks: Array[Block] = _
+  private var partitionBlocks = new scala.collection.mutable.HashMap[Int, Block]()
   private val row: BlockRow = new BlockRow()
 
   /**
@@ -160,11 +160,8 @@ class FasterOrcRecordReader(
       }
     }
 
-    if (!partitions.isEmpty) {
-      partitionBlocks = new Array[Block](partitions.size)
-      for (i <- 0 until partitions.size) {
-        partitionBlocks(i) = buildSingleValueBlock(Slices.utf8Slice(partitions(i)._2))
-      }
+    partitions.foreach { p =>
+      partitionBlocks(p._1) = buildSingleValueBlock(Slices.utf8Slice(p._2._2))
     }
 
   }
@@ -213,12 +210,13 @@ class FasterOrcRecordReader(
       close()
       return false
     }
-    for (i <- 0 until partitions.size) {
-      columns(i) = partitionBlocks(i)
+
+    for (i <- 0 until output.size) {
+      columns(i) = recordReader.readBlock(output(i)._3, i)
     }
-    for (i <- partitions.size until partitions.size + output.size) {
-      val columnIndex = i - partitions.size
-      columns(i) = recordReader.readBlock(output(columnIndex)._3, columnIndex)
+
+    partitionBlocks.foreach { p =>
+      columns(p._1) = partitionBlocks(p._2)
     }
 
     rowsReturned += numBatched
@@ -343,7 +341,7 @@ class FasterOrcRecordReader(
           } else {
             var dataType: DataType = null
             if (partitions.contains(i)) {
-              val part = partitions.get(i).get
+              val part = partitions(i)
               dataType = part._1
               if (dataType.isInstanceOf[IntegerType]) {
                 row.setInt(i, part._2.toInt)
@@ -351,8 +349,7 @@ class FasterOrcRecordReader(
                 row.update(i, part._2)
               }
             } else {
-              index = i - partitions.size
-              dataType = output(index)._2
+              dataType = output(i)._2
 
               if (dataType.isInstanceOf[BooleanType]) {
                 row.setBoolean(i, getBoolean(i))
