@@ -463,7 +463,7 @@ class FasterOrcRecordReader(
           val structBlock = block.getObject(index, classOf[Block])
           val values = new Array[Any](structBlock.getPositionCount)
           for (i <- 0 to structBlock.getPositionCount) {
-            values(i) = get(structBlock, i, dt.apply(i).dataType)x
+            values(i) = get(structBlock, i, dt.apply(i).dataType)
           }
           new GenericMutableRow(values)
         } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
