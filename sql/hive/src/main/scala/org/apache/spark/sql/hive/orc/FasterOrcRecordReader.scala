@@ -160,7 +160,7 @@ class FasterOrcRecordReader(
   def buildSingleValueBlock(value: Slice): Block = {
     val dictionary = new SliceArrayBlock(1, Array[Slice](value))
     new DictionaryBlock(MAX_BATCH_SIZE, dictionary,
-      wrappedIntArray(new Array[Int](MAX_BATCH_SIZE).asJava, 0, MAX_BATCH_SIZE))
+      wrappedIntArray(new Array[Int](MAX_BATCH_SIZE), 0, MAX_BATCH_SIZE))
   }
 
   def nextKeyValue: Boolean = {
