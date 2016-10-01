@@ -19,14 +19,16 @@ package org.apache.spark.sql.hive.orc
 
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.hive.orc.HdfsOrcDataSource
+import com.facebook.presto.orc.OrcReader._
 import com.facebook.presto.orc.TupleDomainOrcPredicate.ColumnReference
 import com.facebook.presto.orc._
 import com.facebook.presto.orc.memory.AggregatedMemoryContext
 import com.facebook.presto.orc.metadata.{OrcMetadataReader, MetadataReader}
 import com.facebook.presto.spi.`type`.Type
-import com.facebook.presto.spi.block.Block
+import com.facebook.presto.spi.block.{DictionaryBlock, SliceArrayBlock, Block}
 import com.facebook.presto.spi.predicate.TupleDomain
-import io.airlift.slice.{Slices, Slice}
+import io.airlift.slice.Slices._
+import io.airlift.slice.{Slice, Slices}
 import io.airlift.units.DataSize
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FSDataInputStream
@@ -56,7 +58,9 @@ class FasterOrcRecordReader(
 
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
-  private val columns = new Array[Block](output.size)
+  private val columns = new Array[Block](partitions.size + output.size)
+  private var partitionBlocks: Array[Block] = _
+  private var row: BlockRow = new BlockRow()
 
   /**
     * The number of rows that have been returned.
@@ -79,8 +83,7 @@ class FasterOrcRecordReader(
     try {
       initialize(inputSplit, taskAttemptContext)
       return true
-    }
-    catch {
+    } catch {
       case e: Exception => {
         return false
       }
@@ -145,6 +148,18 @@ class FasterOrcRecordReader(
       fileSplit.getStart, fileSplit.getLength, hiveStorageTimeZone, systemMemoryUsage)
     totalRowCount = recordReader.getReaderRowCount
 
+    if (!partitions.isEmpty) {
+      partitionBlocks = new Array[Block](partitions.size)
+      for (i <- 0 until partitions.size) {
+        partitionBlocks(i) = buildSingleValueBlock(Slices.utf8Slice(shardUuid.toString))
+      }
+    }
+
+  }
+
+  def buildSingleValueBlock(value: Slice): Block = {
+    val dictionary = new SliceArrayBlock(1, Array[Slice](value))
+    new DictionaryBlock(MAX_BATCH_SIZE, dictionary, wrappedIntArray(new Array[Int](MAX_BATCH_SIZE)))
   }
 
   def nextKeyValue: Boolean = {
@@ -156,7 +171,7 @@ class FasterOrcRecordReader(
   }
 
   def getCurrentValue: InternalRow = {
-    BlockRow.getRow(batchIdx)
+    return getRow(batchIdx)
   }
 
   def getProgress: Float = {
@@ -175,7 +190,7 @@ class FasterOrcRecordReader(
   /**
     * Decodes a batch of values into `rows`. This function is the hot path.
     */
-  private def loadBatch: Boolean = {
+  def loadBatch: Boolean = {
     if (rowsReturned >= totalRowCount) {
       return false
     }
@@ -185,29 +200,35 @@ class FasterOrcRecordReader(
       close()
       return false
     }
+    for (i <- 0 until partitions.size) {
+      columns(i) = partitionBlocks(i)
+    }
+    for (i <- partitions.size until partitions.size + output.size) {
+      val columnIndex = i - partitions.size
+      columns(i) = recordReader.readBlock(columnIndex, output(columnIndex)._3)
+    }
+
     rowsReturned += numBatched
     return true
   }
 
-  object BlockRow {
-    var row: BlockRow = null
-    def getRow(batchIdx: Int): BlockRow = {
-      row = new BlockRow(batchIdx)
-      row.init()
-      row
-    }
+  def getRow(batchIdx: Int): BlockRow = {
+    row.init(batchIdx)
+    row
   }
 
-  class BlockRow(var batchIdx: Int) extends MutableRow {
+  class BlockRow extends MutableRow {
+    var batchIdx = 0
     var length = 0
-    var valueIsNull: Slice = Slices.allocate(output.size)
+    var valueIsNull: Slice = Slices.allocate(numFields)
 
     def setBatchIndex(batchIdx: Int): Unit = {
       this.batchIdx = batchIdx
     }
 
-    def init(): Unit = {
-      for (i <- 0 until output.size) {
+    def init(batchIdx: Int): Unit = {
+      this.batchIdx = batchIdx
+      for (i <- 0 until numFields) {
         valueIsNull.setByte(i, 0)
       }
     }
@@ -253,7 +274,7 @@ class FasterOrcRecordReader(
       !columns.filter(b => b.isNull(batchIdx - 1)).isEmpty
     }
 
-    override def numFields: Int = output.size + partitions.size
+    override def numFields: Int = partitions.size + output.size
 
     override def setBoolean(ordinal: Int, value: Boolean): Unit = {
       length = columns(ordinal).getLength(batchIdx - 1)
@@ -320,37 +341,37 @@ class FasterOrcRecordReader(
             dataType = output(index)._2
 
             if (dataType.isInstanceOf[BooleanType]) {
-              row.setBoolean(i, getBoolean(index))
+              row.setBoolean(i, getBoolean(i))
             } else if (dataType.isInstanceOf[ByteType]) {
-              row.setByte(i, getByte(index))
+              row.setByte(i, getByte(i))
             } else if (dataType.isInstanceOf[BinaryType]) {
-              row.update(i, getBinary(index))
+              row.update(i, getBinary(i))
             } else if (dataType.isInstanceOf[IntegerType]) {
-              row.setInt(i, getInt(index))
+              row.setInt(i, getInt(i))
             } else if (dataType.isInstanceOf[ShortType]) {
-              row.setShort(i, getShort(index))
+              row.setShort(i, getShort(i))
             } else if (dataType.isInstanceOf[LongType]) {
-              row.setLong(i, getLong(index))
+              row.setLong(i, getLong(i))
             } else if (dataType.isInstanceOf[FloatType]) {
-              row.setFloat(i, getFloat(index))
+              row.setFloat(i, getFloat(i))
             } else if (dataType.isInstanceOf[DoubleType]) {
-              row.setDouble(i, getDouble(index))
+              row.setDouble(i, getDouble(i))
             } else if (dataType.isInstanceOf[DateType]) {
-              row.setInt(i, getInt(index))
+              row.setInt(i, getInt(i))
             } else if (dataType.isInstanceOf[DecimalType]) {
               val dt = dataType.asInstanceOf[DecimalType]
-              row.setDecimal(i, getDecimal(index, dt.precision, dt.scale), dt.precision)
+              row.setDecimal(i, getDecimal(i, dt.precision, dt.scale), dt.precision)
             } else if (dataType.isInstanceOf[StringType]) {
-              row.update(i, getUTF8String(index))
+              row.update(i, getUTF8String(i))
             } else if (dataType.isInstanceOf[TimestampType]) {
-              row.setLong(i, getLong(index))
+              row.setLong(i, getLong(i))
             } else if (dataType.isInstanceOf[ArrayType]) {
-              row.update(i, getArray(index))
+              row.update(i, getArray(i))
             } else if (dataType.isInstanceOf[MapType]) {
-              row.update(i, getMap(index))
+              row.update(i, getMap(i))
             } else if (dataType.isInstanceOf[StructType]) {
               val dt = dataType.asInstanceOf[StructType]
-              row.update(i, getStruct(index, dt.fields.size))
+              row.update(i, getStruct(i, dt.fields.size))
             } else if (dataType.isInstanceOf[UserDefinedType[_]]) {
               row.update(i, get(i, dataType))
             } else {
@@ -363,11 +384,7 @@ class FasterOrcRecordReader(
     }
 
     override def get(ordinal: Int, dataType: DataType): Object = {
-      if (partitions.contains(ordinal)) {
-        val part = partitions.get(ordinal).get
-        return Cast(Literal(part._2), part._1)
-      }
-      val block = columns(ordinal - partitions.size)
+      val block = columns(ordinal)
       val index = batchIdx - 1
       if (block.isNull(index) || dataType.isInstanceOf[NullType]) {
         return null
@@ -594,7 +611,7 @@ class FasterOrcRecordReader(
     }
 
     override def isNullAt(ordinal: Int): Boolean = {
-      valueIsNull.getByte(batchIdx - 1) != 0 || columns(ordinal).isNull(batchIdx - 1)
+      valueIsNull.getByte(ordinal) == 1 || columns(ordinal).isNull(batchIdx - 1)
     }
   }
 
