@@ -94,12 +94,61 @@ private[hive] class FasterOrcRDD[V: ClassTag](
 
   val useFasterOrcReader = sqlContext.conf.useFasterOrcReader
 
+  private val shouldCloneJobConf = sparkContext.conf.getBoolean("spark.hadoop.cloneConf", false)
+
+  // Returns a JobConf that will be used on slaves to obtain input splits for Hadoop reads.
+  protected def getJobConf(): JobConf = {
+    val conf: Configuration = broadcastedConf.value.value
+    if (shouldCloneJobConf) {
+      // Hadoop Configuration objects are not thread-safe, which may lead to various problems if
+      // one job modifies a configuration while another reads it (SPARK-2546).  This problem occurs
+      // somewhat rarely because most jobs treat the configuration as though it's immutable.  One
+      // solution, implemented here, is to clone the Configuration object.  Unfortunately, this
+      // clone can be very expensive.  To avoid unexpected performance regressions for workloads and
+      // Hadoop versions that do not suffer from these thread-safety issues, this cloning is
+      // disabled by default.
+      HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+        logDebug("Cloning Hadoop Configuration")
+        val newJobConf = new JobConf(conf)
+        if (!conf.isInstanceOf[JobConf]) {
+          initLocalJobConfFuncOpt.map(f => f(newJobConf))
+        }
+        newJobConf
+      }
+    } else {
+      if (conf.isInstanceOf[JobConf]) {
+        logDebug("Re-using user-broadcasted JobConf")
+        conf.asInstanceOf[JobConf]
+      } else if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+        logDebug("Re-using cached JobConf")
+        HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+      } else {
+        // Create a JobConf that will be cached and used across this RDD's getJobConf() calls in the
+        // local process. The local cache is accessed through HadoopRDD.putCachedMetadata().
+        // The caching helps minimize GC, since a JobConf can contain ~10KB of temporary objects.
+        // Synchronize to prevent ConcurrentModificationException (SPARK-1097, HADOOP-10456).
+        HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+          logDebug("Creating new JobConf and caching it for later re-use")
+          if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+            val newJobConf = new JobConf(conf)
+            initLocalJobConfFuncOpt.map(f => f(newJobConf))
+            HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+            newJobConf
+          } else {
+            logDebug("Re-using cached JobConf")
+            HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+          }
+        }
+      }
+    }
+  }
+
   /**
     * Implemented by subclasses to return the set of partitions in this RDD. This method will only
     * be called once, so it is safe to implement a time-consuming computation in it.
     */
   override protected def getPartitions: Array[Partition] = {
-    val jobConf = getConf()
+    val jobConf = getJobConf()
     val jobContext = newJobContext(jobConf, jobId)
     val inputFormat = inputFormatClass.newInstance
     inputFormat match {
@@ -118,13 +167,6 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     result
   }
 
-  def getConf(): Configuration = {
-    val conf: Configuration = broadcastedConf.value.value
-    val jobConf = new JobConf(conf)
-    initLocalJobConfFuncOpt.map(f => f(jobConf))
-    jobConf
-  }
-
   /**
     * :: DeveloperApi ::
     * Implemented by subclasses to compute a given partition.
@@ -132,7 +174,7 @@ private[hive] class FasterOrcRDD[V: ClassTag](
   override def compute(split: Partition, context: TaskContext): Iterator[V] = {
     val iter = new Iterator[V] {
       val inputSplit = split.asInstanceOf[NewHadoopPartition]
-      val conf = getConf()
+      val conf = getJobConf()
       val inputMetrics = context.taskMetrics
         .getInputMetricsForReadMethod(DataReadMethod.Hadoop)
 
