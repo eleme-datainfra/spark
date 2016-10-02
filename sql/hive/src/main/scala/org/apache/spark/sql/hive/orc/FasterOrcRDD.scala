@@ -217,12 +217,6 @@ private[hive] class FasterOrcRDD[V: ClassTag](
         }
       }
 
-      if (reader == null) {
-        reader = format.createRecordReader(
-          inputSplit.serializableHadoopSplit.value, hadoopAttemptContext)
-        reader.initialize(inputSplit.serializableHadoopSplit.value, hadoopAttemptContext)
-      }
-
       // Register an on-task-completion callback to close the input stream.
       context.addTaskCompletionListener(context => close())
       private[this] var havePair = false

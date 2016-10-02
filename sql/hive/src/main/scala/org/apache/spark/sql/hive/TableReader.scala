@@ -23,7 +23,7 @@ import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.io.orc.{OrcInputFormat, OrcNewInputFormat}
+import org.apache.hadoop.hive.ql.io.orc.OrcNewInputFormat
 import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, HiveUtils}
 import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.serde2.Deserializer
@@ -230,10 +230,10 @@ class HadoopTableReader(
         }
       }
 
-      logInfo("InputFormat: " + partDesc.getInputFileFormatClass.toString)
-      logInfo(partDesc.getInputFileFormatClass.isInstanceOf[OrcInputFormat])
+      val inputClassName = partDesc.getInputFileFormatClass.getName
       if (sc.conf.useFasterOrcReader
-          && partDesc.getInputFileFormatClass.isInstanceOf[OrcInputFormat]) {
+          && inputClassName == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat") {
+        logInfo("Using presto orc reader")
 
         val inputFormatClass = classOf[OrcNewInputFormat]
           .asInstanceOf[Class[_ <: NewInputFormat[NullWritable, InternalRow]]]

@@ -87,7 +87,7 @@ class FasterOrcRecordReader(
     } catch {
       case e: Exception => {
         logError(e.getMessage)
-        return false
+        throw e
       }
     }
   }
