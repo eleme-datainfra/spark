@@ -236,7 +236,9 @@ class HadoopTableReader(
         val initializeJobConfFunc =
           HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
 
-        nonPartitionKeyAttrs = nonPartitionKeyAttrs.map((_._1, relation.columnOrdinals.get(_._1)))
+        nonPartitionKeyAttrs = nonPartitionKeyAttrs.map { attr =>
+          (attr._1, relation.columnOrdinals.get(attr._1))
+        }
 
         new FasterOrcRDD[InternalRow](
           sc,
