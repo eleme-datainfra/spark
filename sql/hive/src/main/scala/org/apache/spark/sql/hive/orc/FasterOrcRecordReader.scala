@@ -62,7 +62,7 @@ private[hive] class FasterOrcRecordReader(
   private var batchIdx: Int = 0
   private var numBatched: Int = 0
   private val columns = new Array[Block](partitions.size + output.size)
-  private val partitionBlocks = new java.util.HashMap[Int, Block]()
+  private val partitionBlocks = new scala.collection.mutable.HashMap[Int, Block]()
   private val row: BlockRow = new BlockRow()
 
   /**
@@ -216,10 +216,8 @@ private[hive] class FasterOrcRecordReader(
     }
 
     if (!hasSetPartition) {
-      val iterator = partitionBlocks.entrySet().iterator()
-      while (iterator.hasNext) {
-        val entry = iterator.next()
-        columns(entry.getKey) = entry.getValue
+      partitionBlocks.foreach { p =>
+        columns(p._1) = p._2
       }
       hasSetPartition = true
     }
@@ -373,8 +371,9 @@ private[hive] class FasterOrcRecordReader(
                   row.setLong(i, getLong(i))
                 case StringType =>
                   row.update(i, getUTF8String(i))
-                case DecimalType(precision: Int, scale: Int) =>
-                  row.setDecimal(i, getDecimal(i, precision, scale), precision)
+                case DecimalType() =>
+                  val dt = dataType.asInstanceOf[DecimalType]
+                  row.setDecimal(i, getDecimal(i, dt.precision, dt.scale), dt.precision)
                 case FloatType =>
                   row.setFloat(i, getFloat(i))
                 case DoubleType =>
