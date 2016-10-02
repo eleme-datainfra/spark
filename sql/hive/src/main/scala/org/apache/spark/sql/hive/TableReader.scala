@@ -230,6 +230,8 @@ class HadoopTableReader(
         }
       }
 
+      logInfo("InputFormat: " + partDesc.getInputFileFormatClass.toString)
+      logInfo(partDesc.getInputFileFormatClass.isInstanceOf[OrcInputFormat])
       if (sc.conf.useFasterOrcReader
           && partDesc.getInputFileFormatClass.isInstanceOf[OrcInputFormat]) {
 
