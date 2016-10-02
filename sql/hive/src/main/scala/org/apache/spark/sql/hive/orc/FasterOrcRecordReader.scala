@@ -443,7 +443,6 @@ private[hive] class FasterOrcRecordReader(
           val dt = dataType.asInstanceOf[DecimalType]
           Decimal.apply(block.getLong(index, 0), dt.precision, dt.scale)
         } else if (dataType.isInstanceOf[StringType]) {
-          getUTF8String(index)
           length = block.getLength(index)
           UTF8String.fromBytes(block.getSlice(index, 0, length).getBytes)
         } else if (dataType.isInstanceOf[TimestampType]) {
