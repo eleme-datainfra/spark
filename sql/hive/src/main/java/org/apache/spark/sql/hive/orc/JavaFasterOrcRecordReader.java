@@ -44,7 +44,12 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.spark.deploy.SparkHadoopUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.MutableRow;
+import org.apache.spark.sql.catalyst.util.ArrayData;
+import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.*;
+import org.apache.spark.unsafe.types.CalendarInterval;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.joda.time.DateTimeZone;
 
 
@@ -57,13 +62,15 @@ import java.util.TimeZone;
 
 public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, InternalRow> {
 
-    HiveColumnInfo[] output;
-    Map<Integer, PartitionInfo> partitions;
-    List<ColumnReference<HiveColumnHandle>> columnReferences;
-    long totalRowCount;
-    OrcRecordReader recordReader;
-    Map<Integer, Block> partitionBlocks;
-    int MAX_BATCH_SIZE = 1024;
+    private HiveColumnInfo[] output;
+    private Map<Integer, PartitionInfo> partitions;
+    private List<ColumnReference<HiveColumnHandle>> columnReferences;
+    private long totalRowCount;
+    private OrcRecordReader recordReader;
+    private Map<Integer, Block> partitionBlocks;
+    private int MAX_BATCH_SIZE = 1024;
+    private OrcRow row = new OrcRow();
+    private Block[] columns = new Block[partitions.size() + output.length];
 
 
     public JavaFasterOrcRecordReader(
@@ -207,6 +214,171 @@ public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, Intern
     @Override
     public void close() throws IOException {
 
+    }
+
+    public OrcRow getRow(int batchIdx) {
+        row.init(batchIdx);
+        return row;
+    }
+
+    public class OrcRow extends MutableRow {
+        int batchIdx = 0;
+        long length = 0;
+        int numFields = numFields();
+        boolean[] valueIsNull = new boolean[numFields];
+
+        @Override
+        public int numFields() {
+            return partitions.size() + output.length;
+        }
+
+        public void init(int batchIdx) {
+            this.batchIdx = batchIdx;
+            for (int i = 0; i < valueIsNull.length; i++) {
+                valueIsNull[i] = false;
+            }
+        }
+
+        @Override
+        public InternalRow copy() {
+            return null;
+        }
+
+        @Override
+        public boolean anyNull() {
+            return false;
+        }
+
+        @Override
+        public void setDecimal(int i, Decimal value, int precision) {
+            super.setDecimal(i, value, precision);
+        }
+
+        @Override
+        public void setNullAt(int i) {
+            valueIsNull[i] = true;
+        }
+
+        @Override
+        public void update(int i, Object value) {
+
+        }
+
+        @Override
+        public void setBoolean(int i, boolean value) {
+            super.setBoolean(i, value);
+        }
+
+        @Override
+        public void setByte(int i, byte value) {
+            super.setByte(i, value);
+        }
+
+        @Override
+        public void setShort(int i, short value) {
+            super.setShort(i, value);
+        }
+
+        @Override
+        public void setInt(int i, int value) {
+            super.setInt(i, value);
+        }
+
+        @Override
+        public void setLong(int i, long value) {
+            super.setLong(i, value);
+        }
+
+        @Override
+        public void setFloat(int i, float value) {
+            super.setFloat(i, value);
+        }
+
+        @Override
+        public void setDouble(int i, double value) {
+            super.setDouble(i, value);
+        }
+
+        @Override
+        public boolean isNullAt(int ordinal) {
+            return valueIsNull[ordinal] || columns[ordinal] == null ||
+                columns[ordinal].isNull(batchIdx - 1);
+        }
+
+        @Override
+        public boolean getBoolean(int ordinal) {
+            return false;
+        }
+
+        @Override
+        public byte getByte(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public short getShort(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public int getInt(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public long getLong(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public float getFloat(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public double getDouble(int ordinal) {
+            return 0;
+        }
+
+        @Override
+        public Decimal getDecimal(int ordinal, int precision, int scale) {
+            return null;
+        }
+
+        @Override
+        public UTF8String getUTF8String(int ordinal) {
+            return null;
+        }
+
+        @Override
+        public byte[] getBinary(int ordinal) {
+            return new byte[0];
+        }
+
+        @Override
+        public CalendarInterval getInterval(int ordinal) {
+            return null;
+        }
+
+        @Override
+        public InternalRow getStruct(int ordinal, int numFields) {
+            return null;
+        }
+
+        @Override
+        public ArrayData getArray(int ordinal) {
+            return null;
+        }
+
+        @Override
+        public MapData getMap(int ordinal) {
+            return null;
+        }
+
+        @Override
+        public Object get(int ordinal, DataType dataType) {
+            return null;
+        }
     }
 }
 

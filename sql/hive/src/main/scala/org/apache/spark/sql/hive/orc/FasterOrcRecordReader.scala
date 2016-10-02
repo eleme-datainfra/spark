@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.hive.orc
 
-import java.util.Map.Entry
 
 import com.facebook.presto.hive.HiveColumnHandle
 import com.facebook.presto.hive.orc.HdfsOrcDataSource
@@ -235,10 +234,6 @@ private[hive] class FasterOrcRecordReader(
     var batchIdx = 0
     var length = 0
     var valueIsNull = new Array[Boolean](numFields)
-
-    def setBatchIndex(batchIdx: Int): Unit = {
-      this.batchIdx = batchIdx
-    }
 
     def init(batchIdx: Int): Unit = {
       this.batchIdx = batchIdx
