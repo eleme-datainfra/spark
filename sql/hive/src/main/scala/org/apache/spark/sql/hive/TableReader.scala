@@ -237,7 +237,7 @@ class HadoopTableReader(
           HadoopTableReader.initializeLocalJobConfFunc(inputPathStr, tableDesc) _
 
         nonPartitionKeyAttrs = nonPartitionKeyAttrs.map { attr =>
-          (attr._1, relation.columnOrdinals.get(attr._1))
+          (attr._1, relation.columnOrdinals(attr._1))
         }
 
         new FasterOrcRDD[InternalRow](
