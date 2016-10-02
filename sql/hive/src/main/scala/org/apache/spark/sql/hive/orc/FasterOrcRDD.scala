@@ -118,19 +118,11 @@ private[hive] class FasterOrcRDD[V: ClassTag](
     result
   }
 
-  protected def getJob(): Job = {
-    val conf: Configuration = broadcastedConf.value.value
-    // "new Job" will make a copy of the conf. Then, it is
-    // safe to mutate conf properties with initLocalJobFuncOpt
-    val newJob = new Job(conf)
-    initLocalJobConfFuncOpt.map(f => f(newJob))
-    newJob
-  }
-
   def getConf(): Configuration = {
-    val job = getJob()
-    initLocalJobConfFuncOpt.map(f => f(job))
-    SparkHadoopUtil.get.getConfigurationFromJobContext(job)
+    val conf: Configuration = broadcastedConf.value.value
+    val jobConf = new JobConf(conf)
+    initLocalJobConfFuncOpt.map(f => f(jobConf))
+    jobConf
   }
 
   /**
