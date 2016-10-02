@@ -246,7 +246,7 @@ class HadoopTableReader(
 
         new FasterOrcRDD[InternalRow](
           sc,
-          _broadcastedHiveConf,
+          broadcastedHiveConf,
           Some(initializeJobConfFunc),
           addIncludeColumnsInfo(nonPartitionKeyAttrs, partitionKeyAttrs, partValues),
           inputFormatClass,
