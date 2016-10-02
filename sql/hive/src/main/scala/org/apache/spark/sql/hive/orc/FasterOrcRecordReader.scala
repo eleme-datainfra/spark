@@ -50,7 +50,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.TimeZone
 import com.google.common.base.Strings.nullToEmpty
-import scala.annotation.switch
 import scala.collection.JavaConverters._
 
 
@@ -219,7 +218,7 @@ private[hive] class FasterOrcRecordReader(
     }
 
     if (!hasSetPartition) {
-      iterator = partitionBlocks.entrySet().iterator()
+      iterator = partitionBlocks.entrySet().iterator().asScala
       while (iterator.hasNext) {
         val entry = iterator.next()
         columns(entry.getKey) = entry.getValue
@@ -376,9 +375,8 @@ private[hive] class FasterOrcRecordReader(
                   row.setLong(i, getLong(i))
                 case StringType =>
                   row.update(i, getUTF8String(i))
-                case DecimalType =>
-                  val dt = dataType.asInstanceOf[DecimalType]
-                  row.setDecimal(i, getDecimal(i, dt.precision, dt.scale), dt.precision)
+                case DecimalType(precision: Int, scale: Int) =>
+                  row.setDecimal(i, getDecimal(i, precision, scale), precision)
                 case FloatType =>
                   row.setFloat(i, getFloat(i))
                 case DoubleType =>
@@ -393,17 +391,16 @@ private[hive] class FasterOrcRecordReader(
                   row.setInt(i, getInt(i))
                 case TimestampType =>
                   row.setLong(i, getLong(i))
-                case ArrayType =>
+                case ArrayType(_, _) =>
                   row.update(i, getArray(i))
-                case MapType =>
+                case MapType(_, _, _) =>
                   row.update(i, getMap(i))
-                case StructType =>
-                  val dt = dataType.asInstanceOf[StructType]
-                  row.update(i, getStruct(i, dt.fields.size))
-                case UserDefinedType =>
-                  row.update(i, get(i, dataType))
+                case StructType(fields) =>
+                  row.update(i, getStruct(i, fields.size))
                 case NullType =>
                   row.setNullAt(i)
+                case udt: UserDefinedType[_] =>
+                  row.update(i, get(i, dataType))
                 case _ =>
                   throw new UnsupportedOperationException("Datatype not supported " + dataType)
               }
