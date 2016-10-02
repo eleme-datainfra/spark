@@ -78,6 +78,8 @@ private[hive] class FasterOrcRecordReader(
 
   private var recordReader: OrcRecordReader = _
 
+  private var hasSetPartition = false
+
   /**
     * Tries to initialize the reader for this split. Returns true if this reader supports reading
     * this split and false otherwise.
@@ -188,10 +190,6 @@ private[hive] class FasterOrcRecordReader(
     recordReader.close()
   }
 
-
-  var iterator: Iterator[Entry[Integer, Block]] = _
-  var hasSetPartition = false
-
   /**
     * Decodes a batch of values into `rows`. This function is the hot path.
     */
@@ -218,7 +216,7 @@ private[hive] class FasterOrcRecordReader(
     }
 
     if (!hasSetPartition) {
-      iterator = partitionBlocks.entrySet().iterator().asScala
+      val iterator = partitionBlocks.entrySet().iterator()
       while (iterator.hasNext) {
         val entry = iterator.next()
         columns(entry.getKey) = entry.getValue
