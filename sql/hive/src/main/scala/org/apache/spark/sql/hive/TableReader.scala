@@ -270,6 +270,7 @@ class HadoopTableReader(
       if (partitions.size > threshold) {
         val tableDesc = relation.tableDesc
         val broadcastedHiveConf = _broadcastedHiveConf
+        val minSplit = _minSplitsPerRDD
         val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
         val rddIndexWithPartitions =
           sc.parallelize(partitions.zipWithIndex, partitions.size).map {
@@ -298,11 +299,11 @@ class HadoopTableReader(
                 case c: Configurable => c.setConf(jobConf)
                 case _ =>
               }
-              val inputSplits = inputFormat.getSplits(jobConf, _minSplitsPerRDD)
+              val inputSplits = inputFormat.getSplits(jobConf, minSplit)
               val array = new Array[Partition](inputSplits.size)
               for (i <- 0 until inputSplits.size) {
-                array(i) =
-                  new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
+                array(i) = new HadoopPartition(rddIdMap(index), i,
+                  new SerializableWritable[InputSplit](inputSplits(i)))
               }
               (index, array)
           }.collect()
