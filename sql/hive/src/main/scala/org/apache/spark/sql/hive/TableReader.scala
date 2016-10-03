@@ -270,10 +270,11 @@ class HadoopTableReader(
       if (partitions.size > threshold) {
         val tableDesc = relation.tableDesc
         val broadcastedHiveConf = _broadcastedHiveConf
+        val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
         val rddIndexWithPartitions =
           sc.parallelize(partitions.zipWithIndex, partitions.size).map {
             case (part: HivePartition, index: Int) =>
-              val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
+              val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
               val path = part.getDataLocation.toString
               val initJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
               val conf = broadcastedHiveConf.value.value
