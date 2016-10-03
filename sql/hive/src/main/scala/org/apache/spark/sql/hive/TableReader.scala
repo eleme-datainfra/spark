@@ -261,7 +261,7 @@ class HadoopTableReader(
   class ParallelUnionRDD[T: ClassTag](
     sc: SparkContext,
     var rdds: Seq[RDD[T]],
-    partitions: Seq[HivePartition]) extends UnionRDD(sc, rdds) {
+    partitions: Set[HivePartition]) extends UnionRDD(sc, rdds) {
 
     val threshold = sc.sparkContext.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
 
@@ -270,43 +270,44 @@ class HadoopTableReader(
         val tableDesc = relation.tableDesc
         val broadcastedHiveConf = _broadcastedHiveConf
         val partitionsWithRddId =
-          sc.parallelize(partitions.zipWithIndex, partitions.size).map { case (part, index) =>
-            val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
-            val path = part.getDataLocation
-            val initJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
-            val conf = broadcastedHiveConf.value.value
-            val jobConf =
-              if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
-                HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
-              } else {
-                HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
-                  if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
-                    HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
-                  } else {
-                    val newJobConf = new JobConf(conf)
-                    initJobConfFunc(newJobConf)
-                    HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
-                    newJobConf
+          sc.parallelize(partitions.zipWithIndex, partitions.size).map {
+            case (part: HivePartition, index: Int) =>
+              val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
+              val path = part.getDataLocation.toString
+              val initJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
+              val conf = broadcastedHiveConf.value.value
+              val jobConf =
+                if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+                  HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+                } else {
+                  HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+                    if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+                      HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+                    } else {
+                      val newJobConf = new JobConf(conf)
+                      initJobConfFunc(newJobConf)
+                      HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+                      newJobConf
+                    }
                   }
                 }
+              val partDesc = Utilities.getPartitionDesc(part)
+              val ifc = partDesc.getInputFileFormatClass
+                .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
+              SparkHadoopUtil.get.addCredentials(jobConf)
+              val inputFormat = ReflectionUtils.newInstance(ifc.asInstanceOf[Class[_]], jobConf)
+                .asInstanceOf[InputFormat[Writable, Writable]]
+              inputFormat match {
+                case c: Configurable => c.setConf(jobConf)
+                case _ =>
               }
-            val partDesc = Utilities.getPartitionDesc(part)
-            val ifc = partDesc.getInputFileFormatClass
-              .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
-            SparkHadoopUtil.get.addCredentials(jobConf)
-            val inputFormat = ReflectionUtils.newInstance(ifc.asInstanceOf[Class[_]], jobConf)
-              .asInstanceOf[InputFormat[Writable, Writable]]
-            inputFormat match {
-              case c: Configurable => c.setConf(jobConf)
-              case _ =>
-            }
-            val inputSplits = inputFormat.getSplits(jobConf, _minSplitsPerRDD)
-            val array = new Array[Partition](inputSplits.size)
-            for (i <- 0 until inputSplits.size) {
-              array(i) =
-                new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
-            }
-            (index, array)
+              val inputSplits = inputFormat.getSplits(jobConf, _minSplitsPerRDD)
+              val array = new Array[Partition](inputSplits.size)
+              for (i <- 0 until inputSplits.size) {
+                array(i) =
+                  new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
+              }
+              (index, array)
           }.collect()
 
         partitionsWithRddId.foreach { case (index, partition) =>
