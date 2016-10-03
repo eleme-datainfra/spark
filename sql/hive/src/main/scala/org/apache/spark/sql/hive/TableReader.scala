@@ -270,7 +270,7 @@ class HadoopTableReader(
       if (partitions.size > threshold) {
         val tableDesc = relation.tableDesc
         val broadcastedHiveConf = _broadcastedHiveConf
-        val partitionsWithRddId =
+        val rddIdWithPartitions =
           sc.parallelize(partitions.zipWithIndex, partitions.size).map {
             case (part: HivePartition, index: Int) =>
               val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
@@ -281,17 +281,12 @@ class HadoopTableReader(
                 if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
                   HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
                 } else {
-                  HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
-                    if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
-                      HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
-                    } else {
-                      val newJobConf = new JobConf(conf)
-                      initJobConfFunc(newJobConf)
-                      HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
-                      newJobConf
-                    }
-                  }
+                  val newJobConf = new JobConf(conf)
+                  initJobConfFunc(newJobConf)
+                  HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+                  newJobConf
                 }
+
               val partDesc = Utilities.getPartitionDesc(part)
               val ifc = partDesc.getInputFileFormatClass
                 .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
@@ -311,8 +306,8 @@ class HadoopTableReader(
               (index, array)
           }.collect()
 
-        partitionsWithRddId.foreach { case (index, partition) =>
-          rdds(index).setPartitions(partition)
+        rddIdWithPartitions.foreach { r =>
+          rdds(r._1).setPartitions(r._2)
         }
       } else {
         super.getPartitions
