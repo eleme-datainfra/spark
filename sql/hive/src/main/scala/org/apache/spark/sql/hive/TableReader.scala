@@ -262,7 +262,7 @@ class HadoopTableReader(
     }
   }
 
-  case class PartitionInfo(path: String, ifc: InputFormat[Writable, Writable])
+  case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
   class ParallelUnionRDD[T: ClassTag](
     sc: SparkContext,
@@ -284,7 +284,7 @@ class HadoopTableReader(
               val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
               val conf = broadcastedHiveConf.value.value
               val jobConf = new JobConf(conf)
-              HadoopTableReader.initializeLocalJobConfFunc(part.path, tableDesc)(newJobConf)
+              HadoopTableReader.initializeLocalJobConfFunc(part.path, tableDesc)(jobConf)
               HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
               SparkHadoopUtil.get.addCredentials(jobConf)
 
