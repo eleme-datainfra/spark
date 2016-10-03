@@ -261,7 +261,7 @@ class HadoopTableReader(
 
   class ParallelUnionRDD[T: ClassTag](
     sc: SparkContext,
-    var rdds: Seq[RDD[T]],
+    rdds: Seq[RDD[T]],
     partitions: Seq[HivePartition]) extends UnionRDD(sc, rdds) {
 
     val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
@@ -309,11 +309,11 @@ class HadoopTableReader(
         val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
         var pos = 0
 
-        rddIndexWithPartitions.foreach { r =>
-          val rdd = rdds(r._1)
-          rdds(r._1).setPartitions(r._2)
-          r._2.foreach { split =>
-            array(pos) = new UnionPartition(pos, rdd, r._1, split.index)
+        rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
+          val rdd = rdds(rddIndex)
+          rdds(rddIndex).setPartitions(splits)
+          splits.foreach { split =>
+            array(pos) = new UnionPartition(pos, rdd, rddIndex, split.index)
             pos += 1
           }
         }
