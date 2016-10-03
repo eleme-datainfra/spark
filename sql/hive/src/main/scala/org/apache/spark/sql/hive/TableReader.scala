@@ -19,26 +19,31 @@ package org.apache.spark.sql.hive
 
 import java.util
 
+import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
 import org.apache.hadoop.hive.ql.exec.Utilities
-import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, Hive, HiveUtils, HiveStorageHandler}
+import org.apache.hadoop.hive.ql.metadata.{Partition => HivePartition, Table => HiveTable, HiveUtils}
 import org.apache.hadoop.hive.ql.plan.TableDesc
 import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorConverters, StructObjectInspector}
 import org.apache.hadoop.io.Writable
-import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
+import org.apache.hadoop.mapred.{InputSplit, FileInputFormat, InputFormat, JobConf}
+import org.apache.hadoop.util.ReflectionUtils
+import org.apache.spark.deploy.SparkHadoopUtil
 
-import org.apache.spark.Logging
+import org.apache.spark.{SparkContext, SerializableWritable, Partition, Logging}
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.rdd.{EmptyRDD, HadoopRDD, RDD, UnionRDD}
+import org.apache.spark.rdd._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
+
+import scala.reflect.ClassTag
 
 /**
  * A trait for subclasses that handle table scans.
@@ -184,7 +189,9 @@ class HadoopTableReader(
       }
     }
 
-    val hivePartitionRDDs = verifyPartitionPath(partitionToDeserializer)
+    val partitionPaths = verifyPartitionPath(partitionToDeserializer)
+
+    val hivePartitionRDDs = partitionPaths
       .map { case (partition, partDeserializer) =>
       val partDesc = Utilities.getPartitionDesc(partition)
       val partPath = partition.getDataLocation
@@ -246,8 +253,70 @@ class HadoopTableReader(
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[InternalRow](sc.sparkContext)
     } else {
-      new UnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
+      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs, partitionPaths.keySet)
     }
+  }
+
+
+  class ParallelUnionRDD[T: ClassTag](
+    sc: SparkContext,
+    var rdds: Seq[RDD[T]],
+    partitions: Seq[HivePartition]) extends UnionRDD(sc, rdds) {
+
+    val threshold = sc.sparkContext.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
+
+    override def getPartitions: Array[Partition] = {
+      if (partitions.size > threshold) {
+        val tableDesc = relation.tableDesc
+        val broadcastedHiveConf = _broadcastedHiveConf
+        val partitionsWithRddId =
+          sc.parallelize(partitions.zipWithIndex, partitions.size).map { case (part, index) =>
+            val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
+            val path = part.getDataLocation
+            val initJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
+            val conf = broadcastedHiveConf.value.value
+            val jobConf =
+              if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+                HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+              } else {
+                HadoopRDD.CONFIGURATION_INSTANTIATION_LOCK.synchronized {
+                  if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
+                    HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
+                  } else {
+                    val newJobConf = new JobConf(conf)
+                    initJobConfFunc(newJobConf)
+                    HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+                    newJobConf
+                  }
+                }
+              }
+            val partDesc = Utilities.getPartitionDesc(part)
+            val ifc = partDesc.getInputFileFormatClass
+              .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
+            SparkHadoopUtil.get.addCredentials(jobConf)
+            val inputFormat = ReflectionUtils.newInstance(ifc.asInstanceOf[Class[_]], jobConf)
+              .asInstanceOf[InputFormat[Writable, Writable]]
+            inputFormat match {
+              case c: Configurable => c.setConf(jobConf)
+              case _ =>
+            }
+            val inputSplits = inputFormat.getSplits(jobConf, _minSplitsPerRDD)
+            val array = new Array[Partition](inputSplits.size)
+            for (i <- 0 until inputSplits.size) {
+              array(i) =
+                new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
+            }
+            (index, array)
+          }.collect()
+
+        partitionsWithRddId.foreach { case (index, partition) =>
+          rdds(index).setPartitions(partition)
+        }
+      } else {
+        super.getPartitions
+      }
+    }
+
   }
 
   /**
