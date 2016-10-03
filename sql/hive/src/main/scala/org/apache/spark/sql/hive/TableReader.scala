@@ -285,7 +285,7 @@ class HadoopTableReader(
               val conf = broadcastedHiveConf.value.value
               val jobConf = new JobConf(conf)
               HadoopTableReader.initializeLocalJobConfFunc(part.path, tableDesc)(jobConf)
-              HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
+              HadoopRDD.putCachedMetadata(jobConfCacheKey, jobConf)
               SparkHadoopUtil.get.addCredentials(jobConf)
 
               val inputFormat =
