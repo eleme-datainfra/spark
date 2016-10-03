@@ -190,6 +190,8 @@ class HadoopTableReader(
     }
 
     val partitionPaths = verifyPartitionPath(partitionToDeserializer)
+    val partitions = new Array[PartitionInfo](partitionPaths.size)
+    var i = 0
 
     val hivePartitionRDDs = partitionPaths
       .map { case (partition, partDeserializer) =>
@@ -211,6 +213,9 @@ class HadoopTableReader(
       } else {
         partCols.map(col => new String(partSpec.get(col))).toArray
       }
+
+      partitions(i) = PartitionInfo(partPath.toString, ifc)
+      i += 1
 
       // Create local references so that the outer object isn't serialized.
       val tableDesc = relation.tableDesc
@@ -253,16 +258,16 @@ class HadoopTableReader(
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[InternalRow](sc.sparkContext)
     } else {
-      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs,
-        partitionPaths.keySet.toSeq)
+      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs, partitions)
     }
   }
 
+  case class PartitionInfo(path: String, ifc: InputFormat[Writable, Writable])
 
   class ParallelUnionRDD[T: ClassTag](
     sc: SparkContext,
     rdds: Seq[RDD[T]],
-    partitions: Seq[HivePartition]) extends UnionRDD(sc, rdds) {
+    partitions: Seq[PartitionInfo]) extends UnionRDD(sc, rdds) {
 
     val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
 
@@ -272,29 +277,20 @@ class HadoopTableReader(
         val broadcastedHiveConf = _broadcastedHiveConf
         val minSplit = _minSplitsPerRDD
         val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
+
         val rddIndexWithPartitions =
           sc.parallelize(partitions.zipWithIndex, partitions.size).map {
-            case (part: HivePartition, index: Int) =>
+            case (part: PartitionInfo, index: Int) =>
               val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
-              val path = part.getDataLocation.toString
-              val initJobConfFunc = HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc) _
               val conf = broadcastedHiveConf.value.value
-              val jobConf =
-                if (HadoopRDD.containsCachedMetadata(jobConfCacheKey)) {
-                  HadoopRDD.getCachedMetadata(jobConfCacheKey).asInstanceOf[JobConf]
-                } else {
-                  val newJobConf = new JobConf(conf)
-                  initJobConfFunc(newJobConf)
-                  HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
-                  newJobConf
-                }
-
-              val partDesc = Utilities.getPartitionDesc(part)
-              val ifc = partDesc.getInputFileFormatClass
-                .asInstanceOf[java.lang.Class[InputFormat[Writable, Writable]]]
+              val jobConf = new JobConf(conf)
+              HadoopTableReader.initializeLocalJobConfFunc(part.path, tableDesc)(newJobConf)
+              HadoopRDD.putCachedMetadata(jobConfCacheKey, newJobConf)
               SparkHadoopUtil.get.addCredentials(jobConf)
-              val inputFormat = ReflectionUtils.newInstance(ifc.asInstanceOf[Class[_]], jobConf)
-                .asInstanceOf[InputFormat[Writable, Writable]]
+
+              val inputFormat =
+                ReflectionUtils.newInstance(part.ifc.asInstanceOf[Class[_]], jobConf)
+                  .asInstanceOf[InputFormat[Writable, Writable]]
               inputFormat match {
                 case c: Configurable => c.setConf(jobConf)
                 case _ =>
