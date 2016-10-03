@@ -253,7 +253,8 @@ class HadoopTableReader(
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[InternalRow](sc.sparkContext)
     } else {
-      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs, partitionPaths.keySet)
+      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs,
+        partitionPaths.keySet.toSeq)
     }
   }
 
@@ -261,9 +262,9 @@ class HadoopTableReader(
   class ParallelUnionRDD[T: ClassTag](
     sc: SparkContext,
     var rdds: Seq[RDD[T]],
-    partitions: Set[HivePartition]) extends UnionRDD(sc, rdds) {
+    partitions: Seq[HivePartition]) extends UnionRDD(sc, rdds) {
 
-    val threshold = sc.sparkContext.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
+    val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
 
     override def getPartitions: Array[Partition] = {
       if (partitions.size > threshold) {
