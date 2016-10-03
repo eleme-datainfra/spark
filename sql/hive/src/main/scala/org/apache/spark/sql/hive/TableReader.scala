@@ -270,7 +270,7 @@ class HadoopTableReader(
       if (partitions.size > threshold) {
         val tableDesc = relation.tableDesc
         val broadcastedHiveConf = _broadcastedHiveConf
-        val rddIdWithPartitions =
+        val rddIndexWithPartitions =
           sc.parallelize(partitions.zipWithIndex, partitions.size).map {
             case (part: HivePartition, index: Int) =>
               val jobConfCacheKey = "rdd_%d_job_conf".format(rdds(index).firstParent.id)
@@ -306,9 +306,18 @@ class HadoopTableReader(
               (index, array)
           }.collect()
 
-        rddIdWithPartitions.foreach { r =>
+        val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
+        var pos = 0
+
+        rddIndexWithPartitions.foreach { r =>
+          val rdd = rdds(r._1)
           rdds(r._1).setPartitions(r._2)
+          r._2.foreach { split =>
+            array(pos) = new UnionPartition(pos, rdd, r._1, split.index)
+            pos += 1
+          }
         }
+        array
       } else {
         super.getPartitions
       }
