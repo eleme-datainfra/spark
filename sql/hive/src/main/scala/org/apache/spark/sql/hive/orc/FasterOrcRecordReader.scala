@@ -186,7 +186,10 @@ private[hive] class FasterOrcRecordReader(
   }
 
   def close: Unit = {
-    recordReader.close()
+    if (recordReader != null) {
+      recordReader.close()
+      recordReader = null
+    }
   }
 
   /**

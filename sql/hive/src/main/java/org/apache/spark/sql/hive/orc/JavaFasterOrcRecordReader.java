@@ -55,6 +55,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,12 +66,16 @@ public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, Intern
     private HiveColumnInfo[] output;
     private Map<Integer, PartitionInfo> partitions;
     private List<ColumnReference<HiveColumnHandle>> columnReferences;
-    private long totalRowCount;
     private OrcRecordReader recordReader;
-    private Map<Integer, Block> partitionBlocks;
+    private Map<Integer, Block> partitionBlocks = new HashMap<>();
     private int MAX_BATCH_SIZE = 1024;
     private OrcRow row = new OrcRow();
     private Block[] columns = new Block[partitions.size() + output.length];
+    private int batchIdx = 0;
+    private int numBatched = 0;
+    private long rowsReturned = 0;
+    protected long totalRowCount = 0;
+    private boolean hasSetPartition = false;
 
 
     public JavaFasterOrcRecordReader(
@@ -191,29 +196,68 @@ public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, Intern
             Slices.wrappedIntArray(new int[MAX_BATCH_SIZE], 0, MAX_BATCH_SIZE));
     }
 
+    public boolean loadBatch() throws IOException {
+        if (rowsReturned >= totalRowCount) {
+            return false;
+        }
+        batchIdx = 0;
+        numBatched = recordReader.nextBatch();
+        if (numBatched <= 0) {
+            close();
+            return false;
+        }
+
+
+        for (int i = 0; i < output.length; i++) {
+            HiveColumnInfo hiveColumnInfo = output[i];
+            if (recordReader.isColumnPresent(hiveColumnInfo.fieldIndex)) {
+                columns[i] = recordReader.readBlock(hiveColumnInfo.type, hiveColumnInfo.fieldIndex);
+            } else {
+                row.setNullAt(i);
+            }
+        }
+
+        if (!hasSetPartition) {
+            for (Map.Entry<Integer, Block> entry : partitionBlocks.entrySet()) {
+                columns[entry.getKey()] = entry.getValue();
+            }
+            hasSetPartition = true;
+        }
+
+        rowsReturned += numBatched;
+        return true;
+    }
+
     @Override
     public boolean nextKeyValue() throws IOException, InterruptedException {
-        return false;
+        if (batchIdx >= numBatched) {
+            if (!loadBatch()) return false;
+        }
+        batchIdx += 1;
+        return true;
     }
 
     @Override
     public NullWritable getCurrentKey() throws IOException, InterruptedException {
-        return null;
+        return NullWritable.get();
     }
 
     @Override
     public InternalRow getCurrentValue() throws IOException, InterruptedException {
-        return null;
+        return getRow(batchIdx);
     }
 
     @Override
     public float getProgress() throws IOException, InterruptedException {
-        return 0;
+        return (float)rowsReturned / totalRowCount;
     }
 
     @Override
     public void close() throws IOException {
-
+        if (recordReader != null) {
+            recordReader.close();
+            recordReader = null;
+        }
     }
 
     public OrcRow getRow(int batchIdx) {
@@ -250,8 +294,7 @@ public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, Intern
         }
 
         @Override
-        public void setDecimal(int i, Decimal value, int precision) {
-            super.setDecimal(i, value, precision);
+        public void setDecimal(int ordinal, Decimal value, int precision) {
         }
 
         @Override
@@ -260,8 +303,31 @@ public class JavaFasterOrcRecordReader extends RecordReader<NullWritable, Intern
         }
 
         @Override
-        public void update(int i, Object value) {
-
+        public void update(int ordinal, Object value) {
+            if (value == null) {
+                setNullAt(ordinal);
+            } else {
+                DataType dataType = output[ordinal].dataType;
+                if (dataType instanceof BooleanType) {
+                    setBoolean(ordinal, (boolean)value);
+                } else if (dataType instanceof IntegerType) {
+                    setInt(ordinal, (int)value);
+                } else if (dataType instanceof ShortType) {
+                    setShort(ordinal, (short)value);
+                } else if (dataType instanceof LongType) {
+                    setLong(ordinal, (long)value);
+                } else if (dataType instanceof FloatType) {
+                    setFloat(ordinal, (float)value);
+                } else if (dataType instanceof DoubleType) {
+                    setDouble(ordinal, (double)value);
+                } else if (dataType instanceof DecimalType) {
+                    DecimalType dt = (DecimalType)dataType;
+                    setDecimal(ordinal, Decimal.apply((BigDecimal)value,
+                        dt.precision(), dt.scale()), dt.precision());
+                } else {
+                    throw new UnsupportedOperationException("Datatype not supported " + dataType);
+                }
+            }
         }
 
         @Override
