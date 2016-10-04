@@ -19,7 +19,6 @@ package org.apache.spark.sql.hive
 
 import java.util
 
-import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants._
@@ -30,11 +29,9 @@ import org.apache.hadoop.hive.serde2.Deserializer
 import org.apache.hadoop.hive.serde2.objectinspector.primitive._
 import org.apache.hadoop.hive.serde2.objectinspector.{ObjectInspectorConverters, StructObjectInspector}
 import org.apache.hadoop.io.Writable
-import org.apache.hadoop.mapred.{InputSplit, FileInputFormat, InputFormat, JobConf}
-import org.apache.hadoop.util.ReflectionUtils
-import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.hadoop.mapred.{FileInputFormat, InputFormat, JobConf}
 
-import org.apache.spark.{SparkContext, SerializableWritable, Partition, Logging}
+import org.apache.spark.Logging
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd._
 import org.apache.spark.sql.catalyst.InternalRow
@@ -43,7 +40,6 @@ import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.unsafe.types.UTF8String
 import org.apache.spark.util.{SerializableConfiguration, Utils}
 
-import scala.reflect.ClassTag
 
 /**
  * A trait for subclasses that handle table scans.
@@ -258,69 +254,18 @@ class HadoopTableReader(
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[InternalRow](sc.sparkContext)
     } else {
-      new ParallelUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs, partitions)
-    }
-  }
-
-  case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
-
-  class ParallelUnionRDD[T: ClassTag](
-    sc: SparkContext,
-    rdds: Seq[RDD[T]],
-    partitions: Seq[PartitionInfo]) extends UnionRDD(sc, rdds) {
-
-    val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
-
-    override def getPartitions: Array[Partition] = {
-      if (partitions.size > threshold) {
-        val tableDesc = relation.tableDesc
-        val broadcastedHiveConf = _broadcastedHiveConf
-        val minSplit = _minSplitsPerRDD
-        val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
-
-        val rddIndexWithPartitions =
-          sc.parallelize(partitions.zipWithIndex, partitions.size).map {
-            case (part: PartitionInfo, index: Int) =>
-              val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
-              val conf = broadcastedHiveConf.value.value
-              val jobConf = new JobConf(conf)
-              HadoopTableReader.initializeLocalJobConfFunc(part.path, tableDesc)(jobConf)
-              HadoopRDD.putCachedMetadata(jobConfCacheKey, jobConf)
-              SparkHadoopUtil.get.addCredentials(jobConf)
-
-              val inputFormat =
-                ReflectionUtils.newInstance(part.ifc.asInstanceOf[Class[_]], jobConf)
-                  .asInstanceOf[InputFormat[Writable, Writable]]
-              inputFormat match {
-                case c: Configurable => c.setConf(jobConf)
-                case _ =>
-              }
-              val inputSplits = inputFormat.getSplits(jobConf, minSplit)
-              val array = new Array[Partition](inputSplits.size)
-              for (i <- 0 until inputSplits.size) {
-                array(i) = new HadoopPartition(rddIdMap(index), i,
-                  new SerializableWritable[InputSplit](inputSplits(i)))
-              }
-              (index, array)
-          }.collect()
-
-        val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
-        var pos = 0
-
-        rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
-          val rdd = rdds(rddIndex)
-          rdds(rddIndex).setPartitions(splits)
-          splits.foreach { split =>
-            array(pos) = new UnionPartition(pos, rdd, rddIndex, split.index)
-            pos += 1
-          }
-        }
-        array
-      } else {
-        super.getPartitions
+      val broadcastedHiveConf = _broadcastedHiveConf
+      val tableDesc = relation.tableDesc
+      val initLocalJobConfFuncOpt = (path: String, jobConf: JobConf) => {
+        HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc)(jobConf)
       }
+      new ParallelUnionRDD(
+        hivePartitionRDDs(0).context,
+        hivePartitionRDDs,
+        broadcastedHiveConf,
+        Some(initLocalJobConfFuncOpt),
+        partitions)
     }
-
   }
 
   /**
