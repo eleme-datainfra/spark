@@ -186,7 +186,7 @@ class HadoopTableReader(
     }
 
     val partitionPaths = verifyPartitionPath(partitionToDeserializer)
-    val partitions = new Array[PartitionInfo](partitionPaths.size)
+    val partitionInfos = new Array[PartitionInfo](partitionPaths.size)
     var i = 0
 
     val hivePartitionRDDs = partitionPaths
@@ -210,7 +210,7 @@ class HadoopTableReader(
         partCols.map(col => new String(partSpec.get(col))).toArray
       }
 
-      partitions(i) = PartitionInfo(partPath.toString, ifc)
+      partitionInfos(i) = PartitionInfo(partPath.toString, ifc)
       i += 1
 
       // Create local references so that the outer object isn't serialized.
@@ -264,7 +264,7 @@ class HadoopTableReader(
         hivePartitionRDDs,
         broadcastedHiveConf,
         Some(initLocalJobConfFuncOpt),
-        partitions)
+        partitionInfos)
     }
   }
 
