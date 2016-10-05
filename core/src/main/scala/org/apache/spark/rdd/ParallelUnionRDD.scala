@@ -52,7 +52,7 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
       println(s"ReGet Partitions")
       new Throwable().printStackTrace()
       // scalastyle:on
-      _rddPartitionMap.foreach { case (rddIndex, parts) =>
+      ParallelUnionRDD._rddPartitionMap.foreach { case (rddIndex, parts) =>
         // scalastyle:off
         println(s"reset partition $rddIndex")
         // scalastyle:on
