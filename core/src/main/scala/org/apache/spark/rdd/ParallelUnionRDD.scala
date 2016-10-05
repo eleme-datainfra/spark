@@ -24,9 +24,10 @@ import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.util.SerializableConfiguration
-import org.apache.spark.{SerializableWritable, Partition, SparkContext}
+import org.apache.spark._
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 
@@ -49,22 +50,18 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
   override def getPartitions: Array[Partition] = {
     if (ParallelUnionRDD._partitions != null) {
       // scalastyle:off
-      println(s"ReGet Partitions")
-      new Throwable().printStackTrace()
-      // scalastyle:on
+      rdds.foreach(rdd => println(s"${rdd.id},${rdd.firstParent.id}"))
       ParallelUnionRDD._rddPartitionMap.foreach { case (rddIndex, parts) =>
-        // scalastyle:off
-        println(s"reset partition $rddIndex")
-        // scalastyle:on
-        rdds(rddIndex).setPartitions(parts)
+        val rdd = rdds(rddIndex)
+        println(s"reset RDDIndex ${rddIndex} rdd ${rdd.id} (parent ${rdd.firstParent.id}) with ${parts.size} partitions")
+        rdds(rddIndex).firstParent.setPartitions(parts)
       }
+      // scalastyle:on
       return ParallelUnionRDD._partitions
     }
 
-
     // scalastyle:off
     println(s"Get Partitions")
-    new Throwable().printStackTrace()
     // scalastyle:on
     // select the latest partition inputformat class
     val className = partitionInfos.last.ifc.getName
@@ -107,11 +104,12 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
         // scalastyle:off
-        println(s"set partition $rddIndex")
-        // scalastyle:on
+        println(s"set partition $rddIndex,  ${parts.length}")
         ParallelUnionRDD._rddPartitionMap += rddIndex -> parts
         val rdd = rdds(rddIndex)
-        rdds(rddIndex).setPartitions(parts)
+        println(s"reset RDDIndex ${rddIndex} rdd ${rdd.id} (parent ${rdd.firstParent.id}) with ${parts.size} partitions")
+        // scalastyle:on
+        rdds(rddIndex).firstParent.setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
@@ -122,6 +120,12 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
       ParallelUnionRDD._partitions = super.getPartitions
     }
     ParallelUnionRDD._partitions
+  }
+
+  override def clearDependencies() {
+    super.clearDependencies()
+    ParallelUnionRDD._partitions = null
+    ParallelUnionRDD._rddPartitionMap.clear()
   }
 
 }
