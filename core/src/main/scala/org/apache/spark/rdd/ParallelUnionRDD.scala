@@ -84,7 +84,6 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
         // scalastyle:off
-        ParallelUnionRDD._rddPartitionMap += rddIndex -> parts
         val rdd = rdds(rddIndex)
         val firstParent = rdd.firstParent.firstParent
         println(firstParent)
