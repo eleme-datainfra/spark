@@ -33,11 +33,6 @@ import scala.reflect.ClassTag
 
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
-object ParallelUnionRDD {
-  var _partitions: Array[Partition] = _
-  var _rddPartitionMap = mutable.HashMap[Int, Array[Partition]]()
-}
-
 private[spark] class ParallelUnionRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
@@ -48,21 +43,6 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 29)
 
   override def getPartitions: Array[Partition] = {
-    if (ParallelUnionRDD._partitions != null) {
-      // scalastyle:off
-      rdds.foreach(rdd => println(s"${rdd.id},${rdd.firstParent.id}"))
-      ParallelUnionRDD._rddPartitionMap.foreach { case (rddIndex, parts) =>
-        val rdd = rdds(rddIndex)
-        println(s"reset RDDIndex ${rddIndex} rdd ${rdd.id} (parent ${rdd.firstParent.id}) with ${parts.size} partitions")
-        rdds(rddIndex).firstParent.setPartitions(parts)
-      }
-      // scalastyle:on
-      return ParallelUnionRDD._partitions
-    }
-
-    // scalastyle:off
-    println(s"Get Partitions")
-    // scalastyle:on
     // select the latest partition inputformat class
     val className = partitionInfos.last.ifc.getName
     if (partitionInfos.size > threshold &&
@@ -104,28 +84,21 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
         // scalastyle:off
-        println(s"set partition $rddIndex,  ${parts.length}")
         ParallelUnionRDD._rddPartitionMap += rddIndex -> parts
         val rdd = rdds(rddIndex)
-        println(s"reset RDDIndex ${rddIndex} rdd ${rdd.id} (parent ${rdd.firstParent.id}) with ${parts.size} partitions")
+        val firstParent = rdd.firstParent.firstParent
+        println(firstParent)
         // scalastyle:on
-        rdds(rddIndex).firstParent.setPartitions(parts)
+        rdds(rddIndex).firstParent.firstParent.setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
         }
       }
-      ParallelUnionRDD._partitions = array
+      array
     } else {
-      ParallelUnionRDD._partitions = super.getPartitions
+      super.getPartitions
     }
-    ParallelUnionRDD._partitions
-  }
-
-  override def clearDependencies() {
-    super.clearDependencies()
-    ParallelUnionRDD._partitions = null
-    ParallelUnionRDD._rddPartitionMap.clear()
   }
 
 }

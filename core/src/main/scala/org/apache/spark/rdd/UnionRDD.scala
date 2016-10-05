@@ -60,7 +60,7 @@ private[spark] class UnionPartition[T: ClassTag](
 
 object UnionRDD {
   private[spark] lazy val partitionEvalTaskSupport =
-    new ForkJoinTaskSupport(new ForkJoinPool(3))
+    new ForkJoinTaskSupport(new ForkJoinPool(4))
 }
 
 @DeveloperApi
