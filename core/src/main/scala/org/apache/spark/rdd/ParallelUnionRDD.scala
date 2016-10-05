@@ -32,7 +32,7 @@ import scala.reflect.ClassTag
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
 private[spark] class ParallelUnionRDD[T: ClassTag](
-    sc: SparkContext,
+    @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
     broadcastedConf: Broadcast[SerializableConfiguration],
     initLocalJobConfFuncOpt: Option[(String, JobConf) => Unit],
@@ -87,4 +87,3 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
   }
 
 }
-
