@@ -26,6 +26,7 @@ import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.util.SerializableConfiguration
 import org.apache.spark.{SerializableWritable, Partition, SparkContext}
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 
@@ -33,6 +34,7 @@ case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable
 
 object ParallelUnionRDD {
   var _partitions: Array[Partition] = _
+  var _rddPartitionMap = mutable.HashMap[Int, Array[Partition]]()
 }
 
 private[spark] class ParallelUnionRDD[T: ClassTag](
@@ -42,16 +44,29 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
     initLocalJobConfFuncOpt: Option[(String, JobConf) => Unit],
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
-  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 30)
+  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 29)
 
   override def getPartitions: Array[Partition] = {
-    if (ParallelUnionRDD._partitions != null) return ParallelUnionRDD._partitions
+    if (ParallelUnionRDD._partitions != null) {
+      // scalastyle:off
+      println(s"ReGet Partitions")
+      new Throwable().printStackTrace()
+      // scalastyle:on
+      _rddPartitionMap.foreach { case (rddIndex, parts) =>
+        // scalastyle:off
+        println(s"reset partition $rddIndex")
+        // scalastyle:on
+        rdds(rddIndex).setPartitions(parts)
+      }
+      return ParallelUnionRDD._partitions
+    }
 
-    // select the latest partition inputformat class
+
     // scalastyle:off
     println(s"Get Partitions")
     new Throwable().printStackTrace()
     // scalastyle:on
+    // select the latest partition inputformat class
     val className = partitionInfos.last.ifc.getName
     if (partitionInfos.size > threshold &&
       (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
@@ -94,6 +109,7 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
         // scalastyle:off
         println(s"set partition $rddIndex")
         // scalastyle:on
+        ParallelUnionRDD._rddPartitionMap += rddIndex -> parts
         val rdd = rdds(rddIndex)
         rdds(rddIndex).setPartitions(parts)
         parts.foreach { part =>
