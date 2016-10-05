@@ -108,8 +108,8 @@ private[hive] class FasterOrcRecordReader(
     var orcDataSource: OrcDataSource = null
     val metadataReader: MetadataReader = new OrcMetadataReader
     val maxMergeDistance = new DataSize(1, DataSize.Unit.MEGABYTE)
-    val maxBufferSize = new DataSize(8, DataSize.Unit.MEGABYTE)
-    val streamBufferSize = new DataSize(8, DataSize.Unit.MEGABYTE)
+    val maxBufferSize = new DataSize(1, DataSize.Unit.MEGABYTE)
+    val streamBufferSize = new DataSize(1, DataSize.Unit.MEGABYTE)
     val hiveStorageTimeZone = DateTimeZone.forTimeZone(
       TimeZone.getTimeZone(TimeZone.getDefault.getID))
     val path = fileSplit.getPath
