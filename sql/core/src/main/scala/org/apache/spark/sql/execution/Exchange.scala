@@ -511,7 +511,10 @@ private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[
     operator.withNewChildren(children)
   }
 
-  def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
-    case operator: SparkPlan => ensureDistributionAndOrdering(operator)
+  def apply(plan: SparkPlan): SparkPlan = {
+    plan.transformUp {
+      case operator: SparkPlan =>
+        ensureDistributionAndOrdering(operator)
+    }
   }
 }
