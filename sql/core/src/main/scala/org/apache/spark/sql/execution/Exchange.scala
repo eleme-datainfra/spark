@@ -424,10 +424,6 @@ private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[
       if (child.outputPartitioning.satisfies(distribution)) {
         child
       } else {
-        // scalastyle:off
-        println(s"OutputPartitioning didn't satisfies distribution requirement.")
-        println(s"$operator")
-        // scalastyle:on
         Exchange(createPartitioning(distribution, defaultNumPreShufflePartitions), child)
       }
     }
@@ -516,6 +512,10 @@ private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[
   }
 
   def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
-    case operator: SparkPlan => ensureDistributionAndOrdering(operator)
+    case operator: SparkPlan =>
+      // scalastyle:off
+      println(operator)
+      // scalastyle:on
+      ensureDistributionAndOrdering(operator)
   }
 }

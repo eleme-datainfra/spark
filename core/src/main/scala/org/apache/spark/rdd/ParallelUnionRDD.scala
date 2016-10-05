@@ -31,6 +31,10 @@ import scala.reflect.ClassTag
 
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
+object ParallelUnionRDD {
+  var _partitions: Array[Partition] = _
+}
+
 private[spark] class ParallelUnionRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
@@ -41,9 +45,12 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 30)
 
   override def getPartitions: Array[Partition] = {
+    if (ParallelUnionRDD._partitions != null) return ParallelUnionRDD._partitions
+
     // select the latest partition inputformat class
     // scalastyle:off
     println(s"Get Partitions")
+    new Throwable().printStackTrace()
     // scalastyle:on
     val className = partitionInfos.last.ifc.getName
     if (partitionInfos.size > threshold &&
@@ -88,16 +95,17 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
         println(s"set partition $rddIndex")
         // scalastyle:on
         val rdd = rdds(rddIndex)
-        rdds(rddIndex).setPartitions(parts)
+        super.rdds(rddIndex).setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
         }
       }
-      array
+      ParallelUnionRDD._partitions = array
     } else {
-      super.getPartitions
+      ParallelUnionRDD._partitions = super.getPartitions
     }
+    ParallelUnionRDD._partitions
   }
 
 }
