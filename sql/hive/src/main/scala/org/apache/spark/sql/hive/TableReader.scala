@@ -259,12 +259,17 @@ class HadoopTableReader(
       val initLocalJobConfFuncOpt = (path: String, jobConf: JobConf) => {
         HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc)(jobConf)
       }
-      new ParallelUnionRDD(
-        hivePartitionRDDs(0).context,
-        hivePartitionRDDs,
-        broadcastedHiveConf,
-        Some(initLocalJobConfFuncOpt),
-        partitionInfos)
+      val replaceUnionRDD = sc.sparkContext.conf.getBoolean("spark.replaceUnionRDD", true)
+      if (replaceUnionRDD) {
+        new PartitionerAwareUnionRDD(hivePartitionRDDs(0).context, hivePartitionRDDs)
+      } else {
+        new ParallelUnionRDD(
+          hivePartitionRDDs(0).context,
+          hivePartitionRDDs,
+          broadcastedHiveConf,
+          Some(initLocalJobConfFuncOpt),
+          partitionInfos)
+      }
     }
   }
 

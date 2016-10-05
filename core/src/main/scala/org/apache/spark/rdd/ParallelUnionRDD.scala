@@ -40,12 +40,12 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
     initLocalJobConfFuncOpt: Option[(String, JobConf) => Unit],
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
-  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 29)
+  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 30)
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
     val className = partitionInfos.last.ifc.getName
-    if (partitionInfos.size > threshold &&
+    if (partitionInfos.size >= threshold &&
       (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
         className == "org.apache.parquet.hadoop.ParquetInputFormat")) {
       // Create local references so that the outer object isn't serialized.
@@ -84,7 +84,9 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
         val rdd = rdds(rddIndex)
-        rdd.setPartitions(parts)
+        // UnionRDD's -> firstParent -> firstParent is HadoopRDD
+        val hadoopRDD = rdd.firstParent.firstParent
+        hadoopRDD.setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
