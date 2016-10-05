@@ -60,7 +60,7 @@ private[spark] class UnionPartition[T: ClassTag](
 
 object UnionRDD {
   private[spark] lazy val partitionEvalTaskSupport =
-    new ForkJoinTaskSupport(new ForkJoinPool(4))
+    new ForkJoinTaskSupport(new ForkJoinPool(8))
 }
 
 @DeveloperApi
@@ -71,7 +71,7 @@ class UnionRDD[T: ClassTag](
 
   // visible for testing
   private[spark] val isPartitionListingParallel: Boolean =
-    rdds.length > conf.getInt("spark.rdd.parallelListingThreshold", 8)
+    rdds.length > conf.getInt("spark.rdd.parallelListingThreshold", 10)
 
   override def getPartitions: Array[Partition] = {
     val parRDDs = if (isPartitionListingParallel) {
