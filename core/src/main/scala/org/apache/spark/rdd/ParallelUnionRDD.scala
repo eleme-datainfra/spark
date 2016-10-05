@@ -95,7 +95,7 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
         println(s"set partition $rddIndex")
         // scalastyle:on
         val rdd = rdds(rddIndex)
-        super.rdds(rddIndex).setPartitions(parts)
+        rdds(rddIndex).setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1

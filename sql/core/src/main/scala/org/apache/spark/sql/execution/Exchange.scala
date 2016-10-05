@@ -511,11 +511,16 @@ private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[
     operator.withNewChildren(children)
   }
 
-  def apply(plan: SparkPlan): SparkPlan = plan.transformUp {
-    case operator: SparkPlan =>
-      // scalastyle:off
-      println(operator)
-      // scalastyle:on
-      ensureDistributionAndOrdering(operator)
+  def apply(plan: SparkPlan): SparkPlan = {
+    // scalastyle:off
+    println(plan)
+    // scalastyle:on
+    plan.transformUp {
+      case operator: SparkPlan =>
+        ensureDistributionAndOrdering(operator)
+    }
+    // scalastyle:off
+    println(plan)
+    // scalastyle:on
   }
 }
