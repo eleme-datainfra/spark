@@ -32,24 +32,31 @@ import scala.reflect.ClassTag
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
 private[spark] class ParallelUnionRDD[T: ClassTag](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     rdds: Seq[RDD[T]],
     broadcastedConf: Broadcast[SerializableConfiguration],
     initLocalJobConfFuncOpt: Option[(String, JobConf) => Unit],
-    partitions: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
+    partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 16)
+  var _partitions: Array[Partition] = _
 
   override def getPartitions: Array[Partition] = {
+    if (_partitions != null) return _partitions
+
     if (partitions.size > threshold) {
+      // Create local references so that the outer object isn't serialized.
       val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
+      val broadcastedJobConf = broadcastedConf
+      val initJobConfFuncOpt = initLocalJobConfFuncOpt
+      val partitionsWithIndex = partitionInfos.zipWithIndex.toArray
 
       val rddIndexWithPartitions =
-        sc.parallelize(partitions.zipWithIndex, partitions.size).map { case (part, index) =>
+        sc.parallelize(partitionsWithIndex, partitionInfos.size).map { case (part, index) =>
           val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
-          val conf = broadcastedConf.value.value
+          val conf = broadcastedJobConf.value.value
           val jobConf = new JobConf(conf)
-          initLocalJobConfFuncOpt.map(f => f(part.path, jobConf))
+          initJobConfFuncOpt.map(f => f(part.path, jobConf))
           HadoopRDD.putCachedMetadata(jobConfCacheKey, jobConf)
           SparkHadoopUtil.get.addCredentials(jobConf)
 
@@ -80,10 +87,11 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
           pos += 1
         }
       }
-      array
+      _partitions = array
     } else {
-      super.getPartitions
+      _partitions = super.getPartitions
     }
+    _partitions
   }
 
 }
