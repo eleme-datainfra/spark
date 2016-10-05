@@ -260,7 +260,7 @@ class HadoopTableReader(
         HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc)(jobConf)
       }
 
-      new ParallelUnionRDD(
+      new ParallelUnionHadoopRDD(
           hivePartitionRDDs(0).context,
           hivePartitionRDDs,
           broadcastedHiveConf,

@@ -33,19 +33,19 @@ import scala.reflect.ClassTag
 
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
-private[spark] class ParallelUnionRDD[T: ClassTag](
+private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
     broadcastedConf: Broadcast[SerializableConfiguration],
     initLocalJobConfFuncOpt: Option[(String, JobConf) => Unit],
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
-  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 30)
+  val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
     val className = partitionInfos.last.ifc.getName
-    if (partitionInfos.size >= threshold &&
+    if (partitionInfos.size > threshold &&
       (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
         className == "org.apache.parquet.hadoop.ParquetInputFormat")) {
       // Create local references so that the outer object isn't serialized.
