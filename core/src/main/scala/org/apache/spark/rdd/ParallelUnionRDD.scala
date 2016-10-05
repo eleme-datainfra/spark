@@ -43,7 +43,7 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 29)
 
   override def getPartitions: Array[Partition] = {
-    // select the latest partition inputformat class
+    // select the latest partition input format class
     val className = partitionInfos.last.ifc.getName
     if (partitionInfos.size > threshold &&
       (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
@@ -83,12 +83,8 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
       var pos = 0
 
       rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
-        // scalastyle:off
         val rdd = rdds(rddIndex)
-        val firstParent = rdd.firstParent.firstParent
-        println(firstParent)
-        // scalastyle:on
-        rdds(rddIndex).firstParent.firstParent.setPartitions(parts)
+        rdd.setPartitions(parts)
         parts.foreach { part =>
           array(pos) = new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
