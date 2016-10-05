@@ -49,7 +49,7 @@ private[spark] class ParallelUnionRDD[T: ClassTag](
       (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
         className == "org.apache.parquet.hadoop.ParquetInputFormat")) {
       // Create local references so that the outer object isn't serialized.
-      val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.id).toMap
+      val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.firstParent.id).toMap
       val broadcastedJobConf = broadcastedConf
       val initJobConfFuncOpt = initLocalJobConfFuncOpt
       val partitionsWithIndex = partitionInfos.zipWithIndex.toArray
