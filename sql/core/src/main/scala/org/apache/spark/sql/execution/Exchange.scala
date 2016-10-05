@@ -519,8 +519,5 @@ private[sql] case class EnsureRequirements(sqlContext: SQLContext) extends Rule[
       case operator: SparkPlan =>
         ensureDistributionAndOrdering(operator)
     }
-    // scalastyle:off
-    println(plan)
-    // scalastyle:on
   }
 }

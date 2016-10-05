@@ -115,6 +115,9 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
    * Concrete implementations of SparkPlan should override doExecute instead.
    */
   final def execute(): RDD[InternalRow] = {
+    // scalastyle:off
+    println(this)
+    // scalastyle:on
     if (children.nonEmpty) {
       val hasUnsafeInputs = children.exists(_.outputsUnsafeRows)
       val hasSafeInputs = children.exists(!_.outputsUnsafeRows)
