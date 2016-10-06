@@ -38,7 +38,7 @@ import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.hadoop.mapreduce.RecordReader
 import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.FileSplit
-import org.apache.spark.Logging
+import org.apache.spark.{SparkEnv, Logging}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
@@ -105,11 +105,15 @@ private[hive] class FasterOrcRecordReader(
   }
 
   def initialize(fileSplit: FileSplit, conf: Configuration): Unit = {
+    val mergeDistance = SparkEnv.get.conf.getInt("spark.sql.orc.mergeDistance", 256)
+    val bufferSize = SparkEnv.get.conf.getInt("spark.sql.orc.bufferSize", 512)
+    val streamSize = SparkEnv.get.conf.getInt("spark.sql.orc.streamSize", 512)
+
     var orcDataSource: OrcDataSource = null
     val metadataReader: MetadataReader = new OrcMetadataReader
-    val maxMergeDistance = new DataSize(256, DataSize.Unit.KILOBYTE)
-    val maxBufferSize = new DataSize(512, DataSize.Unit.KILOBYTE)
-    val streamBufferSize = new DataSize(512, DataSize.Unit.KILOBYTE)
+    val maxMergeDistance = new DataSize(mergeDistance, DataSize.Unit.KILOBYTE)
+    val maxBufferSize = new DataSize(bufferSize, DataSize.Unit.KILOBYTE)
+    val streamBufferSize = new DataSize(streamSize, DataSize.Unit.KILOBYTE)
     val hiveStorageTimeZone = DateTimeZone.forTimeZone(
       TimeZone.getTimeZone(TimeZone.getDefault.getID))
     val path = fileSplit.getPath
