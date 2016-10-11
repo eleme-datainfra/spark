@@ -83,7 +83,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
 
       val serializer = SparkEnv.get.closureSerializer.newInstance()
       val array = new ArrayBuffer[HadoopPartition]()
-
+      var pos = 0
       rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
         val parts = serializer.deserialize[Array[HadoopPartition]](splits)
         val rdd = rdds(rddIndex)
