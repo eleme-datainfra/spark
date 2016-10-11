@@ -21,7 +21,7 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
-import org.apache.spark.rdd.HadoopPartition
+import org.apache.spark.rdd.{ParallelCollectionPartition, HadoopPartition}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -109,6 +109,11 @@ class KryoSerializer(conf: SparkConf)
         conf,
         classTag[HadoopPartition])
         .asInstanceOf[com.esotericsoftware.kryo.Serializer[HadoopPartition]])
+    kryo.register(classOf[ParallelCollectionPartition],
+      new SparkJavaSerializer(
+        conf,
+        classTag[ParallelCollectionPartition])
+        .asInstanceOf[com.esotericsoftware.kryo.Serializer[ParallelCollectionPartition]])
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
