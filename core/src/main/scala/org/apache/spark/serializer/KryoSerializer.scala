@@ -253,8 +253,9 @@ class KryoDeserializationStream(
 private[spark] class SparkJavaSerializer(conf: SparkConf) extends KryoClassSerializer {
   val ser = new JavaSerializer(conf: SparkConf).newInstance()
   var serStream: SerializationStream = null
+  var deserStream: DeserializationStream = null
 
-  def write(kryo: Kryo, output: KryoOutput, obj: AnyRef) {
+  override def write(kryo: Kryo, output: KryoOutput, obj: AnyRef): Unit = {
     try {
       serStream = ser.serializeStream(output.getOutputStream)
       serStream.writeObject[AnyRef](obj)
@@ -270,13 +271,18 @@ private[spark] class SparkJavaSerializer(conf: SparkConf) extends KryoClassSeria
     }
   }
 
-  def read(kryo: Kryo, input: KryoInput, `type`: Class[_]): AnyRef = {
+  override def read(kryo: Kryo, input: KryoInput, `type`: Class[_]): AnyRef = {
+    deserStream = ser.deserializeStream(input.getInputStream)
     try {
-      ser.deserializeStream(input.getInputStream).readObject[AnyRef]()
+      deserStream.readObject[AnyRef]()
     }
     catch {
       case ex: Exception => {
         throw new KryoException("Error during Java deserialization.", ex)
+      }
+    } finally {
+      if (deserStream != null) {
+        deserStream.close()
       }
     }
   }
