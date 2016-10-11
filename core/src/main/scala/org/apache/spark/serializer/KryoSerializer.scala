@@ -104,7 +104,8 @@ class KryoSerializer(conf: SparkConf)
     kryo.register(JavaIterableWrapperSerializer.wrapperClass, new JavaIterableWrapperSerializer)
 
     // Allow sending classes with custom Java serializers
-    kryo.register(classOf[HadoopPartition], new SparkJavaSerializer(conf))
+    kryo.register(classOf[HadoopPartition], new SparkJavaSerializer(conf,
+      ClassTag[HadoopPartition]))
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
@@ -248,45 +249,6 @@ class KryoDeserializationStream(
       }
     }
   }
-}
-
-private[spark] class SparkJavaSerializer(conf: SparkConf) extends KryoClassSerializer {
-  val ser = new JavaSerializer(conf: SparkConf).newInstance()
-  var serStream: SerializationStream = null
-  var deserStream: DeserializationStream = null
-
-  override def write(kryo: Kryo, output: KryoOutput, obj: AnyRef): Unit = {
-    try {
-      serStream = ser.serializeStream(output.getOutputStream)
-      serStream.writeObject[AnyRef](obj)
-      serStream.flush()
-    } catch {
-      case ex: Exception => {
-        throw new KryoException("Error during Java serialization.", ex)
-      }
-    } finally {
-      if (serStream != null) {
-        serStream.close()
-      }
-    }
-  }
-
-  override def read(kryo: Kryo, input: KryoInput, `type`: Class[_]): AnyRef = {
-    deserStream = ser.deserializeStream(input.getInputStream)
-    try {
-      deserStream.readObject[AnyRef]()
-    }
-    catch {
-      case ex: Exception => {
-        throw new KryoException("Error during Java deserialization.", ex)
-      }
-    } finally {
-      if (deserStream != null) {
-        deserStream.close()
-      }
-    }
-  }
-
 }
 
 private[spark] class KryoSerializerInstance(ks: KryoSerializer) extends SerializerInstance {
