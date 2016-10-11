@@ -51,7 +51,7 @@ import org.apache.spark.storage.StorageLevel
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-class HadoopPartition(
+private[spark] class HadoopPartition(
     rddId: Int,
     idx: Int,
     val inputSplit: SerializableWritable[InputSplit])
