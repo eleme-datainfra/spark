@@ -23,22 +23,21 @@ import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import org.apache.spark.Logging;
 import org.apache.spark.SparkConf;
 import org.apache.spark.annotation.Private;
 import scala.reflect.ClassTag;
 
 
 @Private
-public class SparkJavaSerializer<T extends Object> extends Serializer {
+public class SparkJavaSerializer extends Serializer {
 
     SparkConf conf;
     SerializerInstance serializer;
     SerializationStream serStream;
     DeserializationStream deserStream;
-    ClassTag<T> OBJECT_CLASS_TAG = null;
+    ClassTag OBJECT_CLASS_TAG = null;
 
-    public SparkJavaSerializer(SparkConf conf, ClassTag<T> classTag) {
+    public SparkJavaSerializer(SparkConf conf, ClassTag classTag) {
         this.conf = conf;
         serializer = new JavaSerializer(conf).newInstance();
         OBJECT_CLASS_TAG = classTag;
@@ -48,7 +47,7 @@ public class SparkJavaSerializer<T extends Object> extends Serializer {
     public void write(Kryo kryo, Output output, Object object) {
         serStream = serializer.serializeStream(output.getOutputStream());
         try {
-            serStream.writeObject((T)object, OBJECT_CLASS_TAG);
+            serStream.writeObject(object, OBJECT_CLASS_TAG);
             serStream.flush();
         } catch (Exception ex) {
             throw new KryoException("Error during Java serialization.", ex);
