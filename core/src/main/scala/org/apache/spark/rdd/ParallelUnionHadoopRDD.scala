@@ -34,8 +34,6 @@ import scala.reflect.ClassTag
 
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
-case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer) extends Serializable
-
 private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
@@ -44,6 +42,8 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
+
+  case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer) extends Serializable
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
