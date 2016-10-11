@@ -43,7 +43,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
 
-  case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer) extends Serializable
+  case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer)
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
