@@ -29,15 +29,15 @@ import scala.reflect.ClassTag;
 
 
 @Private
-public class SparkJavaSerializer extends Serializer {
+public class SparkJavaSerializer<T extends Object> extends Serializer {
 
     SparkConf conf;
     SerializerInstance serializer;
     SerializationStream serStream;
     DeserializationStream deserStream;
-    ClassTag OBJECT_CLASS_TAG = null;
+    ClassTag<T> OBJECT_CLASS_TAG = null;
 
-    public SparkJavaSerializer(SparkConf conf, ClassTag classTag) {
+    public SparkJavaSerializer(SparkConf conf, ClassTag<T> classTag) {
         this.conf = conf;
         serializer = new JavaSerializer(conf).newInstance();
         OBJECT_CLASS_TAG = classTag;
@@ -47,7 +47,7 @@ public class SparkJavaSerializer extends Serializer {
     public void write(Kryo kryo, Output output, Object object) {
         serStream = serializer.serializeStream(output.getOutputStream());
         try {
-            serStream.writeObject(object, OBJECT_CLASS_TAG);
+            serStream.writeObject((T)object, OBJECT_CLASS_TAG);
             serStream.flush();
         } catch (Exception ex) {
             throw new KryoException("Error during Java serialization.", ex);

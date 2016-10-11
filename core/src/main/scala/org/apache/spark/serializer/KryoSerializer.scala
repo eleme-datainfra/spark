@@ -104,8 +104,11 @@ class KryoSerializer(conf: SparkConf)
     kryo.register(JavaIterableWrapperSerializer.wrapperClass, new JavaIterableWrapperSerializer)
 
     // Allow sending classes with custom Java serializers
-    kryo.register(classOf[HadoopPartition], new SparkJavaSerializer(conf,
-      classTag[HadoopPartition]))
+    kryo.register(classOf[HadoopPartition],
+      new SparkJavaSerializer(
+        conf,
+        classTag[HadoopPartition])
+        .asInstanceOf[com.esotericsoftware.kryo.Serializer[HadoopPartition]])
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
