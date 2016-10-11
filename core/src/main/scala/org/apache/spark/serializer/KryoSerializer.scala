@@ -109,11 +109,11 @@ class KryoSerializer(conf: SparkConf)
         conf,
         classTag[HadoopPartition])
         .asInstanceOf[com.esotericsoftware.kryo.Serializer[HadoopPartition]])
-    kryo.register(classOf[ParallelCollectionPartition],
+    kryo.register(classOf[ParallelCollectionPartition[Any]],
       new SparkJavaSerializer(
         conf,
-        classTag[ParallelCollectionPartition])
-        .asInstanceOf[com.esotericsoftware.kryo.Serializer[ParallelCollectionPartition]])
+        classTag[ParallelCollectionPartition[Any]])
+        .asInstanceOf[com.esotericsoftware.kryo.Serializer[ParallelCollectionPartition[Any]]])
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
