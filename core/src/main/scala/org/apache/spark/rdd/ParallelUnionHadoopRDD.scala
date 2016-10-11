@@ -17,6 +17,8 @@
 
 package org.apache.spark.rdd
 
+import java.nio.ByteBuffer
+
 import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
@@ -32,6 +34,8 @@ import scala.reflect.ClassTag
 
 case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
+case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer) extends Serializable
+
 private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
@@ -40,8 +44,6 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
-
-  case class RDDIndexWithSplits(rddIndex: Int, splits: Array[SerializableWritable[InputSplit]])
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
@@ -77,21 +79,22 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             array(i) = new HadoopPartition(rddIdMap(index), i,
               new SerializableWritable[InputSplit](inputSplits(i)))
           }
-          (index, SparkEnv.get.closureSerializer.newInstance()
-            .serialize[Array[HadoopPartition]](array))
+          val buffer = SparkEnv.get.closureSerializer.newInstance()
+            .serialize[Array[HadoopPartition]](array)
+          RDDIndexWithSplits(index, buffer)
         }.collect()
 
       val serializer = SparkEnv.get.closureSerializer.newInstance()
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
-        val parts = serializer.deserialize[Array[HadoopPartition]](splits)
-        val rdd = rdds(rddIndex)
+      rddIndexWithPartitions.foreach { r =>
+        val parts = serializer.deserialize[Array[HadoopPartition]](r.splitsByteBuffer)
+        val rdd = rdds(r.rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
         hadoopRDD.setPartitions(parts.asInstanceOf[Array[Partition]])
         parts.foreach { part =>
-          array += new UnionPartition(pos, rdd, rddIndex, part.index)
+          array += new UnionPartition(pos, rdd, r.rddIndex, part.index)
           pos += 1
         }
       }
