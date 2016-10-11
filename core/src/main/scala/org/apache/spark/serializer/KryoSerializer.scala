@@ -25,7 +25,7 @@ import org.apache.spark.rdd.HadoopPartition
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
+import scala.reflect._
 
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
@@ -105,7 +105,7 @@ class KryoSerializer(conf: SparkConf)
 
     // Allow sending classes with custom Java serializers
     kryo.register(classOf[HadoopPartition], new SparkJavaSerializer(conf,
-      ClassTag[HadoopPartition]))
+      classTag[HadoopPartition]))
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
