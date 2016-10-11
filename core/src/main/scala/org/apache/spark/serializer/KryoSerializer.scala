@@ -27,7 +27,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput, Output}
+import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 import com.esotericsoftware.kryo.{Kryo, KryoException, Serializer => KryoClassSerializer}
 import com.twitter.chill.{AllScalaRegistrar, EmptyScalaKryoInstantiator}
