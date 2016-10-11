@@ -73,7 +73,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[Partition](inputSplits.size)
+          val array = new Array[HadoopPartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
             array(i) = new HadoopPartition(rddIdMap(index), i,
               new SerializableWritable[InputSplit](inputSplits(i)))
@@ -82,7 +82,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             .serialize[Array[HadoopPartition]](array))
         }.collect()
 
-      val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
+      val array = new Array[HadoopPartition](rddIndexWithPartitions.map(_._2.size).sum)
       var pos = 0
       val serializer = SparkEnv.get.closureSerializer.newInstance()
 
