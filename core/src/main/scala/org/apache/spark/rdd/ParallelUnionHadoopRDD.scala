@@ -42,6 +42,8 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
 
+  case class RDDIndexWithSplits(rddIndex: Int, splits: Array[SerializableWritable[InputSplit]])
+
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
     val className = partitionInfos.last.ifc.getName
@@ -76,13 +78,16 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             array(i) = new HadoopPartition(rddIdMap(index), i,
               new SerializableWritable[InputSplit](inputSplits(i)))
           }
-          (index, array)
+          (index, SparkEnv.get.closureSerializer.newInstance()
+            .serialize[Array[HadoopPartition]](array))
         }.collect()
 
       val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
       var pos = 0
+      val serializer = SparkEnv.get.closureSerializer.newInstance()
 
-      rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
+      rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
+        val parts = serializer.deserialize[Array[HadoopPartition]](splits)
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
