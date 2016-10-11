@@ -21,13 +21,13 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
-import org.apache.spark.rdd.{ParallelCollectionPartition, HadoopPartition}
+import org.apache.spark.rdd.HadoopPartition
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
+import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput, Output}
 import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 import com.esotericsoftware.kryo.{Kryo, KryoException, Serializer => KryoClassSerializer}
 import com.twitter.chill.{AllScalaRegistrar, EmptyScalaKryoInstantiator}
@@ -104,7 +104,7 @@ class KryoSerializer(conf: SparkConf)
     kryo.register(JavaIterableWrapperSerializer.wrapperClass, new JavaIterableWrapperSerializer)
 
     // Allow sending classes with custom Java serializers
-    kryo.register(classOf[HadoopPartition], new JavaSerializer(conf))
+    kryo.register(classOf[HadoopPartition], new SparkJavaSerializer(conf))
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
@@ -248,6 +248,39 @@ class KryoDeserializationStream(
       }
     }
   }
+}
+
+private[spark] class SparkJavaSerializer(conf: SparkConf) extends KryoClassSerializer {
+  val ser = new JavaSerializer(conf: SparkConf).newInstance()
+  var serStream: SerializationStream = null
+
+  def write(kryo: Kryo, output: KryoOutput, obj: AnyRef) {
+    try {
+      serStream = ser.serializeStream(output.getOutputStream)
+      serStream.writeObject[AnyRef](obj)
+      serStream.flush()
+    } catch {
+      case ex: Exception => {
+        throw new KryoException("Error during Java serialization.", ex)
+      }
+    } finally {
+      if (serStream != null) {
+        serStream.close()
+      }
+    }
+  }
+
+  def read(kryo: Kryo, input: KryoInput, `type`: Class[_]): AnyRef = {
+    try {
+      ser.deserializeStream(input.getInputStream).readObject[AnyRef]()
+    }
+    catch {
+      case ex: Exception => {
+        throw new KryoException("Error during Java deserialization.", ex)
+      }
+    }
+  }
+
 }
 
 private[spark] class KryoSerializerInstance(ks: KryoSerializer) extends SerializerInstance {
