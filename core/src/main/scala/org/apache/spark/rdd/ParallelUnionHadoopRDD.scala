@@ -32,13 +32,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 
-case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
+private[spark] case class PartitionInfo(path: String, ifc: Class[InputFormat[Writable, Writable]])
 
-@SerialVersionUID(4067089682203400604L)
-case class RDDIndexWithSplits(rddIndex: Int, splitsByteBuffer: ByteBuffer) extends Serializable
-
-@SerialVersionUID(4067089682203400605L)
-private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
+class ParallelUnionHadoopRDD[T: ClassTag](
     @transient sc: SparkContext,
     rdds: Seq[RDD[T]],
     broadcastedConf: Broadcast[SerializableConfiguration],
@@ -83,7 +79,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
           }
           val buffer = SparkEnv.get.closureSerializer.newInstance()
             .serialize[Array[HadoopPartition]](array)
-          RDDIndexWithSplits(index, buffer)
+          (index, buffer)
         }.collect()
 
       val serializer = SparkEnv.get.closureSerializer.newInstance()
