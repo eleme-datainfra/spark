@@ -83,14 +83,14 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       val serializer = SparkEnv.get.closureSerializer.newInstance()
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { r =>
-        val parts = serializer.deserialize[Array[HadoopPartition]](r.splitsByteBuffer)
-        val rdd = rdds(r.rddIndex)
+      rddIndexWithPartitions.foreach { case (rddIndex, buffer) =>
+        val parts = serializer.deserialize[Array[HadoopPartition]](buffer)
+        val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
         hadoopRDD.setPartitions(parts.asInstanceOf[Array[Partition]])
         parts.foreach { part =>
-          array += new UnionPartition(pos, rdd, r.rddIndex, part.index)
+          array += new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
         }
       }
