@@ -17,8 +17,6 @@
 
 package org.apache.spark.rdd
 
-import java.nio.ByteBuffer
-
 import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
