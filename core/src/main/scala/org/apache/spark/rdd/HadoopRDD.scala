@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.io.{ObjectInputStream, ObjectOutputStream, EOFException}
+import java.io.EOFException
 
 import scala.collection.immutable.Map
 import scala.reflect.ClassTag
@@ -51,24 +51,10 @@ import org.apache.spark.storage.StorageLevel
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-private[spark] class HadoopPartition(
-    @transient var rddId: Int,
-    @transient var idx: Int,
-    @transient var inputSplit: SerializableWritable[InputSplit])
+private[spark] class HadoopPartition(rddId: Int, idx: Int, @transient s: InputSplit)
   extends Partition {
 
-  def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-    out.writeInt(rddId)
-    out.writeInt(idx)
-    inputSplit.writeObject(out)
-  }
-
-  def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-    rddId = in.readInt()
-    idx = in.readInt()
-    inputSplit = new SerializableWritable[InputSplit](null)
-    inputSplit.readObject(in)
-  }
+  val inputSplit = new SerializableWritable[InputSplit](s)
 
   override def hashCode(): Int = 41 * (41 + rddId) + idx
 
@@ -213,7 +199,7 @@ class HadoopRDD[K, V](
     val inputSplits = inputFormat.getSplits(jobConf, minPartitions)
     val array = new Array[Partition](inputSplits.size)
     for (i <- 0 until inputSplits.size) {
-      array(i) = new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
+      array(i) = new HadoopPartition(id, i, inputSplits(i))
     }
     array
   }

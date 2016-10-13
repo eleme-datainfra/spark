@@ -19,6 +19,10 @@ package org.apache.spark.serializer
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileOutputStream, FileInputStream}
 
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.mapred.{InputSplit, FileSplit}
+import org.apache.spark.rdd.HadoopPartition
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -31,7 +35,7 @@ import org.roaringbitmap.RoaringBitmap
 import org.apache.spark.{SharedSparkContext, SparkConf, SparkFunSuite}
 import org.apache.spark.scheduler.HighlyCompressedMapStatus
 import org.apache.spark.serializer.KryoTest._
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{SerializableHadoopPartition, Utils}
 import org.apache.spark.storage.BlockManagerId
 
 class KryoSerializerSuite extends SparkFunSuite with SharedSparkContext {
@@ -148,10 +152,10 @@ class KryoSerializerSuite extends SparkFunSuite with SharedSparkContext {
     check(mutable.Map("one" -> 1, "two" -> 2))
     check(mutable.HashMap(1 -> "one", 2 -> "two"))
     check(mutable.HashMap("one" -> 1, "two" -> 2))
-    check(List(Some(mutable.HashMap(1->1, 2->2)), None, Some(mutable.HashMap(3->4))))
+    check(List(Some(mutable.HashMap(1 -> 1, 2 -> 2)), None, Some(mutable.HashMap(3 -> 4))))
     check(List(
       mutable.HashMap("one" -> 1, "two" -> 2),
-      mutable.HashMap(1->"one", 2->"two", 3->"three")))
+      mutable.HashMap(1 -> "one", 2 -> "two", 3 -> "three")))
   }
 
   test("Bug: SPARK-10251") {
@@ -178,10 +182,10 @@ class KryoSerializerSuite extends SparkFunSuite with SharedSparkContext {
     check(mutable.Map("one" -> 1, "two" -> 2))
     check(mutable.HashMap(1 -> "one", 2 -> "two"))
     check(mutable.HashMap("one" -> 1, "two" -> 2))
-    check(List(Some(mutable.HashMap(1->1, 2->2)), None, Some(mutable.HashMap(3->4))))
+    check(List(Some(mutable.HashMap(1 -> 1, 2 -> 2)), None, Some(mutable.HashMap(3 -> 4))))
     check(List(
       mutable.HashMap("one" -> 1, "two" -> 2),
-      mutable.HashMap(1->"one", 2->"two", 3->"three")))
+      mutable.HashMap(1 -> "one", 2 -> "two", 3 -> "three")))
   }
 
   test("ranges") {
@@ -443,6 +447,17 @@ class KryoSerializerAutoResetDisabledSuite extends SparkFunSuite with SharedSpar
   test("sort-shuffle with bypassMergeSort (SPARK-7873)") {
     val myObject = ("Hello", "World")
     assert(sc.parallelize(Seq.fill(100)(myObject)).repartition(2).collect().toSet === Set(myObject))
+  }
+
+  test("test SerializableHadoopPartition") {
+    val myObject = ("Hello", "World")
+    val a = sc.parallelize(Array(1, 2), 2)
+      .map{ x =>
+        new SerializableHadoopPartition(1,
+          Array(new HadoopPartition(1, 1, new FileSplit(new Path("/test"), 0L, 0L, Array(""))))
+        )
+      }.collect()
+    assert(a.size == 2)
   }
 
   test("calling deserialize() after deserializeStream()") {

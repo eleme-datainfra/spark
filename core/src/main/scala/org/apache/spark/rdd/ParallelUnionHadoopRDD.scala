@@ -77,8 +77,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
           val inputSplits = inputFormat.getSplits(jobConf, 1)
           val array = new Array[HadoopPartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
-            array(i) = new HadoopPartition(rddIdMap(index), i,
-              new SerializableWritable[InputSplit](inputSplits(i)))
+            array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
           }
 
           new SerializableHadoopPartition(index, array)
