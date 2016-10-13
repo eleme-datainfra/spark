@@ -17,15 +17,13 @@
 
 package org.apache.spark.rdd
 
-
 import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
 import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.util.SerializableConfiguration
-import org.apache.spark.util.SerializableHadoopPartition
+import org.apache.spark.util.{SerializableConfiguration, SerializableHadoopPartition}
 import org.apache.spark._
 
 import scala.collection.mutable.ArrayBuffer
@@ -54,6 +52,11 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       val broadcastedJobConf = broadcastedConf
       val initJobConfFuncOpt = initLocalJobConfFuncOpt
       val partitionsWithIndex = partitionInfos.zipWithIndex.toArray
+
+      // if (sc.conf.get("spark.serializer") == "org.apache.spark.serializer.KryoSerializer") {
+      //  sc.conf.set("spark.kryo.registrator",
+      //    "org.apache.spark.util.SerializableHadoopPartitionRegistrator")
+      // }
 
       val rddIndexWithPartitions =
         sc.parallelize(partitionsWithIndex, partitionInfos.size).map { case (part, index) =>
