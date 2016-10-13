@@ -27,25 +27,12 @@ private[spark] class SerializableHadoopPartition(@transient var rddIndex: Int,
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
     out.defaultWriteObject()
     out.writeInt(rddIndex)
-    out.writeInt(splits.length)
-    var i = 0
-    while (i < splits.length) {
-      splits(i).writeObject(out)
-      i += 1
-    }
+    out.writeObject(splits)
   }
 
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
     in.readObject()
     rddIndex = in.readInt()
-    val length = in.readInt()
-    splits = new Array[HadoopPartition](length)
-    var i = 0
-    while (i < length) {
-      val split = new HadoopPartition(0, 0 , null)
-      split.readObject(in)
-      splits(i) = split
-      i += 1
-    }
+    splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
   }
 }
