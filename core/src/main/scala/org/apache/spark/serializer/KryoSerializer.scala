@@ -21,6 +21,8 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
+import org.apache.spark.rdd.HadoopPartition
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect._
@@ -39,7 +41,7 @@ import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.scheduler.{CompressedMapStatus, HighlyCompressedMapStatus}
 import org.apache.spark.storage._
 import org.apache.spark.util.collection.CompactBuffer
-import org.apache.spark.util.{BoundedPriorityQueue, SerializableConfiguration, SerializableJobConf, Utils}
+import org.apache.spark.util._
 
 /**
  * A Spark serializer that uses the [[https://code.google.com/p/kryo/ Kryo serialization library]].
@@ -101,6 +103,9 @@ class KryoSerializer(conf: SparkConf)
     // For results returned by asJavaIterable. See JavaIterableWrapperSerializer.
     kryo.register(JavaIterableWrapperSerializer.wrapperClass, new JavaIterableWrapperSerializer)
 
+    kryo.register(classOf[HadoopPartition], new KryoJavaSerializer())
+    kryo.register(classOf[Array[HadoopPartition]], new KryoJavaSerializer())
+    kryo.register(classOf[SerializableHadoopPartition], new KryoJavaSerializer())
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())

@@ -17,7 +17,6 @@
 
 package org.apache.spark.rdd
 
-import java.nio.ByteBuffer
 
 import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.io.Writable
@@ -26,6 +25,7 @@ import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.util.SerializableConfiguration
+import org.apache.spark.util.SerializableHadoopPartition
 import org.apache.spark._
 
 import scala.collection.mutable.ArrayBuffer
@@ -77,27 +77,18 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             array(i) = new HadoopPartition(rddIdMap(index), i,
               new SerializableWritable[InputSplit](inputSplits(i)))
           }
-          val serializer = SparkEnv.get.closureSerializer.newInstance()
-          val indexBuffer = serializer.serialize(index)
-          // scalastyle:off
-          println(indexBuffer.array().length)
-          // scalastyle:on
-          val splitsBuffer = serializer.serialize(array)
-          val bytes = indexBuffer.array() ++ splitsBuffer.array()
-          bytes
+
+          new SerializableHadoopPartition(index, array)
         }.collect()
 
-      val serializer = SparkEnv.get.closureSerializer.newInstance()
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { buffer =>
-        val rddIndex = pos
-        val parts = serializer.deserialize[Array[HadoopPartition]](ByteBuffer.wrap(buffer))
-        val rdd = rdds(rddIndex)
+      rddIndexWithPartitions.foreach { s =>
+        val rdd = rdds(s.rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
-        hadoopRDD.setPartitions(parts.asInstanceOf[Array[Partition]])
-        parts.foreach { part =>
+        hadoopRDD.setPartitions(s.splits.asInstanceOf[Array[Partition]])
+        s.splits.foreach { part =>
           array += new UnionPartition(pos, rdd, rddIndex, part.index)
           pos += 1
         }

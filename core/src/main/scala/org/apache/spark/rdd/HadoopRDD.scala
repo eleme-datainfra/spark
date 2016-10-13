@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.io.EOFException
+import java.io.{ObjectInputStream, ObjectOutputStream, EOFException}
 
 import scala.collection.immutable.Map
 import scala.reflect.ClassTag
@@ -52,10 +52,25 @@ import org.apache.spark.storage.StorageLevel
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
 private[spark] class HadoopPartition(
-    rddId: Int,
-    idx: Int,
-    val inputSplit: SerializableWritable[InputSplit])
+    @transient var rddId: Int,
+    @transient var idx: Int,
+    @transient var inputSplit: SerializableWritable[InputSplit])
   extends Partition {
+
+  def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.defaultWriteObject()
+    out.writeInt(rddId)
+    out.writeInt(idx)
+    inputSplit.writeObject(out)
+  }
+
+  def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    in.defaultReadObject()
+    rddId = in.readInt()
+    idx = in.readInt()
+    inputSplit = new SerializableWritable[InputSplit](null)
+    inputSplit.readObject(in)
+  }
 
   override def hashCode(): Int = 41 * (41 + rddId) + idx
 
