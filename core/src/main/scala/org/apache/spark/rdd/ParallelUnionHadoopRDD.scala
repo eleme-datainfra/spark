@@ -89,7 +89,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
         val hadoopRDD = rdd.firstParent.firstParent
         hadoopRDD.setPartitions(s.splits.asInstanceOf[Array[Partition]])
         s.splits.foreach { part =>
-          array += new UnionPartition(pos, rdd, rddIndex, part.index)
+          array += new UnionPartition(pos, rdd, s.rddIndex, part.index)
           pos += 1
         }
       }
