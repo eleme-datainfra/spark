@@ -75,9 +75,9 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             array(i) = new HadoopPartition(rddIdMap(index), i,
               new SerializableWritable[InputSplit](inputSplits(i)))
           }
-          val buffer = SparkEnv.get.closureSerializer.newInstance()
-            .serialize[Array[HadoopPartition]](array)
-          (index, buffer)
+          val serializer = SparkEnv.get.closureSerializer.newInstance()
+          val splitsBuffer = serializer.serialize(array)
+          (index, splitsBuffer)
         }.collect()
 
       val serializer = SparkEnv.get.closureSerializer.newInstance()
