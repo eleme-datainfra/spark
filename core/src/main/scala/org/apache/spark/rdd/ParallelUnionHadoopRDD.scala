@@ -17,6 +17,8 @@
 
 package org.apache.spark.rdd
 
+import java.nio.ByteBuffer
+
 import org.apache.hadoop.conf.Configurable
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
@@ -76,15 +78,21 @@ class ParallelUnionHadoopRDD[T: ClassTag](
               new SerializableWritable[InputSplit](inputSplits(i)))
           }
           val serializer = SparkEnv.get.closureSerializer.newInstance()
+          val indexBuffer = serializer.serialize(index)
+          // scalastyle:off
+          println(indexBuffer.array().length)
+          // scalastyle:on
           val splitsBuffer = serializer.serialize(array)
-          (index, splitsBuffer)
+          val bytes = indexBuffer.array() ++ splitsBuffer.array()
+          bytes
         }.collect()
 
       val serializer = SparkEnv.get.closureSerializer.newInstance()
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { case (rddIndex, buffer) =>
-        val parts = serializer.deserialize[Array[HadoopPartition]](buffer)
+      rddIndexWithPartitions.foreach { buffer =>
+        val rddIndex = pos
+        val parts = serializer.deserialize[Array[HadoopPartition]](ByteBuffer.wrap(buffer))
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
