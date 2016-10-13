@@ -50,7 +50,7 @@ private[spark] class ParallelCollectionPartition[T: ClassTag](
   @throws(classOf[IOException])
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
 
-    val sfactory = SparkEnv.get.serializer
+    val sfactory = SparkEnv.get.closureSerializer
 
     // Treat java serializer with default action rather than going thru serialization, to avoid a
     // separate serialization header.
@@ -69,7 +69,7 @@ private[spark] class ParallelCollectionPartition[T: ClassTag](
   @throws(classOf[IOException])
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
 
-    val sfactory = SparkEnv.get.serializer
+    val sfactory = SparkEnv.get.closureSerializer
     sfactory match {
       case js: JavaSerializer => in.defaultReadObject()
       case _ =>
