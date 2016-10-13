@@ -54,7 +54,9 @@ private[spark] class ParallelCollectionPartition[T: ClassTag](
 
     // Treat java serializer with default action rather than going thru serialization, to avoid a
     // separate serialization header.
-
+    // scalastyle:off
+    println(sfactory.getClass)
+    // scalastyle:on
     sfactory match {
       case js: JavaSerializer => out.defaultWriteObject()
       case _ =>
