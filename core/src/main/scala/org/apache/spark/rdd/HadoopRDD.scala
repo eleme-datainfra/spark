@@ -58,14 +58,12 @@ private[spark] class HadoopPartition(
   extends Partition {
 
   def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-    out.defaultWriteObject()
     out.writeInt(rddId)
     out.writeInt(idx)
     inputSplit.writeObject(out)
   }
 
   def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-    in.defaultReadObject()
     rddId = in.readInt()
     idx = in.readInt()
     inputSplit = new SerializableWritable[InputSplit](null)

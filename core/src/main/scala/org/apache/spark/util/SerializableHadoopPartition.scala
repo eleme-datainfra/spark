@@ -27,7 +27,6 @@ private[spark] class SerializableHadoopPartition(@transient var rddIndex: Int,
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
     logError("Write SerializableHadoopPartition")
-    out.defaultWriteObject()
     out.writeInt(rddIndex)
     out.writeInt(splits.length)
     var i = 0
@@ -39,7 +38,6 @@ private[spark] class SerializableHadoopPartition(@transient var rddIndex: Int,
 
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
     logInfo("Read SerializableHadoopPartition")
-    in.readObject()
     rddIndex = in.readInt()
     val length = in.readInt()
     splits = new Array[HadoopPartition](length)

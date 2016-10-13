@@ -105,6 +105,7 @@ private[spark] class Executor(
 
   // Set the classloader for serializer
   env.serializer.setDefaultClassLoader(replClassLoader)
+  env.closureSerializer.setDefaultClassLoader(replClassLoader)
 
   // Akka's message frame size. If task result is bigger than this, we use the block manager
   // to send the result back.
