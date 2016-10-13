@@ -22,7 +22,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import org.apache.spark.Logging
 import org.apache.spark.rdd.HadoopPartition
 
-private[spark] class SerializableHadoopPartition(@transient var rddIndex: Int,
+class SerializableHadoopPartition(@transient var rddIndex: Int,
     @transient var splits: Array[HadoopPartition]) extends Serializable with Logging {
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
