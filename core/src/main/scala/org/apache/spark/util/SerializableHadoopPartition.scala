@@ -26,10 +26,12 @@ class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPar
     extends Serializable with Logging {
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.defaultWriteObject()
     out.writeObject(splits)
   }
 
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    in.defaultReadObject()
     splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
   }
 }
