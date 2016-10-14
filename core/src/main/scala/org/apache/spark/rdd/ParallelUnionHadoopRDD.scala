@@ -17,13 +17,15 @@
 
 package org.apache.spark.rdd
 
-import org.apache.hadoop.conf.Configurable
-import org.apache.hadoop.io.Writable
-import org.apache.hadoop.mapred.{JobConf, InputFormat}
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
+import org.apache.hadoop.conf.{Configuration, Configurable}
+import org.apache.hadoop.io.{ObjectWritable, Writable}
+import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
 import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.util.SerializableConfiguration
+import org.apache.spark.util.{Utils, SerializableConfiguration}
 import org.apache.spark._
 
 import scala.collection.mutable.ArrayBuffer
@@ -40,10 +42,6 @@ class ParallelUnionHadoopRDD[T: ClassTag](
     partitionInfos: Seq[PartitionInfo]) extends UnionRDD[T](sc, rdds) {
 
   val threshold = sc.conf.getInt("spark.rdd.parallelPartitionsThreshold", 31)
-
-  class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition]) {
-
-  }
 
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
@@ -74,17 +72,19 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[HadoopPartition](inputSplits.size)
+          val array = new Array[SerializablePartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
-            array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
+            array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
           }
 
-          (index, array)
+          new SerializableHadoopPartition(index, array)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
+      rddIndexWithPartitions.foreach { s =>
+        val rddIndex = s.rddIndex
+        val splits = s.splits.map(p => new HadoopPartition(p.rddId, p.idx, p.s))
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
@@ -97,6 +97,38 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       array.toArray
     } else {
       super.getPartitions
+    }
+  }
+
+  class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[SerializablePartition])
+      extends Serializable {
+
+    private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+      out.writeInt(rddIndex)
+      out.writeObject(splits)
+    }
+
+    private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+      rddIndex = in.readInt()
+      splits = in.readObject().asInstanceOf[Array[SerializablePartition]]
+    }
+  }
+
+  class SerializablePartition(var rddId: Int, var idx: Int, @transient var s: InputSplit)
+      extends Serializable {
+    private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+      out.writeInt(rddId)
+      out.writeInt(idx)
+      new ObjectWritable(s).write(out)
+    }
+
+    private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+      rddId = in.readInt()
+      idx = in.readInt()
+      val ow = new ObjectWritable()
+      ow.setConf(new Configuration(false))
+      ow.readFields(in)
+      s = ow.get().asInstanceOf[InputSplit]
     }
   }
 
