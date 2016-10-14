@@ -17,22 +17,10 @@
 
 package org.apache.spark.util
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import org.apache.spark.Logging
 import org.apache.spark.rdd.HadoopPartition
 
-class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition])
-    extends Serializable with Logging {
+class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition]) {
 
-  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-    out.defaultWriteObject()
-    out.writeObject(splits)
-  }
-
-  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-    in.defaultReadObject()
-    splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
-  }
 }
 

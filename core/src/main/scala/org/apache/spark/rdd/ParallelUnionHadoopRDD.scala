@@ -80,7 +80,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
           }
 
-          new SerializableHadoopPartition(index, array)
+          (index, array)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()

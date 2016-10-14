@@ -21,6 +21,8 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
+import org.apache.spark.rdd.HadoopPartition
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect._
@@ -100,7 +102,7 @@ class KryoSerializer(conf: SparkConf)
 
     // For results returned by asJavaIterable. See JavaIterableWrapperSerializer.
     kryo.register(JavaIterableWrapperSerializer.wrapperClass, new JavaIterableWrapperSerializer)
-
+    kryo.register(classOf[Tuple2[Int, Array[HadoopPartition]]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableWritable[_]], new KryoJavaSerializer())
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
