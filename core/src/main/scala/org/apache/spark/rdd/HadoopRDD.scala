@@ -54,7 +54,7 @@ import org.apache.spark.storage.StorageLevel
 class HadoopPartition(var rddId: Int, idx: Int, @transient s: InputSplit)
   extends Partition with Logging {
 
-  var inputSplit = new SerializableWritable[InputSplit](s)
+  @transient var inputSplit = new SerializableWritable[InputSplit](s)
 
   override def hashCode(): Int = 41 * (41 + rddId) + idx
 
