@@ -21,8 +21,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.io.{ObjectInputStream, ObjectOutputStream, EOFException}
 
-import org.apache.hadoop.io.ObjectWritable
-
 import scala.collection.immutable.Map
 import scala.reflect.ClassTag
 import scala.collection.mutable.ListBuffer

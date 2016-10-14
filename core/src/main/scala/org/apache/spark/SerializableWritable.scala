@@ -27,6 +27,7 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.util.Utils
 
 @DeveloperApi
+@SerialVersionUID(-3366212220867261881L)
 class SerializableWritable[T <: Writable](@transient var t: T) extends Serializable {
 
   def value: T = t
