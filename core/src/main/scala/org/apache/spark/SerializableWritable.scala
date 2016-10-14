@@ -28,18 +28,20 @@ import org.apache.spark.util.Utils
 
 @DeveloperApi
 @SerialVersionUID(-3366212220867261881L)
-class SerializableWritable[T <: Writable](@transient var t: T) extends Serializable {
+class SerializableWritable[T <: Writable](@transient var t: T) extends Serializable with Logging {
 
   def value: T = t
 
   override def toString: String = t.toString
 
   def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    logInfo("Write writable")
     out.defaultWriteObject()
     new ObjectWritable(t).write(out)
   }
 
   def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    logInfo("Read writable")
     in.defaultReadObject()
     val ow = new ObjectWritable()
     ow.setConf(new Configuration(false))
