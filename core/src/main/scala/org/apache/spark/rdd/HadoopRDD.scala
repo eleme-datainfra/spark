@@ -19,7 +19,9 @@ package org.apache.spark.rdd
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.io.EOFException
+import java.io.{ObjectInputStream, ObjectOutputStream, EOFException}
+
+import org.apache.hadoop.io.ObjectWritable
 
 import scala.collection.immutable.Map
 import scala.reflect.ClassTag
@@ -51,9 +53,10 @@ import org.apache.spark.storage.StorageLevel
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-class HadoopPartition(rddId: Int, idx: Int, @transient s: InputSplit) extends Partition {
+class HadoopPartition(var rddId: Int, idx: Int, @transient s: InputSplit)
+  extends Partition with Logging {
 
-  val inputSplit = new SerializableWritable[InputSplit](s)
+  var inputSplit = new SerializableWritable[InputSplit](s)
 
   override def hashCode(): Int = 41 * (41 + rddId) + idx
 
@@ -61,7 +64,8 @@ class HadoopPartition(rddId: Int, idx: Int, @transient s: InputSplit) extends Pa
 
   /**
    * Get any environment variables that should be added to the users environment when running pipes
-   * @return a Map with the environment variables and corresponding values, it could be empty
+    *
+    * @return a Map with the environment variables and corresponding values, it could be empty
    */
   def getPipeEnvVars(): Map[String, String] = {
     val envVars: Map[String, String] = if (inputSplit.value.isInstanceOf[FileSplit]) {
@@ -74,6 +78,19 @@ class HadoopPartition(rddId: Int, idx: Int, @transient s: InputSplit) extends Pa
       Map()
     }
     envVars
+  }
+
+  def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    logInfo("Write Object HadoopPartition")
+    out.writeInt(rddId)
+    inputSplit.writeObject(out)
+  }
+
+  def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    logInfo("Read Object HadoopPartition")
+    rddId = in.readInt()
+    inputSplit = new SerializableWritable[InputSplit](null)
+    inputSplit.readObject(in)
   }
 }
 

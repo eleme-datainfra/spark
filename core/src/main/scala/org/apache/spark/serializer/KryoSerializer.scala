@@ -21,8 +21,6 @@ import java.io._
 import java.nio.ByteBuffer
 import javax.annotation.Nullable
 
-import org.apache.spark.rdd.HadoopPartition
-
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect._
