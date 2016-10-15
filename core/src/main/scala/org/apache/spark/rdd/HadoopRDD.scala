@@ -51,10 +51,9 @@ import org.apache.spark.storage.StorageLevel
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-class HadoopPartition(var rddId: Int, idx: Int, @transient s: InputSplit)
+class HadoopPartition(var rddId: Int, idx: Int, var inputSplit: SerializableWritable[InputSplit])
   extends Partition with Logging {
 
-  var inputSplit = new SerializableWritable[InputSplit](s)
 
   override def hashCode(): Int = 41 * (41 + rddId) + idx
 
