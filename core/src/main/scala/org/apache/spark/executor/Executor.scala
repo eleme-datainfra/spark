@@ -26,7 +26,7 @@ import javax.annotation.concurrent.GuardedBy
 
 import com.codahale
 import com.codahale.metrics.MetricFilter
-import org.apache.spark.rdd.SerializablePartition
+import org.apache.spark.rdd.{SerializableHadoopPartition, SerializablePartition}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
@@ -117,7 +117,6 @@ private[spark] class Executor(
 
   // Set the classloader for serializer
   env.serializer.setDefaultClassLoader(replClassLoader)
-  env.closureSerializer.setDefaultClassLoader(replClassLoader)
 
   // Akka's message frame size. If task result is bigger than this, we use the block manager
   // to send the result back.
