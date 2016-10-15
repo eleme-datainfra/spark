@@ -17,16 +17,15 @@
 
 package org.apache.spark.rdd
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-import java.nio.ByteBuffer
+import java.io.{ByteArrayInputStream, ObjectInputStream, ObjectOutputStream}
 
+import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.io.{ObjectWritable, Writable}
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
 import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.serializer.JavaSerializer
 import org.apache.spark.util.{Utils, SerializableConfiguration}
 import org.apache.spark._
 
@@ -78,25 +77,29 @@ class ParallelUnionHadoopRDD[T: ClassTag](
           for (i <- 0 until inputSplits.size) {
             array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
           }
-          val sparkConf = SparkEnv.get.conf
-          val javaSerializer = new JavaSerializer(sparkConf).newInstance()
-          val byteBuffer = javaSerializer.serialize((index, array))
-          val b = byteBuffer.array()
+          val byteStream = new ByteOutputStream()
+          val objectOutputStream = new ObjectOutputStream(byteStream)
+          objectOutputStream.writeObject(array)
+          objectOutputStream.close()
+          val bytes = byteStream.toByteArray
           // scalastyle:off
-          System.out.println("buffer: " + b.length)
-          System.err.println("buffer: " + b.length)
+          System.out.println("buffer: " + bytes.length)
+          System.err.println("buffer: " + bytes.length)
           // scalastyle:on
-          logInfo(b.length)
-          b
+          logInfo("buffer: " + bytes.length)
+          (index, bytes)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      val sparkConf = SparkEnv.get.conf
-      val javaSerializer = new JavaSerializer(sparkConf).newInstance()
-      rddIndexWithPartitions.foreach { b =>
-        val buffer = ByteBuffer.wrap(b)
-        val (rddIndex, splits) = javaSerializer.deserialize[(Int, Array[Partition])](buffer)
+
+      var objectInputStream: ObjectInputStream = null
+      var byteStream: ByteArrayInputStream = null
+      rddIndexWithPartitions.foreach { case (rddIndex, bytes) =>
+        byteStream = new ByteArrayInputStream(bytes)
+        objectInputStream = new ObjectInputStream(byteStream)
+        val splits = objectInputStream.readObject().asInstanceOf[Array[HadoopPartition]]
+        objectInputStream.close()
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
