@@ -17,9 +17,8 @@
 
 package org.apache.spark.rdd
 
-import java.io.{ByteArrayInputStream, ObjectInputStream, ObjectOutputStream}
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream
 import org.apache.hadoop.conf.{Configuration, Configurable}
 import org.apache.hadoop.io.{ObjectWritable, Writable}
 import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
@@ -77,7 +76,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
           for (i <- 0 until inputSplits.size) {
             array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
           }
-          new SerializableHadoopPartition(0, null)
+          new SerializableHadoopPartition(index, array)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
@@ -100,38 +99,37 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       super.getPartitions
     }
   }
+}
 
-  class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[SerializablePartition])
-      extends Serializable {
+class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[SerializablePartition])
+  extends Serializable {
 
-    private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-      out.writeInt(rddIndex)
-      out.writeObject(splits)
-    }
-
-    private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-      rddIndex = in.readInt()
-      splits = in.readObject().asInstanceOf[Array[SerializablePartition]]
-    }
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.writeInt(rddIndex)
+    out.writeObject(splits)
   }
 
-  class SerializablePartition(var rddId: Int, var idx: Int, @transient var s: InputSplit)
-      extends Serializable {
-    private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-      out.writeInt(rddId)
-      out.writeInt(idx)
-      new ObjectWritable(s).write(out)
-    }
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    rddIndex = in.readInt()
+    splits = in.readObject().asInstanceOf[Array[SerializablePartition]]
+  }
+}
 
-    private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-      rddId = in.readInt()
-      idx = in.readInt()
-      val ow = new ObjectWritable()
-      ow.setConf(new Configuration(false))
-      ow.readFields(in)
-      s = ow.get().asInstanceOf[InputSplit]
-    }
+class SerializablePartition(var rddId: Int, var idx: Int, @transient var s: InputSplit)
+  extends Serializable {
+
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.writeInt(rddId)
+    out.writeInt(idx)
+    new ObjectWritable(s).write(out)
   }
 
-
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    rddId = in.readInt()
+    idx = in.readInt()
+    val ow = new ObjectWritable()
+    ow.setConf(new Configuration(false))
+    ow.readFields(in)
+    s = ow.get().asInstanceOf[InputSplit]
+  }
 }
