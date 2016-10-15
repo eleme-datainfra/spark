@@ -21,8 +21,9 @@ import java.io.{ObjectInputStream, ObjectOutputStream, ByteArrayInputStream, Byt
 
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.{Kryo, Serializer => KSerializer}
+import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 
-import org.apache.spark.rdd.SerializableHadoopPartition
+import org.apache.spark.rdd.{SerializablePartition, SerializableHadoopPartition}
 import org.apache.spark.Logging
 
 
@@ -70,5 +71,6 @@ private[spark] class HadoopPartitionRegister extends KryoRegistrator {
     kryo.register(Class.forName(classOf[SerializableHadoopPartition].getName, false, classLoader),
       new HadoopPartitionSerializer())
     // scalastyle:on classforname
+    kryo.register(Tuple2[Int, SerializablePartition], new KryoJavaSerializer())
   }
 }
