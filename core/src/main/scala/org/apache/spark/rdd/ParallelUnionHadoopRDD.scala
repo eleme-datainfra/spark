@@ -72,19 +72,19 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
+          logInfo(s"Index: ${index}, InputSplit length: ${inputSplits.length}")
           val array = new Array[SerializablePartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
             array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
           }
-          new SerializableHadoopPartition(index, array)
+          Tuple2(index, array)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
 
-      rddIndexWithPartitions.foreach { s =>
-        val rddIndex = s.rddIndex
-        val splits = s.splits.map(x => new HadoopPartition(x.rddId, x.idx, x.s))
+      rddIndexWithPartitions.foreach { case (rddIndex, parts) =>
+        val splits = parts.map(x => new HadoopPartition(x.rddId, x.idx, x.s))
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent

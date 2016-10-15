@@ -21,7 +21,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileOutputStream, F
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapred.{InputSplit, FileSplit}
-import org.apache.spark.rdd.HadoopPartition
+import org.apache.spark.rdd.{SerializablePartition, SerializableHadoopPartition, HadoopPartition}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -29,13 +29,14 @@ import scala.reflect.ClassTag
 
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
+import com.esotericsoftware.kryo.serializers.{JavaSerializer => KryoJavaSerializer}
 
 import org.roaringbitmap.RoaringBitmap
 
 import org.apache.spark.{SharedSparkContext, SparkConf, SparkFunSuite}
 import org.apache.spark.scheduler.HighlyCompressedMapStatus
 import org.apache.spark.serializer.KryoTest._
-import org.apache.spark.util.{SerializableHadoopPartition, Utils}
+import org.apache.spark.util.Utils
 import org.apache.spark.storage.BlockManagerId
 
 class KryoSerializerSuite extends SparkFunSuite with SharedSparkContext {
@@ -439,7 +440,9 @@ class KryoSerializerSuite extends SparkFunSuite with SharedSparkContext {
 
 class KryoSerializerAutoResetDisabledSuite extends SparkFunSuite with SharedSparkContext {
   conf.set("spark.serializer", classOf[KryoSerializer].getName)
-  conf.set("spark.kryo.registrator", classOf[RegistratorWithoutAutoReset].getName)
+  // conf.set("spark.kryo.registrator", classOf[RegistratorWithoutAutoReset].getName)
+  conf.set("spark.kryo.registrator", classOf[PartitionRegistrator].getName)
+  conf.registerKryoClasses(Array(classOf[SerializableHadoopPartition]))
   conf.set("spark.kryo.referenceTracking", "true")
   conf.set("spark.shuffle.manager", "sort")
   conf.set("spark.shuffle.sort.bypassMergeThreshold", "200")
@@ -454,7 +457,7 @@ class KryoSerializerAutoResetDisabledSuite extends SparkFunSuite with SharedSpar
     val a = sc.parallelize(Array(1, 2), 2)
       .map{ x =>
         new SerializableHadoopPartition(1,
-          Array(new HadoopPartition(1, 1, new FileSplit(new Path("/test"), 0L, 0L, Array(""))))
+          Array(new SerializablePartition(1, 1, new FileSplit(new Path("/test"), 0L, 0L, Array(""))))
         )
       }.collect()
     assert(a.size == 2)
@@ -474,6 +477,7 @@ class KryoSerializerAutoResetDisabledSuite extends SparkFunSuite with SharedSpar
       val serStream = serInstance.serializeStream(baos)
       serStream.writeObject(world)
       serStream.writeObject(world)
+
       serStream.close()
       baos.toByteArray
     }
@@ -518,6 +522,12 @@ object KryoTest {
   class RegistratorWithoutAutoReset extends KryoRegistrator {
     override def registerClasses(k: Kryo) {
       k.setAutoReset(false)
+    }
+  }
+
+  class PartitionRegistrator extends KryoRegistrator {
+    override def registerClasses(k: Kryo) {
+      k.register(classOf[SerializableHadoopPartition], new KryoJavaSerializer())
     }
   }
 }
