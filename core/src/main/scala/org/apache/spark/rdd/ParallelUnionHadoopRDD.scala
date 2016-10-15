@@ -57,7 +57,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       val partitionsWithIndex = partitionInfos.zipWithIndex.toArray
 
       val sparkConf = sc.conf
-      val javaSerializer = new JavaSerializer(sparkConf).newInstance()
+
       val rddIndexWithPartitions =
         sc.parallelize(partitionsWithIndex, partitionInfos.size).map { case (part, index) =>
           val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
@@ -79,12 +79,14 @@ class ParallelUnionHadoopRDD[T: ClassTag](
           for (i <- 0 until inputSplits.size) {
             array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
           }
+          val javaSerializer = new JavaSerializer(sparkConf).newInstance()
           val byteBuffer = javaSerializer.serialize((index, array))
           byteBuffer
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
+      val javaSerializer = new JavaSerializer(sparkConf).newInstance()
       rddIndexWithPartitions.foreach { b =>
         val (rddIndex, splits) = javaSerializer.deserialize[(Int, Array[Partition])](b)
         val rdd = rdds(rddIndex)
