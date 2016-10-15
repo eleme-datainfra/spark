@@ -63,7 +63,9 @@ private[spark] class HadoopPartitionSerializer()
     logInfo("Read SerializableHadoopPartition " + objBytes.length)
     val byteArrayInputStream = new ByteArrayInputStream(objBytes)
     val objectInputStream = new ObjectInputStream(byteArrayInputStream)
-    objectInputStream.readObject().asInstanceOf[SerializableHadoopPartition]
+    val obj = objectInputStream.readObject().asInstanceOf[SerializableHadoopPartition]
+    objectInputStream.close()
+    obj
   }
 }
 

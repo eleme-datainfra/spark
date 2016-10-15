@@ -106,16 +106,18 @@ private[spark] class Executor(
 
   // scalastyle:off
   try {
-    Class.forName(classOf[SerializableHadoopPartition].getName, true, replClassLoader)
-    Class.forName(classOf[SerializablePartition].getName, true, replClassLoader)
+    Class.forName(classOf[SerializableHadoopPartition].getName, false, replClassLoader)
+    Class.forName(classOf[SerializablePartition].getName, false, replClassLoader)
   } catch {
     case e: Exception =>
     logError(e.getMessage)
+    throw e;
   }
   // scalastyle:on
 
   // Set the classloader for serializer
   env.serializer.setDefaultClassLoader(replClassLoader)
+  env.closureSerializer.setDefaultClassLoader(replClassLoader)
 
   // Akka's message frame size. If task result is bigger than this, we use the block manager
   // to send the result back.
