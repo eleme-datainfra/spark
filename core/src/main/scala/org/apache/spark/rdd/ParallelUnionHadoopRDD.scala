@@ -73,33 +73,19 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[HadoopPartition](inputSplits.size)
+          val array = new Array[SerializablePartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
-            array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
+            array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
           }
-          val byteStream = new ByteOutputStream()
-          val objectOutputStream = new ObjectOutputStream(byteStream)
-          objectOutputStream.writeObject(array)
-          objectOutputStream.close()
-          val bytes = byteStream.toByteArray
-          // scalastyle:off
-          System.out.println("buffer: " + bytes.length)
-          System.err.println("buffer: " + bytes.length)
-          // scalastyle:on
-          logInfo("buffer: " + bytes.length)
-          (index, bytes)
+          new SerializableHadoopPartition(0, null)
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
 
-      var objectInputStream: ObjectInputStream = null
-      var byteStream: ByteArrayInputStream = null
-      rddIndexWithPartitions.foreach { case (rddIndex, bytes) =>
-        byteStream = new ByteArrayInputStream(bytes)
-        objectInputStream = new ObjectInputStream(byteStream)
-        val splits = objectInputStream.readObject().asInstanceOf[Array[HadoopPartition]]
-        objectInputStream.close()
+      rddIndexWithPartitions.foreach { s =>
+        val rddIndex = s.rddIndex
+        val splits = s.splits.map(x => new HadoopPartition(x.rddId, x.idx, x.s))
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
