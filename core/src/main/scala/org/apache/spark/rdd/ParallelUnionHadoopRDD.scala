@@ -104,10 +104,6 @@ class ParallelUnionHadoopRDD[T: ClassTag](
 class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[SerializablePartition])
   extends Serializable {
 
-  def this() = {
-    this(-1, null)
-  }
-
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
     out.writeInt(rddIndex)
     out.writeObject(splits)
@@ -121,10 +117,6 @@ class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[Serializa
 
 class SerializablePartition(var rddId: Int, var idx: Int, @transient var s: InputSplit)
   extends Serializable {
-
-  def this() = {
-    this(-1, -1, null)
-  }
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
     out.writeInt(rddId)

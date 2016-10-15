@@ -18,19 +18,13 @@
 package org.apache.spark.serializer
 
 import java.io.{ObjectInputStream, ObjectOutputStream, ByteArrayInputStream, ByteArrayOutputStream}
-import java.nio.ByteBuffer
 
 import com.esotericsoftware.kryo.io.{Input => KryoInput, Output => KryoOutput}
 import com.esotericsoftware.kryo.{Kryo, Serializer => KSerializer}
-import org.apache.avro.generic.{GenericData, GenericRecord}
-import org.apache.avro.io._
-import org.apache.avro.{Schema, SchemaNormalization}
-import org.apache.commons.io.IOUtils
-import org.apache.spark.io.CompressionCodec
-import org.apache.spark.util.SerializableHadoopPartition
-import org.apache.spark.{Logging, SparkEnv, SparkException}
 
-import scala.collection.mutable
+import org.apache.spark.rdd.SerializableHadoopPartition
+import org.apache.spark.Logging
+
 
 /**
  * Custom serializer used for generic Avro records. If the user registers the schemas
@@ -73,7 +67,7 @@ private[spark] class HadoopPartitionRegister extends KryoRegistrator {
   override def registerClasses(kryo: Kryo): Unit = {
     val classLoader = Thread.currentThread.getContextClassLoader
     // scalastyle:off classforname
-    kryo.register(Class.forName(classOf[SerializableHadoopPartition].getName, true, classLoader),
+    kryo.register(Class.forName(classOf[SerializableHadoopPartition].getName, false, classLoader),
       new HadoopPartitionSerializer())
     // scalastyle:on classforname
   }
