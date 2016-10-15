@@ -26,6 +26,7 @@ import javax.annotation.concurrent.GuardedBy
 
 import com.codahale
 import com.codahale.metrics.MetricFilter
+import org.apache.spark.rdd.SerializablePartition
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
@@ -102,6 +103,16 @@ private[spark] class Executor(
   // do this after SparkEnv creation so can access the SecurityManager
   private val urlClassLoader = createClassLoader()
   private val replClassLoader = addReplClassLoaderIfNeeded(urlClassLoader)
+
+  // scalastyle:off
+  try {
+    Class.forName(classOf[SerializableHadoopPartition].getName, true, replClassLoader)
+    Class.forName(classOf[SerializablePartition].getName, true, replClassLoader)
+  } catch {
+    case e: Exception =>
+    logError(e.getMessage)
+  }
+  // scalastyle:on
 
   // Set the classloader for serializer
   env.serializer.setDefaultClassLoader(replClassLoader)
