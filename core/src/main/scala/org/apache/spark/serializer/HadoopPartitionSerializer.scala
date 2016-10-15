@@ -71,6 +71,6 @@ private[spark] class HadoopPartitionRegister extends KryoRegistrator {
     kryo.register(Class.forName(classOf[SerializableHadoopPartition].getName, false, classLoader),
       new HadoopPartitionSerializer())
     // scalastyle:on classforname
-    kryo.register(Tuple2[Int, SerializablePartition], new KryoJavaSerializer())
+    kryo.register(Tuple2[Any, Any], new KryoJavaSerializer())
   }
 }

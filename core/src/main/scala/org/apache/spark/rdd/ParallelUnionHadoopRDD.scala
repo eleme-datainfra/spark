@@ -85,7 +85,7 @@ class ParallelUnionHadoopRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { case (rddIndex, splits) =>
         // val splits = parts.map(x => new HadoopPartition(x.rddId, x.idx, x.s))
-        // val rdd = rdds(rddIndex)
+        val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
         hadoopRDD.setPartitions(splits.asInstanceOf[Array[Partition]])
