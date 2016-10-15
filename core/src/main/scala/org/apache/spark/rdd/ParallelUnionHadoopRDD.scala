@@ -25,6 +25,7 @@ import org.apache.hadoop.mapred.{InputSplit, JobConf, InputFormat}
 import org.apache.hadoop.util.ReflectionUtils
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.serializer.JavaSerializer
 import org.apache.spark.util.{Utils, SerializableConfiguration}
 import org.apache.spark._
 
@@ -55,6 +56,8 @@ class ParallelUnionHadoopRDD[T: ClassTag](
       val initJobConfFuncOpt = initLocalJobConfFuncOpt
       val partitionsWithIndex = partitionInfos.zipWithIndex.toArray
 
+      val sparkConf = sc.conf
+      val javaSerializer = new JavaSerializer(sparkConf).newInstance()
       val rddIndexWithPartitions =
         sc.parallelize(partitionsWithIndex, partitionInfos.size).map { case (part, index) =>
           val jobConfCacheKey = "rdd_%d_job_conf".format(rddIdMap(index))
@@ -72,19 +75,18 @@ class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[SerializablePartition](inputSplits.size)
+          val array = new Array[HadoopPartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
-            array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
+            array(i) = new HadoopPartition(rddIdMap(index), i, inputSplits(i))
           }
-
-          new SerializableHadoopPartition(index, array)
+          val byteBuffer = javaSerializer.serialize((index, array))
+          byteBuffer
         }.collect()
 
       val array = new ArrayBuffer[UnionPartition[T]]()
       var pos = 0
-      rddIndexWithPartitions.foreach { s =>
-        val rddIndex = s.rddIndex
-        val splits = s.splits.map(p => new HadoopPartition(p.rddId, p.idx, p.s))
+      rddIndexWithPartitions.foreach { b =>
+        val (rddIndex, splits) = javaSerializer.deserialize[(Int, Array[Partition])](b)
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent
