@@ -71,9 +71,10 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[SerializablePartition](inputSplits.size)
+          val array = new Array[HadoopPartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
-            array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
+            array(i) = new HadoopPartition(rddIdMap(index), i,
+              new SerializableWritable[InputSplit](inputSplits(i)))
           }
           new SerializableHadoopPartition(index, array)
         }.collect()
@@ -83,8 +84,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
 
       rddIndexWithPartitions.foreach { s =>
         val rddIndex = s.rddIndex
-        val splits = s.splits.map(x => new HadoopPartition(x.rddId, x.idx,
-          new SerializableWritable(x.s)))
+        val splits = s.splits
         val rdd = rdds(rddIndex)
         // UnionRDD's -> firstParent -> firstParent is HadoopRDD
         val hadoopRDD = rdd.firstParent.firstParent

@@ -24,7 +24,7 @@ import org.apache.hadoop.io.ObjectWritable
 import org.apache.hadoop.mapred.InputSplit
 import org.apache.spark.util.Utils
 
-class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[SerializablePartition])
+class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition])
   extends Serializable {
 
   private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
@@ -34,7 +34,7 @@ class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[Serializa
 
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
     rddIndex = in.readInt()
-    splits = in.readObject().asInstanceOf[Array[SerializablePartition]]
+    splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
   }
 }
 
