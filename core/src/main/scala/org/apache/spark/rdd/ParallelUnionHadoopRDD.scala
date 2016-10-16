@@ -78,7 +78,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
           new SerializableHadoopPartition(index, array)
         }.collect()
 
-      val array = new Array[Partition](rddIndexWithPartitions.map(_._2.size).sum)
+      val array = new Array[Partition](rddIndexWithPartitions.map(_.splits.size).sum)
       var pos = 0
 
       rddIndexWithPartitions.foreach { s =>
