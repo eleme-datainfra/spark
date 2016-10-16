@@ -19,9 +19,6 @@ package org.apache.spark.rdd
 
 import java.io.{ObjectOutputStream, ObjectInputStream}
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.io.ObjectWritable
-import org.apache.hadoop.mapred.InputSplit
 import org.apache.spark.util.Utils
 
 class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition])
@@ -35,24 +32,5 @@ class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPar
   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
     rddIndex = in.readInt()
     splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
-  }
-}
-
-class SerializablePartition(var rddId: Int, var idx: Int, @transient var s: InputSplit)
-  extends Serializable {
-
-  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-    out.writeInt(rddId)
-    out.writeInt(idx)
-    new ObjectWritable(s).write(out)
-  }
-
-  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-    rddId = in.readInt()
-    idx = in.readInt()
-    val ow = new ObjectWritable()
-    ow.setConf(new Configuration(false))
-    ow.readFields(in)
-    s = ow.get().asInstanceOf[InputSplit]
   }
 }
