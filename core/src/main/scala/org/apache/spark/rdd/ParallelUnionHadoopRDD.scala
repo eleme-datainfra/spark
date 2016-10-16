@@ -71,7 +71,7 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
             case _ =>
           }
           val inputSplits = inputFormat.getSplits(jobConf, 1)
-          val array = new Array[Partition](inputSplits.size)
+          val array = new Array[SerializablePartition](inputSplits.size)
           for (i <- 0 until inputSplits.size) {
             array(i) = new SerializablePartition(rddIdMap(index), i, inputSplits(i))
           }
