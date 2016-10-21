@@ -63,7 +63,7 @@ private[thriftserver] class SparkSQLOperationManager()
             operation.getOperationLog.writeOperationLog(
               s"CompletedTasks: ${jobInfo.numCompletedTasks}, "
                 + s"SkippedTasks: ${jobInfo.numSkippedTasks}, "
-                + s"TotalTasks: ${jobInfo.numTasks}")
+                + s"TotalTasks: ${jobInfo.numTasks} ")
           }
         })
     }
