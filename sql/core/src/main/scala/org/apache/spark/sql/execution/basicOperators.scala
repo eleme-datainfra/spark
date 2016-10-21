@@ -293,6 +293,7 @@ case class Coalesce(numPartitions: Int, child: SparkPlan) extends UnaryNode {
   }
 
   override def canProcessUnsafeRows: Boolean = true
+  override def outputsUnsafeRows: Boolean = child.outputsUnsafeRows
 }
 
 /**
@@ -361,6 +362,7 @@ case class AppendColumns[T, U](
   // We are using an unsafe combiner.
   override def canProcessSafeRows: Boolean = false
   override def canProcessUnsafeRows: Boolean = true
+  override def outputsUnsafeRows: Boolean = true
 
   override def output: Seq[Attribute] = child.output ++ newColumns
 
@@ -368,10 +370,11 @@ case class AppendColumns[T, U](
     child.execute().mapPartitionsInternal { iter =>
       val tBoundEncoder = tEncoder.bind(child.output)
       val combiner = GenerateUnsafeRowJoiner.create(tEncoder.schema, uEncoder.schema)
-      iter.map { row =>
+      val unsafeRows: Iterator[UnsafeRow] = iter.map { row =>
         val newColumns = uEncoder.toRow(func(tBoundEncoder.fromRow(row)))
-        combiner.join(row.asInstanceOf[UnsafeRow], newColumns.asInstanceOf[UnsafeRow]): InternalRow
+        combiner.join(row.asInstanceOf[UnsafeRow], newColumns.asInstanceOf[UnsafeRow])
       }
+      unsafeRows
     }
   }
 }
