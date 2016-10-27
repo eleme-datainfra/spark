@@ -127,7 +127,7 @@ private[spark] abstract class AsynchronousListenerBus[L <: AnyRef, E]
   def post(event: E) {
     if (stopped.get) {
       // Drop further events to make `listenerThread` exit ASAP
-      logError(s"$name has already stopped! Dropping event $event")
+      logInfo(s"$name has already stopped! Dropping event $event")
       return
     }
     val eventAdded = eventQueue.offer(event)
