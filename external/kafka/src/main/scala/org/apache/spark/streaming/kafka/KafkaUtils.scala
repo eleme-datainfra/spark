@@ -488,17 +488,17 @@ object KafkaUtils extends Logging {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
     val kc = new KafkaCluster(kafkaParams)
     var fromOffsets = getFromOffsets(kc, kafkaParams, topics)
-    val restoreDir = ssc.conf.get("spark.streaming.restoreDir")
+    val restoreDir = ssc.conf.get("spark.streaming.restoreDir", "")
     val numConcurrentJobs = ssc.conf.getInt("spark.streaming.concurrentJobs", 1)
-    if(restoreDir != null && numConcurrentJobs == 1) {
+    if(!restoreDir.isEmpty && numConcurrentJobs == 1) {
       fromOffsets = getOffsetRangesFromRestoreFile(fromOffsets, restoreDir)
-      var stream = new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
+      val stream = new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
         ssc, kafkaParams, fromOffsets, messageHandler)
       var offsetRanges = Array[OffsetRange]()
       val dateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS")
       val restoreFileWriter = Executors.newFixedThreadPool(1)
       // save offset to hdfs restore file
-      stream.transform{ (rdd, time)=>
+      stream.transform { (rdd, time) =>
         offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
         restoreFileWriter.execute(new Runnable {
           override def run(): Unit = {
@@ -516,7 +516,7 @@ object KafkaUtils extends Logging {
   def getOffsetRangesFromRestoreFile(fromOffsets: Map[TopicAndPartition, Long], restoreDir: String):
     Map[TopicAndPartition, Long] = {
     val hadoopConf = SparkHadoopUtil.get.conf
-    val fs  = FileSystem.get(hadoopConf)
+    val fs = FileSystem.get(hadoopConf)
     val restoreFiles = fs.listStatus(new Path(restoreDir)).filter(f => f.getLen > 0)
       .sortBy(_.getModificationTime).reverse
     if(!restoreFiles.isEmpty) {
@@ -527,14 +527,12 @@ object KafkaUtils extends Logging {
           var offsets = Map[TopicAndPartition, Long]()
           var offsetStr: String = null
           while((offsetStr = inputStream.readLine()) != null) {
-            var splits = offsetStr.split(",")
+            val splits = offsetStr.split(",")
             if(splits.length == 4) {
               offsets += TopicAndPartition(splits(0), splits(1).toInt) -> splits(2).toLong
             }
           }
           if(fromOffsets.size == offsets.size) {
-            println("Reading offset from file:" + file.getPath.toString)
-            offsets.foreach(o => println(s"Partition  ${o._1.partition} -> offset ${o._2}"))
             return offsets
           }
           logWarning("Skip file " + file.getPath.toString + ", partition size is not equal!")
@@ -553,26 +551,26 @@ object KafkaUtils extends Logging {
 
   def saveKafkaOffset(offsetRanges: Array[OffsetRange], file: Path): Unit = {
       val hadoopConf = SparkHadoopUtil.get.conf
-      val fs  = FileSystem.get(hadoopConf)
-      var sb = new StringBuilder()
-      for(offsetRange <-  offsetRanges) {
-        var topic = offsetRange.topic
-        var partition = offsetRange.partition
-        var fromOffset = offsetRange.fromOffset
-        var untilOffset = offsetRange.untilOffset
+      val fs = FileSystem.get(hadoopConf)
+      val sb = new StringBuilder()
+      for (offsetRange <- offsetRanges) {
+        val topic = offsetRange.topic
+        val partition = offsetRange.partition
+        val fromOffset = offsetRange.fromOffset
+        val untilOffset = offsetRange.untilOffset
         sb.append(s"${topic},${partition},${fromOffset},${untilOffset}\n")
       }
-      var data = sb.toString().getBytes()
+      val data = sb.toString().getBytes()
       var attempts = 0
       while(attempts < 3) {
         try {
-          if(fs.exists(file)) {
+          if (fs.exists(file)) {
             logInfo("Deleting file " + file.getName)
             fs.delete(file)
           }
 
           logInfo("Saving restore file " + file.getName)
-          var outputStream = fs.create(file)
+          val outputStream = fs.create(file)
           Utils.tryWithSafeFinally {
             outputStream.write(data)
           } {
@@ -580,7 +578,7 @@ object KafkaUtils extends Logging {
           }
 
           val restoreFiles = fs.listStatus(file.getParent()).sortBy(_.getModificationTime)
-          if(restoreFiles.size > 5) {
+          if (restoreFiles.size > 5) {
             var file = restoreFiles.take(restoreFiles.size - 5).foreach { file =>
               logInfo("Deleting file " + file.getPath.getName)
               fs.delete(file.getPath)
