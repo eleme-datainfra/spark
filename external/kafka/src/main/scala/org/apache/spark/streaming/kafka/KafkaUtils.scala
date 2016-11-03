@@ -579,7 +579,7 @@ object KafkaUtils extends Logging {
 
           val restoreFiles = fs.listStatus(file.getParent()).sortBy(_.getModificationTime)
           if (restoreFiles.size > 5) {
-            var file = restoreFiles.take(restoreFiles.size - 5).foreach { file =>
+            restoreFiles.take(restoreFiles.size - 5).foreach { file =>
               logInfo("Deleting file " + file.getPath.getName)
               fs.delete(file.getPath)
             }
