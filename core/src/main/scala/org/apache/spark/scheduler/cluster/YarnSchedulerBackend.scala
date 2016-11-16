@@ -17,7 +17,6 @@
 
 package org.apache.spark.scheduler.cluster
 
-import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{Future, ExecutionContext}
 
 import org.apache.spark.{Logging, SparkContext}
@@ -27,6 +26,7 @@ import org.apache.spark.scheduler._
 import org.apache.spark.ui.JettyUtils
 import org.apache.spark.util.{ThreadUtils, RpcUtils}
 
+import scala.util.{Success, Failure}
 import scala.util.control.NonFatal
 
 /**
@@ -58,18 +58,18 @@ private[spark] abstract class YarnSchedulerBackend(
    * Request executors from the ApplicationMaster by specifying the total number desired.
    * This includes executors already pending or running.
    */
-  override def doRequestTotalExecutors(requestedTotal: Int): Boolean = {
+  override def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] = {
     logDebug(s"Ask YarnSchedulerEndpoint for ${requestedTotal} executors.")
-    yarnSchedulerEndpointRef.askWithRetry[Boolean](
+    yarnSchedulerEndpointRef.ask[Boolean](
       RequestExecutors(requestedTotal, localityAwareTasks, hostToLocalTaskCount))
   }
 
   /**
    * Request that the ApplicationMaster kill the specified executors.
    */
-  override def doKillExecutors(executorIds: Seq[String]): Boolean = {
+  override def doKillExecutors(executorIds: Seq[String]): Future[Boolean] = {
     logDebug(s"Ask YarnSchedulerEndpoint for killing executors(${executorIds.mkString(",")})")
-    yarnSchedulerEndpointRef.askWithRetry[Boolean](KillExecutors(executorIds))
+    yarnSchedulerEndpointRef.ask[Boolean](KillExecutors(executorIds))
   }
 
   override def sufficientResourcesRegistered(): Boolean = {
@@ -147,38 +147,37 @@ private[spark] abstract class YarnSchedulerBackend(
     extends ThreadSafeRpcEndpoint with Logging {
     private var amEndpoint: Option[RpcEndpointRef] = None
 
-    private val askAmThreadPool =
-      ThreadUtils.newDaemonCachedThreadPool("yarn-scheduler-ask-am-thread-pool")
     implicit val askAmExecutor = ExecutionContext.fromExecutor(askAmThreadPool)
 
     private[YarnSchedulerBackend] def handleExecutorDisconnectedFromDriver(
         executorId: String,
         executorRpcAddress: RpcAddress): Unit = {
-      amEndpoint match {
+      val removeExecutorMessage = amEndpoint match {
         case Some(am) =>
           val lossReasonRequest = GetExecutorLossReason(executorId)
-          val future = am.ask[ExecutorLossReason](lossReasonRequest, askTimeout)
-          future onSuccess {
-            case reason: ExecutorLossReason => {
-              logInfo(s"Receive Executor $executorId loss reason, Remove Executor.")
-              driverEndpoint.askWithRetry[Boolean](RemoveExecutor(executorId, reason))
-            }
-          }
-          future onFailure {
-            case NonFatal(e) => {
-              logWarning(s"Attempted to get executor loss reason" +
-                s" for executor id ${executorId} at RPC address ${executorRpcAddress}," +
-                s" but got no response. Marking as slave lost.", e)
-              driverEndpoint.askWithRetry[Boolean](RemoveExecutor(executorId, SlaveLost()))
-            }
-            case t => throw t
-          }
+          am.ask[ExecutorLossReason](lossReasonRequest, askTimeout)
+            .map { reason => RemoveExecutor(executorId, reason) }(ThreadUtils.sameThread)
+            .recover {
+              case NonFatal(e) =>
+                logWarning(s"Attempted to get executor loss reason" +
+                  s" for executor id ${executorId} at RPC address ${executorRpcAddress}," +
+                  s" but got no response. Marking as slave lost.", e)
+                RemoveExecutor(executorId, SlaveLost())
+            }(ThreadUtils.sameThread)
         case None =>
           logWarning("Attempted to check for an executor loss reason" +
             " before the AM has registered!")
-          driverEndpoint.askWithRetry[Boolean](
-            RemoveExecutor(executorId, SlaveLost("AM is not yet registered.")))
+          Future.successful(RemoveExecutor(executorId, SlaveLost("AM is not yet registered.")))
       }
+
+      removeExecutorMessage
+        .flatMap { message =>
+          driverEndpoint.ask[Boolean](message)
+        }(ThreadUtils.sameThread)
+        .onFailure {
+          case NonFatal(e) => logError(
+            s"Error requesting driver to remove executor $executorId after disconnection.", e)
+        }(ThreadUtils.sameThread)
     }
 
     override def receive: PartialFunction[Any, Unit] = {
@@ -196,9 +195,13 @@ private[spark] abstract class YarnSchedulerBackend(
       case AddWebUIFilter(filterName, filterParams, proxyBase) =>
         addWebUIFilter(filterName, filterParams, proxyBase)
 
-      case RemoveExecutor(executorId, reason) =>
+      case r @ RemoveExecutor(executorId, reason) =>
         logWarning(reason.toString)
-        removeExecutor(executorId, reason)
+        driverEndpoint.ask[Boolean](r).onFailure {
+          case e =>
+            logError("Error requesting driver to remove executor"
+              + s" $executorId for reason $reason", e)
+        }(ThreadUtils.sameThread)
     }
 
 
@@ -207,13 +210,12 @@ private[spark] abstract class YarnSchedulerBackend(
         amEndpoint match {
           case Some(am) =>
             logDebug(s"Request AM for ${r.requestedTotal} executors.")
-            Future {
-              context.reply(am.askWithRetry[Boolean](r))
-            } onFailure {
-              case NonFatal(e) =>
+            am.ask[Boolean](r).andThen {
+              case Success(b) => context.reply(b)
+              case Failure(NonFatal(e)) =>
                 logError(s"Sending $r to AM was unsuccessful", e)
                 context.sendFailure(e)
-            }
+            }(ThreadUtils.sameThread)
           case None =>
             logWarning("Attempted to request executors before the AM has registered!")
             context.reply(false)
@@ -222,14 +224,12 @@ private[spark] abstract class YarnSchedulerBackend(
       case k: KillExecutors =>
         amEndpoint match {
           case Some(am) =>
-            logInfo(s"Request to kill executors(${k.executorIds.mkString(",")})")
-            Future {
-              context.reply(am.askWithRetry[Boolean](k))
-            } onFailure {
-              case NonFatal(e) =>
+            am.ask[Boolean](k).andThen {
+              case Success(b) => context.reply(b)
+              case Failure(NonFatal(e)) =>
                 logError(s"Sending $k to AM was unsuccessful", e)
                 context.sendFailure(e)
-            }
+            }(ThreadUtils.sameThread)
           case None =>
             logWarning("Attempted to kill executors before the AM has registered!")
             context.reply(false)
@@ -251,7 +251,6 @@ private[spark] abstract class YarnSchedulerBackend(
     }
 
     override def onStop(): Unit = {
-      askAmThreadPool.shutdownNow()
       if (!sc.isStopped) {
         logWarning("YarnSchedulerEndpoint stopped")
       } else {

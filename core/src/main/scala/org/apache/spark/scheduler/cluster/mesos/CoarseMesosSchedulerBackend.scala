@@ -36,6 +36,8 @@ import org.apache.spark.scheduler.{SlaveLost, TaskSchedulerImpl}
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
 
+import scala.concurrent.Future
+
 /**
  * A SchedulerBackend that runs tasks on Mesos, but uses "coarse-grained" tasks, where it holds
  * onto each Mesos node for the duration of the Spark job instead of relinquishing cores whenever
@@ -415,7 +417,7 @@ private[spark] class CoarseMesosSchedulerBackend(
       super.applicationId
     }
 
-  override def doRequestTotalExecutors(requestedTotal: Int): Boolean = {
+  override def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] = Future.successful {
     // We don't truly know if we can fulfill the full amount of executors
     // since at coarse grain it depends on the amount of slaves available.
     logInfo("Capping the total amount of executors to " + requestedTotal)
@@ -423,7 +425,7 @@ private[spark] class CoarseMesosSchedulerBackend(
     true
   }
 
-  override def doKillExecutors(executorIds: Seq[String]): Boolean = {
+  override def doKillExecutors(executorIds: Seq[String]): Future[Boolean] = Future.successful {
     if (mesosDriver == null) {
       logWarning("Asked to kill executors before the Mesos driver was started.")
       return false
