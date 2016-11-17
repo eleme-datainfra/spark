@@ -271,6 +271,7 @@ private[spark] class AppClient(
       registrationRetryThread.shutdownNow()
       registerMasterFutures.get.foreach(_.cancel(true))
       registerMasterThreadPool.shutdownNow()
+      askAndReplyThreadPool.shutdownNow()
     }
 
   }
