@@ -27,8 +27,6 @@ import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 
-import scala.concurrent.Future
-
 private[spark] class SparkDeploySchedulerBackend(
     scheduler: TaskSchedulerImpl,
     sc: SparkContext,
@@ -162,26 +160,25 @@ private[spark] class SparkDeploySchedulerBackend(
    *
    * @return whether the request is acknowledged.
    */
-  protected override def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] = {
+  protected override def doRequestTotalExecutors(requestedTotal: Int): Boolean = {
     Option(client) match {
       case Some(c) => c.requestTotalExecutors(requestedTotal)
       case None =>
         logWarning("Attempted to request executors before driver fully initialized.")
-        Future.successful(false)
+        false
     }
   }
 
   /**
    * Kill the given list of executors through the Master.
- *
    * @return whether the kill request is acknowledged.
    */
-  protected override def doKillExecutors(executorIds: Seq[String]): Future[Boolean] = {
+  protected override def doKillExecutors(executorIds: Seq[String]): Boolean = {
     Option(client) match {
       case Some(c) => c.killExecutors(executorIds)
       case None =>
         logWarning("Attempted to kill executors before driver fully initialized.")
-        Future.successful(false)
+        false
     }
   }
 

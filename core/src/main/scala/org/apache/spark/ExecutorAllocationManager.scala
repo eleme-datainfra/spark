@@ -233,7 +233,7 @@ private[spark] class ExecutorAllocationManager(
         }
       }
     }
-    executor.scheduleWithFixedDelay(scheduleTask, 0, intervalMillis, TimeUnit.MILLISECONDS)
+    executor.scheduleAtFixedRate(scheduleTask, 0, intervalMillis, TimeUnit.MILLISECONDS)
   }
 
   /**
