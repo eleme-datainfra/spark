@@ -245,10 +245,12 @@ private[hive] class SparkExecuteStatementOperation(
       dataTypes = result.queryExecution.analyzed.output.map(_.dataType).toArray
     } catch {
       case e: HiveSQLException =>
+        HiveThriftServer2.listener.onStatementError(statementId, e.getMessage,
+          e.getStackTraceString)
         if (getStatus().getState() == OperationState.CANCELED) {
           return
         } else {
-          setState(OperationState.ERROR);
+          setState(OperationState.ERROR)
           throw e
         }
       // Actually do need to catch Throwable as some failures don't inherit from Exception and
