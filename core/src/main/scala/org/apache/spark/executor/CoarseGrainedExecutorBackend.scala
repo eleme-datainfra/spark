@@ -54,6 +54,10 @@ private[spark] class CoarseGrainedExecutorBackend(
 
   override def onStart() {
     logInfo("Connecting to driver: " + driverUrl)
+    if (extractLogUrls.size == 0) {
+      logError("Log url is empty, executor state is illegal, executor exit.", e)
+      System.exit(1)
+    }
     executor = new Executor(executorId, Utils.localHostName(), env, userClassPath, isLocal = false)
     rpcEnv.asyncSetupEndpointRefByURI(driverUrl).flatMap { ref =>
       // This is a very fast action so we can use "ThreadUtils.sameThread"
