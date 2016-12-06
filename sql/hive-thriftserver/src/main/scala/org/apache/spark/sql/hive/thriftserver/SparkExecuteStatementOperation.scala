@@ -270,6 +270,9 @@ private[hive] class SparkExecuteStatementOperation(
           case _ =>
             setState(OperationState.ERROR)
         }
+        if (statementId != null) {
+          hiveContext.sparkContext.cancelJobGroup(statementId)
+        }
         throw new HiveSQLException(e.toString)
     }
     HiveThriftServer2.listener.onStatementFinish(statementId)
