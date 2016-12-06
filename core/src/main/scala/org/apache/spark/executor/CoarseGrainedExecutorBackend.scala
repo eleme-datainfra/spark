@@ -55,7 +55,7 @@ private[spark] class CoarseGrainedExecutorBackend(
   override def onStart() {
     logInfo("Connecting to driver: " + driverUrl)
     if (extractLogUrls.size == 0) {
-      logError("Log url is empty, executor state is illegal, executor exit.", e)
+      logError("Log url is empty, executor state is illegal, executor exit")
       System.exit(1)
     }
     executor = new Executor(executorId, Utils.localHostName(), env, userClassPath, isLocal = false)
