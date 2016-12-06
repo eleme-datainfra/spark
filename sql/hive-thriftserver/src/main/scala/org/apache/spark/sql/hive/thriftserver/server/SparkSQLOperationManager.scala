@@ -61,9 +61,9 @@ private[thriftserver] class SparkSQLOperationManager()
             operation.asInstanceOf[SparkExecuteStatementOperation].statementId, DEFAULT_JOB_INFO)
           if (jobInfo != DEFAULT_JOB_INFO) {
             operation.getOperationLog.writeOperationLog(
-              "CompletedTasks: " + jobInfo.numCompletedTasks + ", "
-                + "SkippedTasks: " + jobInfo.numSkippedTasks + ", "
-                + "TotalTasks: " + jobInfo.numTasks + " ")
+              s"Job Id: ${jobInfo.jobId}, CompletedTasks: ${jobInfo.numCompletedTasks}, "
+                + s"SkippedTasks: ${jobInfo.numSkippedTasks}, "
+                + s"TotalTasks: ${jobInfo.numTasks} \n")
           }
         })
     }
