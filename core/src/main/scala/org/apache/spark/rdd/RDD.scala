@@ -1524,7 +1524,7 @@ abstract class RDD[T: ClassTag](
     // we should revisit this consideration.
     if (context.checkpointDir.isEmpty) {
       if (!conf.getOption("spark.checkpoint.dir").isEmpty) {
-        checkpointDir = Some(conf.get("spark.checkpoint.dir") + File.pathSeparator
+        context.checkpointDir = Some(conf.get("spark.checkpoint.dir") + File.pathSeparator
           + context.applicationId)
       }
     }
