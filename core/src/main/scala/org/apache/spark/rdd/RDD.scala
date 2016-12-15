@@ -1526,7 +1526,6 @@ abstract class RDD[T: ClassTag](
       if (!conf.getOption("spark.checkpoint.dir").isEmpty) {
         checkpointDir = Some(conf.get("spark.checkpoint.dir") + File.pathSeparator
           + context.applicationId)
-        SparkShutdownHookManager
       }
     }
     if (context.checkpointDir.isEmpty) {
