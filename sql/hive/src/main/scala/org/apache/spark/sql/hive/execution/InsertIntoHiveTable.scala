@@ -85,13 +85,14 @@ case class InsertIntoHiveTable(
       rdd.checkpoint()
       rdd.doCheckpoint()
       val zipWithIndexRDD = rdd.zipWithIndex()
-      val startIndices = zipWithIndexRDD.asInstanceOf[ZippedWithIndexRDD].startIndices
+      val startIndices = zipWithIndexRDD.asInstanceOf[ZippedWithIndexRDD[InternalRow]].startIndices
       val count = startIndices.last
       val fileNum = Math.ceil(count * 1.0 / sc.conf.mergeHiveFileCountPerFile).toInt
       if (count > 0 && rdd.partitions.size < fileNum) {
         val mergeFilesRDD = zipWithIndexRDD.map(x => (x._2, x._1))
           .repartitionAndSortWithinPartitions(
-            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile), fileNum).values
+            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile)
+          ).values
         sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
       } else {
         sc.sparkContext.runJob(rdd, writeToFile _)
