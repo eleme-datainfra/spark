@@ -344,8 +344,12 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "<TODO>")
 
-  val HIVE_MERGE_FILES_COUNT = intConf("spark.sql.hive.mergeFilesCount",
-    defaultValue = Some(2),
+  val HIVE_MERGE_FILES_COUNT = intConf("spark.sql.hive.mergeFilesCountThrehold",
+    defaultValue = Some(4),
+    doc = "<TODO>")
+
+  val HIVE_MERGE_FILE_COUNT = intConf("spark.sql.hive.mergeFileCountPerFile",
+    defaultValue = Some(200 * 10000),
     doc = "<TODO>")
 
   val HIVE_METASTORE_PARTITION_PRUNING = booleanConf("spark.sql.hive.metastorePartitionPruning",
@@ -551,6 +555,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf {
   private[spark] def mergeHiveFiles: Boolean = getConf(HIVE_MERGE_FILES)
 
   private[spark] def mergeHiveFilesCount: Int = getConf(HIVE_MERGE_FILES_COUNT)
+
+  private[spark] def mergeHiveFileCountPerFile: Int = getConf(HIVE_MERGE_FILE_COUNT)
 
   private[spark] def metastorePartitionPruning: Boolean = getConf(HIVE_METASTORE_PARTITION_PRUNING)
 

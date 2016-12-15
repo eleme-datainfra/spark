@@ -28,17 +28,16 @@ import org.apache.hadoop.hive.ql.{Context, ErrorMsg}
 import org.apache.hadoop.hive.serde2.Serializer
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption
 import org.apache.hadoop.hive.serde2.objectinspector._
-import org.apache.hadoop.mapred.{FileOutputCommitter, FileOutputFormat, JobConf}
+import org.apache.hadoop.mapred.{FileOutputFormat, JobConf}
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SQLConf, Row}
+import org.apache.spark.rdd.{ZippedWithIndexRDD, RDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.{UnaryNode, SparkPlan}
 import org.apache.spark.sql.hive.HiveShim.{ShimFileSinkDesc => FileSinkDesc}
 import org.apache.spark.sql.hive._
 import org.apache.spark.sql.types.DataType
-import org.apache.spark.{SparkException, TaskContext}
+import org.apache.spark.{StaticSizePartitioner, SparkException, TaskContext}
 import org.apache.spark.util.SerializableJobConf
 
 private[hive]
@@ -82,8 +81,21 @@ case class InsertIntoHiveTable(
 
     writerContainer.driverSideSetup()
     if (sc.conf.mergeHiveFiles && rdd.partitions.size > sc.conf.mergeHiveFilesCount) {
-      val mergeFilesRDD = rdd.repartition(sc.conf.mergeHiveFilesCount)
-      sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
+      sc.sparkContext.conf.set("spark.cleaner.referenceTracking.cleanCheckpoints", "true")
+      rdd.checkpoint()
+      rdd.doCheckpoint()
+      val zipWithIndexRDD = rdd.zipWithIndex()
+      val startIndices = zipWithIndexRDD.asInstanceOf[ZippedWithIndexRDD].startIndices
+      val count = startIndices.last
+      val fileNum = Math.ceil(count * 1.0 / sc.conf.mergeHiveFileCountPerFile).toInt
+      if (count > 0 && rdd.partitions.size < fileNum) {
+        val mergeFilesRDD = zipWithIndexRDD.map(x => (x._2, x._1))
+          .repartitionAndSortWithinPartitions(
+            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile), fileNum).values
+        sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
+      } else {
+        sc.sparkContext.runJob(rdd, writeToFile _)
+      }
     } else {
       sc.sparkContext.runJob(rdd, writeToFile _)
     }

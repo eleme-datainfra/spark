@@ -95,6 +95,33 @@ class HashPartitioner(partitions: Int) extends Partitioner {
   override def hashCode: Int = numPartitions
 }
 
+class StaticSizePartitioner(size: Int, partitions: Int) extends Partitioner {
+
+  require(partitions >= 0, s"Number of partitions ($partitions) cannot be negative.")
+  require(size >= 0, s"Size of Partition ($size) cannot be negative.")
+
+  def numPartitions: Int = partitions
+
+  def getPartition(key: Any): Int = {
+    try {
+      val k = key.asInstanceOf[Long]
+      return (k / size).toInt
+    } catch {
+      case e: Exception =>
+        throw new SparkException("Key must be long type")
+    }
+  }
+
+  override def equals(other: Any): Boolean = other match {
+    case h: StaticSizePartitioner =>
+      h.numPartitions == numPartitions
+    case _ =>
+      false
+  }
+
+  override def hashCode: Int = numPartitions
+}
+
 /**
  * A [[org.apache.spark.Partitioner]] that partitions sortable records by range into roughly
  * equal ranges. The ranges are determined by sampling the content of the RDD passed in.

@@ -17,6 +17,7 @@
 
 package org.apache.spark.rdd
 
+import java.io.File
 import java.util.Random
 
 import org.apache.spark.serializer.Serializer
@@ -1521,6 +1522,13 @@ abstract class RDD[T: ClassTag](
     // NOTE: we use a global lock here due to complexities downstream with ensuring
     // children RDD partitions point to the correct parent partitions. In the future
     // we should revisit this consideration.
+    if (context.checkpointDir.isEmpty) {
+      if (!conf.getOption("spark.checkpoint.dir").isEmpty) {
+        checkpointDir = Some(conf.get("spark.checkpoint.dir") + File.pathSeparator
+          + context.applicationId)
+        SparkShutdownHookManager
+      }
+    }
     if (context.checkpointDir.isEmpty) {
       throw new SparkException("Checkpoint directory has not been set in the SparkContext")
     } else if (checkpointData.isEmpty) {
