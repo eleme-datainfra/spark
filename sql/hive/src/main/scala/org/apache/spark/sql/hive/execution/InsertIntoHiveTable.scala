@@ -91,7 +91,7 @@ case class InsertIntoHiveTable(
       if (count > 0 && rdd.partitions.size < fileNum) {
         val mergeFilesRDD = zipWithIndexRDD.map(x => (x._2, x._1))
           .repartitionAndSortWithinPartitions(
-            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile)
+            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile, fileNum)
           ).values
         sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
       } else {
