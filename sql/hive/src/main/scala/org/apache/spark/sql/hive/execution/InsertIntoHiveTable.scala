@@ -30,7 +30,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.Object
 import org.apache.hadoop.hive.serde2.objectinspector._
 import org.apache.hadoop.mapred.{FileOutputFormat, JobConf}
 
-import org.apache.spark.rdd.{ZippedWithIndexRDD, RDD}
+import org.apache.spark.rdd.{ReliableRDDCheckpointData, ZippedWithIndexRDD, RDD}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.{UnaryNode, SparkPlan}
@@ -81,14 +81,13 @@ case class InsertIntoHiveTable(
 
     writerContainer.driverSideSetup()
     if (sc.conf.mergeHiveFiles && rdd.partitions.size > sc.conf.mergeHiveFilesCount) {
-      sc.sparkContext.conf.set("spark.cleaner.referenceTracking.cleanCheckpoints", "true")
       rdd.checkpoint()
       rdd.doCheckpoint()
       val zipWithIndexRDD = rdd.zipWithIndex()
       val startIndices = zipWithIndexRDD.asInstanceOf[ZippedWithIndexRDD[InternalRow]].startIndices
       val count = startIndices.last
       val fileNum = Math.ceil(count * 1.0 / sc.conf.mergeHiveFileCountPerFile).toInt
-      if (count > 0 && rdd.partitions.size < fileNum) {
+      if (count > 0 && rdd.partitions.size > fileNum) {
         val mergeFilesRDD = zipWithIndexRDD.map(x => (x._2, x._1))
           .repartitionAndSortWithinPartitions(
             new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile, fileNum)
@@ -97,6 +96,7 @@ case class InsertIntoHiveTable(
       } else {
         sc.sparkContext.runJob(rdd, writeToFile _)
       }
+      ReliableRDDCheckpointData.cleanCheckpoint(sc.sparkContext, rdd.id)
     } else {
       sc.sparkContext.runJob(rdd, writeToFile _)
     }
