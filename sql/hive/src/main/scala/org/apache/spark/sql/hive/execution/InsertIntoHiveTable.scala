@@ -97,6 +97,7 @@ case class InsertIntoHiveTable(
         sc.sparkContext.runJob(rdd, writeToFile _)
       }
       ReliableRDDCheckpointData.cleanCheckpoint(sc.sparkContext, rdd.id)
+      rdd.checkpointData = None
     } else {
       sc.sparkContext.runJob(rdd, writeToFile _)
     }
