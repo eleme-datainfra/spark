@@ -1535,13 +1535,6 @@ abstract class RDD[T: ClassTag](
     }
   }
 
-  def cleanCheckpoint(): Unit = {
-    if (!conf.getOption("spark.checkpoint.dir").isEmpty) {
-      vall rddCheckpointDir = context.checkpointDir = conf.get("spark.checkpoint.dir")
-        + File.separator + context.applicationId +
-    }
-  }
-
   /**
    * Mark this RDD for local checkpointing using Spark's existing caching layer.
    *
