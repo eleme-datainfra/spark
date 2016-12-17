@@ -20,7 +20,6 @@ package org.apache.spark.rdd
 import java.io.File
 import java.util.Random
 
-import org.apache.spark.serializer.Serializer
 
 import scala.collection.{mutable, Map}
 import scala.collection.mutable.ArrayBuffer
@@ -435,14 +434,17 @@ abstract class RDD[T: ClassTag](
   def mergeWithOrder(numPartitions: Int)(implicit ord: Ordering[T] = null): RDD[T] = withScope {
       if (partitions.size >= 2 * numPartitions) {
         val distributePartition = (index: Int, items: Iterator[T]) => {
+          val count = 0L
           items.map { t =>
-            (index, t)
+            (MergeIndex(index, count), t)
+            count += 1
           }
-        } : Iterator[(Int, T)]
+        } : Iterator[(MergeIndex, T)]
 
         // include a shuffle step so that our upstream tasks are still distributed
-        new ShuffledRDD[Int, T, T](mapPartitionsWithIndex(distributePartition),
-          new SequencePartitioner(partitions.size, numPartitions)).values
+        new ShuffledRDD[MergeIndex, T, T](mapPartitionsWithIndex(distributePartition),
+          new SequencePartitioner(partitions.size, numPartitions))
+          .setKeyOrdering(new MergeIndexOrdering()).values
       } else {
         this
       }

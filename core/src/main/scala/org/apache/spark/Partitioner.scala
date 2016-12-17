@@ -122,6 +122,19 @@ class StaticSizePartitioner(size: Int, partitions: Int) extends Partitioner {
   override def hashCode: Int = numPartitions
 }
 
+case class MergeIndex(index: Int, sequence: Long)
+
+class MergeIndexOrdering extends Ordering[MergeIndex] {
+  override def compare(x: MergeIndex, y: MergeIndex): Int = {
+    val indexCompare = l.index.compare(r.index)
+    if (indexCompare == 0) {
+      l.sequence.compare(r.sequence)
+    } else {
+      indexCompare
+    }
+  }
+}
+
 class SequencePartitioner(prevPartitions: Int, partitions: Int) extends Partitioner {
 
   require(partitions >= 0, s"Size of partitions ($partitions) cannot be negative.")
@@ -134,7 +147,7 @@ class SequencePartitioner(prevPartitions: Int, partitions: Int) extends Partitio
 
   def getPartition(key: Any): Int = {
     try {
-      val k = key.asInstanceOf[Int]
+      val k = key.asInstanceOf[MergeIndex].index
       if (k >= size * partitions) {
         partitions - 1
       } else {
