@@ -433,7 +433,7 @@ abstract class RDD[T: ClassTag](
     * @return
     */
   def mergeWithOrder(numPartitions: Int)(implicit ord: Ordering[T] = null): RDD[T] = withScope {
-      if (partitions.size >= 2 * numPartition) {
+      if (partitions.size >= 2 * numPartitions) {
         val distributePartition = (index: Int, items: Iterator[T]) => {
           items.map { t =>
             (index, t)
