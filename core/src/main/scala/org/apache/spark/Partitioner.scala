@@ -125,7 +125,7 @@ class StaticSizePartitioner(size: Int, partitions: Int) extends Partitioner {
 case class MergeIndex(index: Int, sequence: Long)
 
 class MergeIndexOrdering extends Ordering[MergeIndex] {
-  override def compare(x: MergeIndex, y: MergeIndex): Int = {
+  override def compare(l: MergeIndex, r: MergeIndex): Int = {
     val indexCompare = l.index.compare(r.index)
     if (indexCompare == 0) {
       l.sequence.compare(r.sequence)
