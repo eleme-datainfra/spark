@@ -344,7 +344,7 @@ private[spark] object SQLConf {
     defaultValue = Some(false),
     doc = "<TODO>")
 
-  val HIVE_MERGE_FILES_COUNT = intConf("spark.sql.hive.mergeFilesCountThrehold",
+  val HIVE_MERGE_FILES_COUNT = intConf("spark.sql.hive.mergeFilesCount",
     defaultValue = Some(4),
     doc = "<TODO>")
 

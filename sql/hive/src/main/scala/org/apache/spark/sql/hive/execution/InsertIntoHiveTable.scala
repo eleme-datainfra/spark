@@ -80,24 +80,9 @@ case class InsertIntoHiveTable(
     log.debug("Saving as hadoop file of type " + valueClass.getSimpleName)
 
     writerContainer.driverSideSetup()
-    if (sc.conf.mergeHiveFiles && rdd.partitions.size > sc.conf.mergeHiveFilesCount) {
-      rdd.checkpoint()
-      rdd.doCheckpoint()
-      val zipWithIndexRDD = rdd.zipWithIndex()
-      val startIndices = zipWithIndexRDD.asInstanceOf[ZippedWithIndexRDD[InternalRow]].startIndices
-      val count = startIndices.last
-      val fileNum = Math.ceil(count * 1.0 / sc.conf.mergeHiveFileCountPerFile).toInt
-      if (count > 0 && rdd.partitions.size > fileNum) {
-        val mergeFilesRDD = zipWithIndexRDD.map(x => (x._2, x._1))
-          .repartitionAndSortWithinPartitions(
-            new StaticSizePartitioner(sc.conf.mergeHiveFileCountPerFile, fileNum)
-          ).values
-        sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
-      } else {
-        sc.sparkContext.runJob(rdd, writeToFile _)
-      }
-      ReliableRDDCheckpointData.cleanCheckpoint(sc.sparkContext, rdd.id)
-      rdd.checkpointData = None
+    if (sc.conf.mergeHiveFiles && rdd.partitions.size >= 2 * sc.conf.mergeHiveFilesCount) {
+      val mergeFilesRDD = rdd.mergeWithOrder(sc.conf.mergeHiveFilesCount)
+      sc.sparkContext.runJob(mergeFilesRDD, writeToFile _)
     } else {
       sc.sparkContext.runJob(rdd, writeToFile _)
     }

@@ -428,6 +428,27 @@ abstract class RDD[T: ClassTag](
   }
 
   /**
+    * @param numPartitions
+    * @param ord
+    * @return
+    */
+  def mergeWithOrder(numPartitions: Int)(implicit ord: Ordering[T] = null): RDD[T] = withScope {
+      if (partitions.size >= 2 * numPartition) {
+        val distributePartition = (index: Int, items: Iterator[T]) => {
+          items.map { t =>
+            (index, t)
+          }
+        } : Iterator[(Int, T)]
+
+        // include a shuffle step so that our upstream tasks are still distributed
+        new ShuffledRDD[Int, T, T](mapPartitionsWithIndex(distributePartition),
+          new SequencePartitioner(partitions.size, numPartitions)).values
+      } else {
+        this
+      }
+  }
+
+  /**
    * Return a sampled subset of this RDD.
    *
    * @param withReplacement can elements be sampled multiple times (replaced when sampled out)

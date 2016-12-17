@@ -108,12 +108,46 @@ class StaticSizePartitioner(size: Int, partitions: Int) extends Partitioner {
       return (k / size).toInt
     } catch {
       case e: Exception =>
-        throw new SparkException("Key must be long type")
+        throw new SparkException("Key must be Long type")
     }
   }
 
   override def equals(other: Any): Boolean = other match {
     case h: StaticSizePartitioner =>
+      h.numPartitions == numPartitions
+    case _ =>
+      false
+  }
+
+  override def hashCode: Int = numPartitions
+}
+
+class SequencePartitioner(prevPartitions: Int, partitions: Int) extends Partitioner {
+
+  require(partitions >= 0, s"Size of partitions ($partitions) cannot be negative.")
+  require(prevPartitions >= 2 * partitions, s"Size of prev partitions ($prevPartitions) " +
+    s"must be twice more than ${partitions}.")
+
+  def numPartitions: Int = partitions
+
+  val size = prevPartitions / partitions
+
+  def getPartition(key: Any): Int = {
+    try {
+      val k = key.asInstanceOf[Int]
+      if (k >= size * partitions) {
+        partitions - 1
+      } else {
+        k / size
+      }
+    } catch {
+      case e: Exception =>
+        throw new SparkException("Key must be Int type")
+    }
+  }
+
+  override def equals(other: Any): Boolean = other match {
+    case h: SequencePartitioner =>
       h.numPartitions == numPartitions
     case _ =>
       false
