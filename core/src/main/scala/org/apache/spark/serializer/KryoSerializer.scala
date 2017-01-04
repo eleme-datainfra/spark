@@ -117,7 +117,7 @@ class KryoSerializer(conf: SparkConf)
     kryo.register(classOf[SerializableConfiguration], new KryoJavaSerializer())
     kryo.register(classOf[SerializableJobConf], new KryoJavaSerializer())
     kryo.register(classOf[PythonBroadcast], new KryoJavaSerializer())
-
+    kryo.register(classOf[SerializableHadoopPartition], new KryoJavaSerializer())
     kryo.register(classOf[GenericRecord], new GenericAvroSerializer(avroSchemas))
     kryo.register(classOf[GenericData.Record], new GenericAvroSerializer(avroSchemas))
 
