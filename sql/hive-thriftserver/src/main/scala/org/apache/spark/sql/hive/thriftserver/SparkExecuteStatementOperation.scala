@@ -242,7 +242,7 @@ private[hive] class SparkExecuteStatementOperation(
     } catch {
       case e: HiveSQLException =>
         HiveThriftServer2.listener.onStatementError(statementId, e.getMessage,
-          e.getStackTraceString)
+          SparkUtils.exceptionString(e))
         if (getStatus().getState() == OperationState.CANCELED) {
           return
         } else {
