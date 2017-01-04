@@ -580,6 +580,8 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
               s"$numPendingExecutors pending, ${executorsPendingToRemove.size} removing")
             doRequestTotalExecutors(
               numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+          } else {
+            Future.successful(true)
           }
         } else {
           numPendingExecutors += knownExecutors.size
