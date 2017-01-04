@@ -22,6 +22,8 @@ import java.sql.{Date, Timestamp}
 import java.util.{Arrays, Map => JMap, UUID}
 import java.util.concurrent.RejectedExecutionException
 
+import org.apache.spark.SparkContext
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.util.control.NonFatal
@@ -198,7 +200,11 @@ private[hive] class SparkExecuteStatementOperation(
   }
 
   private def execute(): Unit = {
-    statementId = UUID.randomUUID().toString
+    if (confOverlay != null && confOverlay.containsKey(SparkContext.SPARK_JOB_GROUP_ID)) {
+      statementId = confOverlay.get(SparkContext.SPARK_JOB_GROUP_ID)
+    } else {
+      statementId = UUID.randomUUID().toString
+    }
     logInfo(s"Running query '$statement' with $statementId")
     setState(OperationState.RUNNING)
     // Always use the latest class loader provided by executionHive's state.
