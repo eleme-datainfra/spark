@@ -419,6 +419,11 @@ object SQLConf {
     .intConf
     .createWithDefault(10000)
 
+  val CSV_DELIMITER = SQLConfigBuilder("spark.sql.csv.delimiter")
+    .doc("CSV delimiter.")
+    .stringConf
+    .createWithDefault(",")
+
   val RUN_SQL_ON_FILES = SQLConfigBuilder("spark.sql.runSQLOnFiles")
     .internal()
     .doc("When true, we could use `datasource`.`path` as table in SQL query.")
