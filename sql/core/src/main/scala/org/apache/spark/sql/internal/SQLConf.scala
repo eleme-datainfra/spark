@@ -419,7 +419,7 @@ object SQLConf {
     .intConf
     .createWithDefault(10000)
 
-  val CSV_DELIMITER = SQLConfigBuilder("spark.sql.runSQLOnFiles")
+  val CSV_DELIMITER = SQLConfigBuilder("spark.sql.csv.delimiter")
     .doc("CSV delimiter.")
     .stringConf
     .createWithDefault(",")
