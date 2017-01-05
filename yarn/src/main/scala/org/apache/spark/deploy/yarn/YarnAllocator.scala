@@ -136,9 +136,11 @@ private[yarn] class YarnAllocator(
   protected val memoryOverhead: Int = sparkConf.get(EXECUTOR_MEMORY_OVERHEAD).getOrElse(
     math.max((MEMORY_OVERHEAD_FACTOR * executorMemory).toInt, MEMORY_OVERHEAD_MIN)).toInt
   // Number of cores per executor.
-  protected val executorCores = sparkConf.get(EXECUTOR_CORES)
+  protected val executorCores = args.executorCores
+  protected val realExecutorCores = sparkConf.getInt("spark.yarn.executor.vcores", executorCores)
   // Resource capability requested for each executors
-  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead, executorCores)
+  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead,
+    realExecutorCores)
 
   private val launcherPool = ThreadUtils.newDaemonCachedThreadPool(
     "ContainerLauncher", sparkConf.get(CONTAINER_LAUNCH_MAX_THREADS))
@@ -374,8 +376,6 @@ private[yarn] class YarnAllocator(
       if (!matchingRequests.isEmpty) {
         matchingRequests.iterator().next().asScala
           .take(numToCancel).foreach(amClient.removeContainerRequest)
-      } else {
-        logWarning("Expected to find pending requests, but found none.")
       }
     }
   }
