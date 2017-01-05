@@ -46,7 +46,9 @@ private[spark] class ParallelUnionHadoopRDD[T: ClassTag](
   override def getPartitions: Array[Partition] = {
     // select the latest partition input format class
     val className = partitionInfos.last.ifc.getName
-    if (partitionInfos.size > threshold) {
+    if (partitionInfos.size > threshold &&
+      (className == "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" ||
+        className == "org.apache.parquet.hadoop.ParquetInputFormat")) {
       // Create local references so that the outer object isn't serialized.
       val rddIdMap = rdds.zipWithIndex.map(x => x._2 -> x._1.firstParent.firstParent.id).toMap
       val broadcastedJobConf = broadcastedConf
