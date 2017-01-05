@@ -303,9 +303,7 @@ private[csv] object CSVTypeCast {
    */
   @throws[IllegalArgumentException]
   def toChar(str: String): Char = {
-    if (str.length == 0) {
-      '\u0001'
-    } else if (str.charAt(0) == '\\') {
+    if (str.charAt(0) == '\\') {
       str.charAt(1)
       match {
         case 't' => '\t'

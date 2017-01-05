@@ -24,7 +24,6 @@ import org.apache.commons.lang3.time.FastDateFormat
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.util.{CaseInsensitiveMap, CompressionCodecs, ParseModes}
-import org.apache.spark.sql.internal.SQLConf
 
 private[csv] class CSVOptions(@transient private val parameters: CaseInsensitiveMap)
   extends Logging with Serializable {
@@ -70,7 +69,7 @@ private[csv] class CSVOptions(@transient private val parameters: CaseInsensitive
   }
 
   val delimiter = CSVTypeCast.toChar(
-    parameters.getOrElse("sep", parameters.getOrElse("delimiter", SQLConf.CSV_DELIMITER)))
+    parameters.getOrElse("sep", parameters.getOrElse("delimiter", ",")))
   private val parseMode = parameters.getOrElse("mode", "PERMISSIVE")
   val charset = parameters.getOrElse("encoding",
     parameters.getOrElse("charset", StandardCharsets.UTF_8.name()))
