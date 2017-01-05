@@ -87,8 +87,7 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
 
   /**
    * Calculate each container's node locality and rack locality
-    *
-    * @param numContainer number of containers to calculate
+   * @param numContainer number of containers to calculate
    * @param numLocalityAwareTasks number of locality required tasks
    * @param hostToLocalTaskCount a map to store the preferred hostname and possible task
    *                             numbers running on it, used as hints for container allocation
@@ -167,8 +166,7 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
 
   /**
    * Calculate the expected host to number of containers by considering with allocated containers.
-    *
-    * @param localityAwareTasks number of locality aware tasks
+   * @param localityAwareTasks number of locality aware tasks
    * @param hostToLocalTaskCount a map to store the preferred hostname and possible task
    *                             numbers running on it, used as hints for container allocation
    * @param allocatedHostToContainersMap host to allocated containers map, used to calculate the
@@ -208,8 +206,8 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
    * If current locality ratio of hosts is: Host1 : Host2 : Host3 = 20 : 20 : 10,
    * and pending container requests is 3, so the possible number of containers on
    * Host1 : Host2 : Host3 will be 1.2 : 1.2 : 0.6.
-    *
-    * @param localityMatchedPendingAllocations A sequence of pending container request which
+   *
+   * @param localityMatchedPendingAllocations A sequence of pending container request which
    *                                          matches the localities of current required tasks.
    * @return a Map with hostname as key and possible number of containers on this host as value
    */
