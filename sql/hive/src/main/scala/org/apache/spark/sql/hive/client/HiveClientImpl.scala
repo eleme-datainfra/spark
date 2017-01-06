@@ -627,7 +627,7 @@ private[hive] class HiveClientImpl(
         case _ =>
           if (state.out != null) {
             // scalastyle:off println
-            state.out.println(tokens(0) + " " + cmd_1)
+            state.err.println(tokens(0) + " " + cmd_1)
             // scalastyle:on println
           }
           Seq(proc.run(cmd_1).getResponseCode.toString)
