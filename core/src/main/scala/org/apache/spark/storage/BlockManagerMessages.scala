@@ -47,6 +47,11 @@ private[spark] object BlockManagerMessages {
    */
   case object TriggerThreadDump extends ToBlockManagerSlave
 
+  /**
+    * Driver to Executor message to get metrics.
+    */
+  case object GetMetrics extends ToBlockManagerSlave
+
   //////////////////////////////////////////////////////////////////////////////////
   // Messages from slaves to the master.
   //////////////////////////////////////////////////////////////////////////////////

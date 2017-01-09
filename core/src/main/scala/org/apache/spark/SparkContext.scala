@@ -55,7 +55,7 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.{CoarseGrainedSchedulerBackend, StandaloneSchedulerBackend}
 import org.apache.spark.scheduler.local.LocalSchedulerBackend
 import org.apache.spark.storage._
-import org.apache.spark.storage.BlockManagerMessages.TriggerThreadDump
+import org.apache.spark.storage.BlockManagerMessages.{GetMetrics, TriggerThreadDump}
 import org.apache.spark.ui.{ConsoleProgressBar, SparkUI}
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.util._
@@ -359,6 +359,7 @@ class SparkContext(config: SparkConf) extends Logging {
   }
 
   /** Control our logLevel. This overrides any user-defined log settings.
+ *
    * @param logLevel The desired log level as a string.
    * Valid log levels include: ALL, DEBUG, ERROR, FATAL, INFO, OFF, TRACE, WARN
    */
@@ -1292,7 +1293,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * Create an [[org.apache.spark.Accumulable]] shared variable, to which tasks can add values
    * with `+=`. Only the driver can access the accumulable's `value`.
- *
+    *
    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
@@ -1308,7 +1309,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * Create an [[org.apache.spark.Accumulable]] shared variable, with a name for display in the
    * Spark UI. Tasks can add values to the accumulable using the `+=` operator. Only the driver can
    * access the accumulable's `value`.
- *
+    *
    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
@@ -1512,7 +1513,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
- *
+    *
    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
@@ -1542,7 +1543,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * :: DeveloperApi ::
    * Request an additional number of executors from the cluster manager.
- *
+    *
    * @return whether the request is received.
    */
   @DeveloperApi
@@ -1692,7 +1693,7 @@ class SparkContext(config: SparkConf) extends Logging {
 
   /**
    * Gets the locality information associated with the partition in a particular rdd
- *
+    *
    * @param rdd of interest
    * @param partition to be looked up for locality
    * @return list of preferred locations for the partition
