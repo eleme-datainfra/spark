@@ -54,7 +54,7 @@ private[hive] class SparkExecuteStatementOperation(
   private var iter: Iterator[SparkRow] = _
   private var iterHeader: Iterator[SparkRow] = _
   private var dataTypes: Array[DataType] = _
-  private var statementId: String = _
+  var statementId: String = _
 
   private lazy val resultSchema: TableSchema = {
     if (result == null || result.schema.isEmpty) {
