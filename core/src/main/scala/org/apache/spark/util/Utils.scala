@@ -40,6 +40,9 @@ import scala.util.Try
 import scala.util.control.{ControlThrowable, NonFatal}
 
 import _root_.io.netty.channel.unix.Errors.NativeIoException
+
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet
+import com.codahale.metrics.MetricRegistry
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.io.{ByteStreams, Files => GFiles}
 import com.google.common.net.InetAddresses
@@ -58,7 +61,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config.{DYN_ALLOCATION_INITIAL_EXECUTORS, DYN_ALLOCATION_MIN_EXECUTORS, EXECUTOR_INSTANCES}
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, SerializerInstance}
-import org.apache.spark.util.logging.RollingFileAppender
+
 
 /** CallSite represents a place in user code. It can have a short and a long form. */
 private[spark] case class CallSite(shortForm: String, longForm: String)
@@ -703,7 +706,8 @@ private[spark] object Utils extends Logging {
 
   /**
    * Validate that a given URI is actually a valid URL as well.
-   * @param uri The URI to validate
+    *
+    * @param uri The URI to validate
    */
   @throws[MalformedURLException]("when the URI is an invalid URL")
   def validateURL(uri: URI): Unit = {
@@ -2128,6 +2132,48 @@ private[spark] object Utils extends Logging {
       val threadInfo =
         Option(ManagementFactory.getThreadMXBean.getThreadInfo(threadId, Int.MaxValue))
       threadInfo.map(threadInfoToThreadStackTrace)
+    }
+  }
+
+  def getMetrics(): Array[Metric] = {
+
+    def fileStats[T](scheme: String, f: FileSystem.Statistics => T, defaultValue: T) : T = {
+      FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme))
+        .map(f).getOrElse(defaultValue)
+    }
+
+    var metrics = ArrayBuffer[Metric]()
+    for (scheme <- Array("hdfs")) {
+      metrics +=
+        Metric(scheme + ".read.bytes", bytesToString(fileStats(scheme, _.getBytesRead(), 0L)))
+      metrics +=
+        Metric(scheme + ".write.bytes", bytesToString(fileStats(scheme, _.getBytesWritten(), 0L)))
+      metrics +=
+        Metric(scheme + ".read.ops", fileStats(scheme, _.getReadOps(), 0).toString)
+      metrics +=
+        Metric(scheme + ".largeRead.ops", fileStats(scheme, _.getLargeReadOps(), 0).toString)
+      metrics +=
+        Metric(scheme + ".write.ops", fileStats(scheme, _.getWriteOps(), 0).toString)
+    }
+
+    val registry = SparkEnv.get.metricsSystem.getMetricRegistry
+    registry.getGauges.asScala.foreach(x => {
+      metrics += Metric(x._1, formatMetric(x._2.getValue))
+    })
+
+    metrics.toArray
+  }
+
+  def formatMetric(value: Any): String = {
+    value match {
+      case l: Long if (l > 1) =>
+        bytesToString(l)
+      case d: Double if (d > 0 && d < 1) =>
+        f"${d * 100}%1.2f" + "%"
+      case f: Float if (f > 0 && f < 1) =>
+        f"${f * 100}%1.2f" + "%"
+      case _ =>
+        value.toString
     }
   }
 

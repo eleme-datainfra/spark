@@ -25,6 +25,16 @@ function getThreadDumpEnabled() {
     return threadDumpEnabled;
 }
 
+var fetchMetricsEnabled = false;
+
+function setMetricsEnabled(val) {
+    fetchMetricsEnabled = val;
+}
+
+function getMetricsEnabled() {
+    return fetchMetricsEnabled;
+}
+
 function formatStatus(status, type) {
     if (type !== 'display') return status;
     if (status) {
@@ -408,12 +418,22 @@ $(document).ready(function () {
                             data: 'id', render: function (data, type) {
                                 return type === 'display' ? ("<a href='threadDump/?executorId=" + data + "'>Thread Dump</a>" ) : data;
                             }
+                        },
+                        {
+                            data: 'id', render: function (data, type) {
+                                return type === 'display' ? ("<a href='executorMetrics/?executorId=" + data + "'>Mectrics</a>" ) : data;
+                            }
                         }
+
                     ],
                     "columnDefs": [
                         {
                             "targets": [ 16 ],
                             "visible": getThreadDumpEnabled()
+                        },
+                        {
+                            "targets": [ 17 ],
+                            "visible": getMetricsEnabled()
                         }
                     ],
                     "order": [[0, "asc"]]
