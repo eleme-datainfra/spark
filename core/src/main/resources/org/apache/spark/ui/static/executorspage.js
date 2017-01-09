@@ -421,7 +421,7 @@ $(document).ready(function () {
                         },
                         {
                             data: 'id', render: function (data, type) {
-                                return type === 'display' ? ("<a href='executorMetrics/?executorId=" + data + "'>Mectrics</a>" ) : data;
+                                return type === 'display' ? ("<a href='executorMetrics/?executorId=" + data + "'>Metrics</a>" ) : data;
                             }
                         }
 
