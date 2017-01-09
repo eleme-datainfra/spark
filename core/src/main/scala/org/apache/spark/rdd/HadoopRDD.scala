@@ -52,10 +52,9 @@ import org.apache.spark.util.{NextIterator, SerializableConfiguration, ShutdownH
 /**
  * A Spark split class that wraps around a Hadoop InputSplit.
  */
-private[spark] class HadoopPartition(rddId: Int, override val index: Int, s: InputSplit)
+private[spark] class HadoopPartition(rddId: Int, override val index: Int,
+    var inputSplit: SerializableWritable[InputSplit])
   extends Partition {
-
-  val inputSplit = new SerializableWritable[InputSplit](s)
 
   override def hashCode(): Int = 31 * (31 + rddId) + index
 
@@ -202,7 +201,7 @@ class HadoopRDD[K, V](
     val inputSplits = inputFormat.getSplits(jobConf, minPartitions)
     val array = new Array[Partition](inputSplits.size)
     for (i <- 0 until inputSplits.size) {
-      array(i) = new HadoopPartition(id, i, inputSplits(i))
+      array(i) = new HadoopPartition(id, i, new SerializableWritable[InputSplit](inputSplits(i)))
     }
     array
   }
@@ -374,7 +373,7 @@ private[spark] object HadoopRDD extends Logging {
 
   def containsCachedMetadata(key: String): Boolean = SparkEnv.get.hadoopJobMetadata.containsKey(key)
 
-  private def putCachedMetadata(key: String, value: Any): Unit =
+  def putCachedMetadata(key: String, value: Any): Unit =
     SparkEnv.get.hadoopJobMetadata.put(key, value)
 
   /** Add Hadoop configuration specific to a single partition and attempt. */

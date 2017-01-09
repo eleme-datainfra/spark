@@ -55,7 +55,7 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.{CoarseGrainedSchedulerBackend, StandaloneSchedulerBackend}
 import org.apache.spark.scheduler.local.LocalSchedulerBackend
 import org.apache.spark.storage._
-import org.apache.spark.storage.BlockManagerMessages.TriggerThreadDump
+import org.apache.spark.storage.BlockManagerMessages.{GetMetrics, TriggerThreadDump}
 import org.apache.spark.ui.{ConsoleProgressBar, SparkUI}
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.util._
@@ -359,6 +359,7 @@ class SparkContext(config: SparkConf) extends Logging {
   }
 
   /** Control our logLevel. This overrides any user-defined log settings.
+ *
    * @param logLevel The desired log level as a string.
    * Valid log levels include: ALL, DEBUG, ERROR, FATAL, INFO, OFF, TRACE, WARN
    */
@@ -516,6 +517,10 @@ class SparkContext(config: SparkConf) extends Logging {
     }
     _ui.foreach(_.setAppId(_applicationId))
     _env.blockManager.initialize(_applicationId)
+    val uiAddress = if (_ui.isEmpty) "" else _ui.get.appUIAddress
+    // scalastyle:off println
+    System.err.println(s"Application ID is ${_applicationId}, trackingURL: ${uiAddress}")
+    // scalastyle:on println
 
     // The metrics system for Driver need to be set spark.app.id to app ID.
     // So it should start after we get app ID from the task scheduler and set spark.app.id.
@@ -610,6 +615,21 @@ class SparkContext(config: SparkConf) extends Logging {
     } catch {
       case e: Exception =>
         logError(s"Exception getting thread dump from executor $executorId", e)
+        None
+    }
+  }
+
+  private[spark] def getExecutorMetrics(executorId: String): Option[Array[Metric]] = {
+    try {
+      if (executorId == SparkContext.DRIVER_IDENTIFIER) {
+        Some(Utils.getMetrics())
+      } else {
+        val endpointRef = env.blockManager.master.getExecutorEndpointRef(executorId).get
+        Some(endpointRef.askWithRetry[Array[Metric]](GetMetrics))
+      }
+    } catch {
+      case e: Exception =>
+        logError(s"Exception getting metrics from executor $executorId", e)
         None
     }
   }
@@ -722,7 +742,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * `step` every element.
    *
    * @note if we need to cache this RDD, we should make sure each partition does not exceed limit.
-   *
    * @param start the start value.
    * @param end the end value.
    * @param step the incremental step
@@ -848,7 +867,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * @note Small files are preferred, large file is also allowable, but may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
@@ -897,7 +915,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * @note Small files are preferred; very large files may cause bad performance.
    * @note On some filesystems, `.../path/&#42;` can be a more efficient way to read all files
    *       in a directory rather than `.../path/` or `.../path`
-   *
    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param minPartitions A suggestion value of the minimal splitting number for input data.
@@ -925,12 +942,10 @@ class SparkContext(config: SparkConf) extends Logging {
    *
    * @note We ensure that the byte array for each record in the resulting RDD
    * has the provided record length.
-   *
    * @param path Directory to the input data files, the path can be comma separated paths as the
    *             list of inputs.
    * @param recordLength The length at which to split the records
    * @param conf Configuration for setting up the dataset.
-   *
    * @return An RDD of data with values, represented as byte arrays
    */
   def binaryRecords(
@@ -965,7 +980,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param keyClass Class of the keys
    * @param valueClass Class of the values
    * @param minPartitions Minimum number of Hadoop Splits to generate.
-   *
    * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
    * record, directly caching the returned RDD or directly passing it to an aggregation or shuffle
    * operation will create many references to the same object.
@@ -1119,7 +1133,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * @param fClass Class of the InputFormat
    * @param kClass Class of the keys
    * @param vClass Class of the values
-   *
    * @note Because Hadoop's RecordReader class re-uses the same Writable object for each
    * record, directly caching the returned RDD or directly passing it to an aggregation or shuffle
    * operation will create many references to the same object.
@@ -1284,6 +1297,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * Create an [[org.apache.spark.Accumulable]] shared variable, to which tasks can add values
    * with `+=`. Only the driver can access the accumulable's `value`.
+    *
    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
@@ -1299,6 +1313,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * Create an [[org.apache.spark.Accumulable]] shared variable, with a name for display in the
    * Spark UI. Tasks can add values to the accumulable using the `+=` operator. Only the driver can
    * access the accumulable's `value`.
+    *
    * @tparam R accumulator result type
    * @tparam T type that can be added to the accumulator
    */
@@ -1502,6 +1517,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * Update the cluster manager on our scheduling needs. Three bits of information are included
    * to help it make decisions.
+    *
    * @param numExecutors The total number of executors we'd like to have. The cluster manager
    *                     shouldn't kill any running executor to reach this number, but,
    *                     if all existing executors were to die, this is the number of executors
@@ -1531,6 +1547,7 @@ class SparkContext(config: SparkConf) extends Logging {
   /**
    * :: DeveloperApi ::
    * Request an additional number of executors from the cluster manager.
+    *
    * @return whether the request is received.
    */
   @DeveloperApi
@@ -1552,7 +1569,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * its resource usage downwards. If the application wishes to replace the executors it kills
    * through this method with new ones, it should follow up explicitly with a call to
    * {{SparkContext#requestExecutors}}.
-   *
    * @return whether the request is received.
    */
   @DeveloperApi
@@ -1574,7 +1590,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * its resource usage downwards. If the application wishes to replace the executor it kills
    * through this method with a new one, it should follow up explicitly with a call to
    * {{SparkContext#requestExecutors}}.
-   *
    * @return whether the request is received.
    */
   @DeveloperApi
@@ -1591,7 +1606,6 @@ class SparkContext(config: SparkConf) extends Logging {
    * @note The replace is by no means guaranteed; another application on the same cluster
    * can steal the window of opportunity and acquire this application's resources in the
    * mean time.
-   *
    * @return whether the request is received.
    */
   private[spark] def killAndReplaceExecutor(executorId: String): Boolean = {
@@ -1683,6 +1697,7 @@ class SparkContext(config: SparkConf) extends Logging {
 
   /**
    * Gets the locality information associated with the partition in a particular rdd
+    *
    * @param rdd of interest
    * @param partition to be looked up for locality
    * @return list of preferred locations for the partition

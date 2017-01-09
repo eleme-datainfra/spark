@@ -137,8 +137,10 @@ private[yarn] class YarnAllocator(
     math.max((MEMORY_OVERHEAD_FACTOR * executorMemory).toInt, MEMORY_OVERHEAD_MIN)).toInt
   // Number of cores per executor.
   protected val executorCores = sparkConf.get(EXECUTOR_CORES)
+  protected val realExecutorCores = sparkConf.getInt("spark.yarn.executor.vcores", executorCores)
   // Resource capability requested for each executors
-  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead, executorCores)
+  private[yarn] val resource = Resource.newInstance(executorMemory + memoryOverhead,
+    realExecutorCores)
 
   private val launcherPool = ThreadUtils.newDaemonCachedThreadPool(
     "ContainerLauncher", sparkConf.get(CONTAINER_LAUNCH_MAX_THREADS))
@@ -374,8 +376,6 @@ private[yarn] class YarnAllocator(
       if (!matchingRequests.isEmpty) {
         matchingRequests.iterator().next().asScala
           .take(numToCancel).foreach(amClient.removeContainerRequest)
-      } else {
-        logWarning("Expected to find pending requests, but found none.")
       }
     }
   }
@@ -422,7 +422,11 @@ private[yarn] class YarnAllocator(
     // Match remaining by rack
     val remainingAfterRackMatches = new ArrayBuffer[Container]
     for (allocatedContainer <- remainingAfterHostMatches) {
-      val rack = RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+      val rack = if (sparkConf.getBoolean("spark.rack.disabled", false)) {
+          "/default-rack"
+        } else {
+          RackResolver.resolve(conf, allocatedContainer.getNodeId.getHost).getNetworkLocation
+        }
       matchContainerToRequest(allocatedContainer, rack, containersToUse,
         remainingAfterRackMatches)
     }
