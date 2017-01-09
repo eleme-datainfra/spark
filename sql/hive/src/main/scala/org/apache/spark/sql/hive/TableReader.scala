@@ -269,7 +269,7 @@ class HadoopTableReader(
     if (hivePartitionRDDs.size == 0) {
       new EmptyRDD[InternalRow](sparkSession.sparkContext)
     } else {
-      val broadcastedHiveConf = _broadcastedHiveConf
+      val broadcastedHiveConf = _broadcastedHadoopConf
       val tableDesc = relation.tableDesc
       val initLocalJobConfFuncOpt = (path: String, jobConf: JobConf) => {
         HadoopTableReader.initializeLocalJobConfFunc(path, tableDesc)(jobConf)
