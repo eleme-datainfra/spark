@@ -25,12 +25,12 @@ import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
 
+import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
+
 import com.codahale
 import com.codahale.metrics.MetricFilter
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable.{ArrayBuffer, HashMap}
-import scala.util.control.NonFatal
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil

@@ -488,7 +488,7 @@ class SparkContext(config: SparkConf) extends Logging {
       *      And core-physical-used from `active task number of executor threadpool`
       */
     val totalMemory = if (SparkHadoopUtil.get.isYarnMode()) {
-      val memoryOverheadFactor = _conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.20)
+      val memoryOverheadFactor = _conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.2)
       val memoryOverhead: Int = _conf.getInt("spark.yarn.executor.memoryOverhead",
         math.max((memoryOverheadFactor * _executorMemory).toInt, 384))
       _executorMemory + memoryOverhead
