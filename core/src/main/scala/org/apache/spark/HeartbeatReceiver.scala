@@ -17,16 +17,22 @@
 
 package org.apache.spark
 
-import java.util.concurrent.{ScheduledFuture, TimeUnit}
+import java.util.concurrent.{ConcurrentHashMap, ScheduledFuture, TimeUnit}
 
+import scala.collection.concurrent
 import scala.collection.mutable
+import scala.collection.JavaConverters._
 import scala.concurrent.Future
+
+import com.codahale
+import com.codahale.metrics.MetricFilter
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.scheduler._
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util._
+
 
 /**
  * A heartbeat from executors to the driver. This is a shared message used by several internal
@@ -37,7 +43,8 @@ import org.apache.spark.util._
 private[spark] case class Heartbeat(
     executorId: String,
     accumUpdates: Array[(Long, Seq[AccumulatorV2[_, _]])], // taskId -> accumulator updates
-    blockManagerId: BlockManagerId)
+    blockManagerId: BlockManagerId,
+    timeSeriesMetrics: Array[Metric] = Array.empty)
 
 /**
  * An event that SparkContext uses to notify HeartbeatReceiver that SparkContext.taskScheduler is
@@ -88,12 +95,34 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
 
   private var timeoutCheckingTask: ScheduledFuture[_] = null
 
+  private var reportDriverMetricTask: ScheduledFuture[_] = null
+
   // "eventLoopThread" is used to run some pretty fast actions. The actions running in it should not
   // block the thread for a long time.
   private val eventLoopThread =
     ThreadUtils.newDaemonSingleThreadScheduledExecutor("heartbeat-receiver-event-loop-thread")
 
+  private val metricStatThread =
+    ThreadUtils.newDaemonSingleThreadScheduledExecutor("metric-stat-thread")
+
   private val killExecutorThread = ThreadUtils.newDaemonSingleThreadExecutor("kill-executor-thread")
+
+  val reportMetrics = sc.conf.get("spark.executor.metrics.sendToDriver", "").split(",").toSet
+
+  private val statMap: concurrent.Map[String, StatCounter] =
+    new ConcurrentHashMap[String, StatCounter]().asScala
+
+  def handleTimeSeriesMetrics(executorId: String, metrics: Array[Metric]): Unit = {
+    metrics.foreach { m =>
+      try {
+        val stat = statMap.getOrElseUpdate(m.name, new StatCounter())
+        stat.merge(m.value.toDouble)
+      } catch {
+        case e: Exception =>
+          // do nothing
+      }
+    }
+  }
 
   override def onStart(): Unit = {
     timeoutCheckingTask = eventLoopThread.scheduleAtFixedRate(new Runnable {
@@ -101,6 +130,29 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         Option(self).foreach(_.ask[Boolean](ExpireDeadHosts))
       }
     }, 0, checkTimeoutIntervalMs, TimeUnit.MILLISECONDS)
+
+    if (sc.isEventLogEnabled && !reportMetrics.isEmpty) {
+      reportDriverMetricTask = metricStatThread.scheduleAtFixedRate(new Runnable {
+        override def run(): Unit = Utils.tryLogNonFatalError {
+          reportDriverMetric()
+        }
+      }, 0, heartbeatIntervalMs, TimeUnit.MILLISECONDS)
+    }
+  }
+
+  def reportDriverMetric(): Unit = {
+    var timeSeriesMetrics = Array.empty[Metric]
+    if (!reportMetrics.isEmpty) {
+      val filter = new MetricFilter {
+        override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+          reportMetrics.exists(m => name.endsWith(m))
+        }
+      }
+
+      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+        .map(g => Metric(g._1, g._2.getValue.toString)).toArray
+      handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
+    }
   }
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
@@ -120,7 +172,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
       context.reply(true)
 
     // Messages received from executors
-    case heartbeat @ Heartbeat(executorId, accumUpdates, blockManagerId) =>
+    case heartbeat @ Heartbeat(executorId, accumUpdates, blockManagerId, timeSeriesMetrics) =>
       if (scheduler != null) {
         if (executorLastSeen.contains(executorId)) {
           executorLastSeen(executorId) = clock.getTimeMillis()
@@ -132,6 +184,13 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
               context.reply(response)
             }
           })
+          if (sc.isEventLogEnabled && !reportMetrics.isEmpty) {
+            metricStatThread.submit(new Runnable {
+              override def run(): Unit = {
+                handleTimeSeriesMetrics(executorId, timeSeriesMetrics)
+              }
+            })
+          }
         } else {
           // This may happen if we get an executor's in-flight heartbeat immediately
           // after we just removed it. It's not really an error condition so we should
@@ -173,6 +232,12 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    *         indicate if this operation is successful.
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
+    reportMetrics.foreach { m =>
+      val key = s"${sc.applicationId}.${executorId}.${m}"
+      statMap.remove(key).foreach { stat =>
+        sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
+      }
+    }
     Option(self).map(_.ask[Boolean](ExecutorRemoved(executorId)))
   }
 
@@ -188,6 +253,26 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   override def onExecutorRemoved(executorRemoved: SparkListenerExecutorRemoved): Unit = {
     removeExecutor(executorRemoved.executorId)
+  }
+
+  override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
+    val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
+    if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
+      statMap.foreach { s =>
+        val regex(_, execId, name) = s._1
+        sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+      }
+      statMap.clear()
+    }
+  }
+
+  override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
+    statMap.foreach { s =>
+      val regex(_, execId, name) = s._1
+      sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+    }
+    statMap.clear()
   }
 
   private def expireDeadHosts(): Unit = {
@@ -216,7 +301,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (timeoutCheckingTask != null) {
       timeoutCheckingTask.cancel(true)
     }
+    if (reportDriverMetricTask != null) {
+      reportDriverMetricTask.cancel(true)
+    }
     eventLoopThread.shutdownNow()
+    metricStatThread.shutdownNow()
     killExecutorThread.shutdownNow()
   }
 }

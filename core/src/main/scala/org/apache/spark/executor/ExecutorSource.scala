@@ -17,6 +17,7 @@
 
 package org.apache.spark.executor
 
+import java.lang.management.ManagementFactory
 import java.util.concurrent.ThreadPoolExecutor
 
 import scala.collection.JavaConverters._
@@ -26,8 +27,26 @@ import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.metrics.source.Source
 
-private[spark]
-class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String) extends Source {
+private[spark] class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String,
+    reqMemoryMB: Int = 1024, reqCores: Int = 1)
+  extends Source {
+
+  def getJvmId(): Int = {
+    val pidStr = ManagementFactory.getRuntimeMXBean().getName()
+    val idx = pidStr.lastIndexOf("@")
+    if (idx == -1) {
+      -1
+    } else {
+      pidStr.substring(0, idx).toInt
+    }
+  }
+
+  val pid = getJvmId()
+
+  val procfsBasedGetter = new ProcfsBasedGetter(pid)
+
+  val MB = 1024 * 1024
+  val reqMemoryByte = reqMemoryMB.toDouble * MB
 
   private def fileStats(scheme: String) : Option[FileSystem.Statistics] =
     FileSystem.getAllStatistics.asScala.find(s => s.getScheme.equals(scheme))
@@ -42,6 +61,18 @@ class ExecutorSource(threadPool: ThreadPoolExecutor, executorId: String) extends
   override val metricRegistry = new MetricRegistry()
 
   override val sourceName = "executor"
+
+  // Gauge for executor physical memory usage rate.
+  metricRegistry.register(MetricRegistry.name("memory", "memoryUsageRate"), new Gauge[Double] {
+    override def getValue: Double =
+      procfsBasedGetter.getProcessRssSize() / reqMemoryByte
+  })
+
+  // Gauge for executor physical cpu core slot usage rate.
+  metricRegistry.register(MetricRegistry.name("cpu", "cpuUsageRate"), new Gauge[Double] {
+    override def getValue: Double =
+      procfsBasedGetter.getCpuUsagePercent() / reqCores.toDouble
+  })
 
   // Gauge for executor thread pool's actively executing task counts
   metricRegistry.register(MetricRegistry.name("threadpool", "activeTasks"), new Gauge[Int] {

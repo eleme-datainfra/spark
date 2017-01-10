@@ -100,8 +100,21 @@ private[spark] object JsonProtocol {
         executorMetricsUpdateToJson(metricsUpdate)
       case blockUpdated: SparkListenerBlockUpdated =>
         throw new MatchError(blockUpdated)  // TODO(ekl) implement this
+      case timeSeriesMetric: TimeSeriesMetricEvent =>
+        timeSeriesMetricToJson(timeSeriesMetric)
       case _ => parse(mapper.writeValueAsString(event))
     }
+  }
+
+  def timeSeriesMetricToJson(metric: TimeSeriesMetricEvent): JValue = {
+    ("Event" -> Utils.getFormattedClassName(metric)) ~
+    ("Executor ID" -> metric.executorId) ~
+    ("Name" -> metric.name) ~
+    ("Mean" -> f"${metric.stat.mean}%1.2f".toDouble) ~
+    ("Max" -> f"${metric.stat.max}%1.2f".toDouble) ~
+    ("Min" -> f"${metric.stat.min}%1.2f".toDouble) ~
+    ("StdDev" -> f"${metric.stat.stdev}%1.2f".toDouble) ~
+    ("Count" -> metric.stat.count)
   }
 
   def stageSubmittedToJson(stageSubmitted: SparkListenerStageSubmitted): JValue = {
@@ -503,6 +516,7 @@ private[spark] object JsonProtocol {
     val executorRemoved = Utils.getFormattedClassName(SparkListenerExecutorRemoved)
     val logStart = Utils.getFormattedClassName(SparkListenerLogStart)
     val metricsUpdate = Utils.getFormattedClassName(SparkListenerExecutorMetricsUpdate)
+    val timeSeriesMetric = Utils.getFormattedClassName(TimeSeriesMetricEvent)
 
     (json \ "Event").extract[String] match {
       case `stageSubmitted` => stageSubmittedFromJson(json)
@@ -522,9 +536,22 @@ private[spark] object JsonProtocol {
       case `executorRemoved` => executorRemovedFromJson(json)
       case `logStart` => logStartFromJson(json)
       case `metricsUpdate` => executorMetricsUpdateFromJson(json)
+      case `timeSeriesMetric` => timeSeriesMetricFromJson(json)
       case other => mapper.readValue(compact(render(json)), Utils.classForName(other))
         .asInstanceOf[SparkListenerEvent]
     }
+  }
+
+  def timeSeriesMetricFromJson(json: JValue): TimeSeriesMetricEvent = {
+    val executorId = (json \ "Executor ID").extract[String]
+    val name = (json \ "Name").extract[String]
+    val mean = (json \ "Mean").extract[Double]
+    val max = (json \ "Max").extract[Double]
+    val min = (json \ "Min").extract[Double]
+    val stddev = (json \ "StdDev").extract[Double]
+    val count = (json \ "Count").extract[Long]
+    val stat = new StatCounter(count, mean, stddev, max, min)
+    TimeSeriesMetricEvent(executorId, name, stat)
   }
 
   def stageSubmittedFromJson(json: JValue): SparkListenerStageSubmitted = {
