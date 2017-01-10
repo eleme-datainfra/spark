@@ -80,7 +80,7 @@ private[spark] class Client(
     sparkConf.get(AM_MEMORY).toInt
   }
 
-  val memoryOverheadFactor = _conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.2)
+  val memoryOverheadFactor = sparkConf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.2)
 
   private val amMemoryOverhead = {
     val amMemoryOverheadEntry = if (isClusterMode) DRIVER_MEMORY_OVERHEAD else AM_MEMORY_OVERHEAD
