@@ -260,7 +260,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
       statMap.foreach { s =>
         val regex(_, execId, name) = s._1
-        sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+        sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
     }
@@ -270,7 +270,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
     statMap.foreach { s =>
       val regex(_, execId, name) = s._1
-      sc.listenerBus.onPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+      sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
   }

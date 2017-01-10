@@ -25,7 +25,7 @@ import org.apache.spark.util.ListenerBus
 private[spark] trait SparkListenerBus
   extends ListenerBus[SparkListenerInterface, SparkListenerEvent] {
 
-  protected override def doPostEvent(
+  override def doPostEvent(
       listener: SparkListenerInterface,
       event: SparkListenerEvent): Unit = {
     event match {
@@ -64,6 +64,8 @@ private[spark] trait SparkListenerBus
       case blockUpdated: SparkListenerBlockUpdated =>
         listener.onBlockUpdated(blockUpdated)
       case logStart: SparkListenerLogStart => // ignore event log metadata
+      case timeSeriesMetric: TimeSeriesMetricEvent =>
+        listener.onTimeSeriesMetricEvent(timeSeriesMetric)
       case _ => listener.onOtherEvent(event)
     }
   }
