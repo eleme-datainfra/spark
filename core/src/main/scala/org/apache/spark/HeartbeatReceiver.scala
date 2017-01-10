@@ -90,6 +90,10 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
   // "spark.storage.blockManagerTimeoutIntervalMs" uses "milliseconds"
   private val timeoutIntervalMs =
     sc.conf.getTimeAsMs("spark.storage.blockManagerTimeoutIntervalMs", "60s")
+
+  private val heartbeatIntervalMs =
+    sc.conf.getTimeAsMs("spark.executor.heartbeatInterval", "10s")
+
   private val checkTimeoutIntervalMs =
     sc.conf.getTimeAsSeconds("spark.network.timeoutInterval", s"${timeoutIntervalMs}ms") * 1000
 
