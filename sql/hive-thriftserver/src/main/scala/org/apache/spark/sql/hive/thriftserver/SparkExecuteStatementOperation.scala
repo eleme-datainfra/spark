@@ -50,10 +50,15 @@ private[hive] class SparkExecuteStatementOperation(
   with Logging {
 
   private var result: DataFrame = _
+
+  // We cache the returned rows to get iterators again in case the user wants to use FETCH_FIRST.
+  // This is only used when `spark.sql.thriftServer.incrementalCollect` is set to `false`.
+  // In case of `true`, this will be `None` and FETCH_FIRST will trigger re-execution.
+  private var resultList: Option[Array[SparkRow]] = _
+
   private var iter: Iterator[SparkRow] = _
   private var dataTypes: Array[DataType] = _
-  private var statementId: String = _
-  private var resultList: Option[Array[SparkRow]] = _
+  var statementId: String = _
 
   private lazy val resultSchema: TableSchema = {
     if (result == null || result.schema.isEmpty) {
@@ -120,30 +125,30 @@ private[hive] class SparkExecuteStatementOperation(
         }
         resultList.get.iterator
       }
+    }
 
-      if (!iter.hasNext) {
-        resultRowSet
-      } else {
-        // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
-        val maxRows = maxRowsL.toInt
-        var curRow = 0
-        while (curRow < maxRows && iter.hasNext) {
-          val sparkRow = iter.next()
-          val row = ArrayBuffer[Any]()
-          var curCol = 0
-          while (curCol < sparkRow.length) {
-            if (sparkRow.isNullAt(curCol)) {
-              row += null
-            } else {
-              addNonNullColumnValue(sparkRow, row, curCol)
-            }
-            curCol += 1
+    if (!iter.hasNext) {
+      resultRowSet
+    } else {
+      // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
+      val maxRows = maxRowsL.toInt
+      var curRow = 0
+      while (curRow < maxRows && iter.hasNext) {
+        val sparkRow = iter.next()
+        val row = ArrayBuffer[Any]()
+        var curCol = 0
+        while (curCol < sparkRow.length) {
+          if (sparkRow.isNullAt(curCol)) {
+            row += null
+          } else {
+            addNonNullColumnValue(sparkRow, row, curCol)
           }
-          resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
-          curRow += 1
+          curCol += 1
         }
-        resultRowSet
+        resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
+        curRow += 1
       }
+      resultRowSet
     }
   }
 
@@ -244,6 +249,8 @@ private[hive] class SparkExecuteStatementOperation(
       dataTypes = result.queryExecution.analyzed.output.map(_.dataType).toArray
     } catch {
       case e: HiveSQLException =>
+        HiveThriftServer2.listener.onStatementError(statementId, e.getMessage,
+          SparkUtils.exceptionString(e))
         if (getStatus().getState() == OperationState.CANCELED) {
           return
         } else {
@@ -255,14 +262,34 @@ private[hive] class SparkExecuteStatementOperation(
       case e: Throwable =>
         val currentState = getStatus().getState()
         logError(s"Error executing query, currentState $currentState, ", e)
-        setState(OperationState.ERROR)
         HiveThriftServer2.listener.onStatementError(
           statementId, e.getMessage, SparkUtils.exceptionString(e))
+        if (statementId != null) {
+          sqlContext.sparkContext.cancelJobGroup(statementId)
+        }
+        getStatus().getState() match {
+          case OperationState.INITIALIZED =>
+            setState(OperationState.CLOSED)
+          case OperationState.CANCELED =>
+          case OperationState.FINISHED =>
+          case OperationState.CLOSED =>
+          case OperationState.ERROR =>
+          case _ =>
+            setState(OperationState.ERROR)
+        }
         throw new HiveSQLException(e.toString)
     }
-
-    setState(OperationState.FINISHED)
     HiveThriftServer2.listener.onStatementFinish(statementId)
+    getStatus().getState() match {
+      case OperationState.INITIALIZED =>
+        setState(OperationState.CLOSED)
+      case OperationState.CANCELED =>
+      case OperationState.FINISHED =>
+      case OperationState.CLOSED =>
+      case OperationState.ERROR =>
+      case _ =>
+        setState(OperationState.FINISHED)
+    }
   }
 
   override def cancel(): Unit = {
