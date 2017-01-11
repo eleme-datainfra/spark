@@ -139,7 +139,11 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
         // still be allocated with new container request.
         val hosts = preferredLocalityRatio.filter(_._2 > 0).keys.toArray
         val racks = hosts.map { h =>
-          RackResolver.resolve(yarnConf, h).getNetworkLocation
+          if (sparkConf.getBoolean("spark.rack.disabled", false)) {
+            "/default-rack"
+          } else {
+            RackResolver.resolve(yarnConf, h).getNetworkLocation
+          }
         }.toSet
         containerLocalityPreferences += ContainerLocalityPreferences(hosts, racks.toArray)
 
@@ -202,6 +206,7 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
    * If current locality ratio of hosts is: Host1 : Host2 : Host3 = 20 : 20 : 10,
    * and pending container requests is 3, so the possible number of containers on
    * Host1 : Host2 : Host3 will be 1.2 : 1.2 : 0.6.
+   *
    * @param localityMatchedPendingAllocations A sequence of pending container request which
    *                                          matches the localities of current required tasks.
    * @return a Map with hostname as key and possible number of containers on this host as value

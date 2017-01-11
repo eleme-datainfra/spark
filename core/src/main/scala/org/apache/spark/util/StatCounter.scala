@@ -34,6 +34,17 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
   private var maxValue: Double = Double.NegativeInfinity // Running max of our values
   private var minValue: Double = Double.PositiveInfinity // Running min of our values
 
+  def this(count: Long, mean: Double, stddev: Double, max: Double, min: Double) = {
+    this(Nil)
+    n = count
+    mu = mean
+    maxValue = max
+    minValue = min
+    if (n > 0) {
+      m2 = stddev * stddev * n
+    }
+  }
+
   merge(values)
 
   /** Initialize the StatCounter with no values. */

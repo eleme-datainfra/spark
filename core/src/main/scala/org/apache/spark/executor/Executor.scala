@@ -25,16 +25,19 @@ import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
+
+import com.codahale
+import com.codahale.metrics.MetricFilter
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.TaskMemoryManager
 import org.apache.spark.rpc.RpcTimeout
-import org.apache.spark.scheduler.{AccumulableInfo, DirectTaskResult, IndirectTaskResult, Task}
+import org.apache.spark.scheduler.{DirectTaskResult, IndirectTaskResult, Task}
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.storage.{StorageLevel, TaskResultBlockId}
 import org.apache.spark.util._
@@ -66,6 +69,9 @@ private[spark] class Executor(
 
   private val conf = env.conf
 
+  private val reportMetrics = conf.get("spark.executor.metrics.sendToDriver", "")
+    .split(",").toSet
+
   // No ip or host:port - just hostname
   Utils.checkHost(executorHostname, "Expected executed slave to be a hostname")
   // must not have port specified.
@@ -83,7 +89,9 @@ private[spark] class Executor(
 
   // Start worker thread pool
   private val threadPool = ThreadUtils.newDaemonCachedThreadPool("Executor task launch worker")
-  private val executorSource = new ExecutorSource(threadPool, executorId)
+  private val executorSource = new ExecutorSource(threadPool, executorId,
+    conf.getInt("spark.executor.totalMemory.mb", 1024),
+    conf.getInt("spark.executor.cores", 1))
   // Pool used for threads that supervise task killing / cancellation
   private val taskReaperPool = ThreadUtils.newDaemonCachedThreadPool("Task reaper")
   // For tasks which are in the process of being killed, this map holds the most recently created
@@ -684,7 +692,18 @@ private[spark] class Executor(
       }
     }
 
-    val message = Heartbeat(executorId, accumUpdates.toArray, env.blockManager.blockManagerId)
+    var timeSeriesMetrics = Array.empty[Metric]
+    if (!reportMetrics.isEmpty) {
+      val filter = new MetricFilter {
+        override def matches(name: String, metric: codahale.metrics.Metric): Boolean = {
+          reportMetrics.exists(m => name.endsWith(m))
+        }
+      }
+      timeSeriesMetrics = env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+        .map(g => Metric(g._1, g._2.getValue.toString)).toArray
+    }
+    val message = Heartbeat(executorId, accumUpdates.toArray, env.blockManager.blockManagerId,
+      timeSeriesMetrics)
     try {
       val response = heartbeatReceiverRef.askWithRetry[HeartbeatResponse](
           message, RpcTimeout(conf, "spark.executor.heartbeatInterval", "10s"))

@@ -178,6 +178,7 @@ private[hive] class SparkHiveWriterContainer(
 
   // this function is executed on executor side
   def writeToFile(context: TaskContext, iterator: Iterator[InternalRow]): Unit = {
+    if (!iterator.hasNext) return
     val (serializer, standardOI, fieldOIs, dataTypes, wrappers, outputData) = prepareForWrite()
     executorSideSetup(context.stageId, context.partitionId, context.attemptNumber)
 
@@ -248,6 +249,7 @@ private[spark] class SparkHiveDynamicPartitionWriterContainer(
 
   // this function is executed on executor side
   override def writeToFile(context: TaskContext, iterator: Iterator[InternalRow]): Unit = {
+    if (!iterator.hasNext) return
     val (serializer, standardOI, fieldOIs, dataTypes, wrappers, outputData) = prepareForWrite()
     executorSideSetup(context.stageId, context.partitionId, context.attemptNumber)
 

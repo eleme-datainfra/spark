@@ -32,6 +32,7 @@ import org.apache.hive.service.cli._
 import org.apache.hive.service.cli.operation.ExecuteStatementOperation
 import org.apache.hive.service.cli.session.HiveSession
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, Row => SparkRow, SQLContext}
 import org.apache.spark.sql.execution.command.SetCommand
@@ -52,8 +53,8 @@ private[hive] class SparkExecuteStatementOperation(
   private var result: DataFrame = _
   private var iter: Iterator[SparkRow] = _
   private var dataTypes: Array[DataType] = _
-  private var statementId: String = _
   private var resultList: Option[Array[SparkRow]] = _
+  var statementId: String = _
 
   private lazy val resultSchema: TableSchema = {
     if (result == null || result.schema.isEmpty) {
@@ -204,7 +205,11 @@ private[hive] class SparkExecuteStatementOperation(
   }
 
   private def execute(): Unit = {
-    statementId = UUID.randomUUID().toString
+    if (confOverlay != null && confOverlay.containsKey(SparkContext.SPARK_JOB_GROUP_ID)) {
+      statementId = confOverlay.get(SparkContext.SPARK_JOB_GROUP_ID)
+    } else {
+      statementId = UUID.randomUUID().toString
+    }
     logInfo(s"Running query '$statement' with $statementId")
     setState(OperationState.RUNNING)
     // Always use the latest class loader provided by executionHive's state.
@@ -244,6 +249,8 @@ private[hive] class SparkExecuteStatementOperation(
       dataTypes = result.queryExecution.analyzed.output.map(_.dataType).toArray
     } catch {
       case e: HiveSQLException =>
+        HiveThriftServer2.listener.onStatementError(statementId, e.getMessage,
+          SparkUtils.exceptionString(e))
         if (getStatus().getState() == OperationState.CANCELED) {
           return
         } else {
@@ -255,14 +262,34 @@ private[hive] class SparkExecuteStatementOperation(
       case e: Throwable =>
         val currentState = getStatus().getState()
         logError(s"Error executing query, currentState $currentState, ", e)
-        setState(OperationState.ERROR)
         HiveThriftServer2.listener.onStatementError(
           statementId, e.getMessage, SparkUtils.exceptionString(e))
+        if (statementId != null) {
+          sqlContext.sparkContext.cancelJobGroup(statementId)
+        }
+        getStatus().getState() match {
+          case OperationState.INITIALIZED =>
+            setState(OperationState.CLOSED)
+          case OperationState.CANCELED =>
+          case OperationState.FINISHED =>
+          case OperationState.CLOSED =>
+          case OperationState.ERROR =>
+          case _ =>
+            setState(OperationState.ERROR)
+        }
         throw new HiveSQLException(e.toString)
     }
-
-    setState(OperationState.FINISHED)
     HiveThriftServer2.listener.onStatementFinish(statementId)
+    getStatus().getState() match {
+      case OperationState.INITIALIZED =>
+        setState(OperationState.CLOSED)
+      case OperationState.CANCELED =>
+      case OperationState.FINISHED =>
+      case OperationState.CLOSED =>
+      case OperationState.ERROR =>
+      case _ =>
+        setState(OperationState.FINISHED)
+    }
   }
 
   override def cancel(): Unit = {

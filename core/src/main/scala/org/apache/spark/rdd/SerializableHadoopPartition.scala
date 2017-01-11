@@ -15,29 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler.cluster
+package org.apache.spark.rdd
 
-import org.apache.hadoop.yarn.util.RackResolver
-import org.apache.log4j.{Level, Logger}
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import org.apache.spark._
-import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.util.Utils
 
-private[spark] class YarnScheduler(sc: SparkContext) extends TaskSchedulerImpl(sc) {
+class SerializableHadoopPartition(var rddIndex: Int, var splits: Array[HadoopPartition])
+  extends Serializable {
 
-  // RackResolver logs an INFO message whenever it resolves a rack, which is way too often.
-  if (Logger.getLogger(classOf[RackResolver]).getLevel == null) {
-    Logger.getLogger(classOf[RackResolver]).setLevel(Level.WARN)
+  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
+    out.writeInt(rddIndex)
+    out.writeObject(splits)
   }
 
-  // By default, rack is unknown
-  override def getRackForHost(hostPort: String): Option[String] = {
-    val host = Utils.parseHostPort(hostPort)._1
-    if (sc.getConf.getBoolean("spark.rack.disabled", false)) {
-      None
-    } else {
-      Option(RackResolver.resolve(sc.hadoopConfiguration, host).getNetworkLocation)
-    }
+  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
+    rddIndex = in.readInt()
+    splits = in.readObject().asInstanceOf[Array[HadoopPartition]]
   }
 }
