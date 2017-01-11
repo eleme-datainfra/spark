@@ -52,8 +52,8 @@ private[hive] class SparkExecuteStatementOperation(
 
   private var result: DataFrame = _
   private var iter: Iterator[SparkRow] = _
-  private var iterHeader: Iterator[SparkRow] = _
   private var dataTypes: Array[DataType] = _
+  private var resultList: Option[Array[SparkRow]] = _
   var statementId: String = _
 
   private lazy val resultSchema: TableSchema = {
@@ -112,33 +112,39 @@ private[hive] class SparkExecuteStatementOperation(
 
     // Reset iter to header when fetching start from first row
     if (order.equals(FetchOrientation.FETCH_FIRST)) {
-      val (ita, itb) = iterHeader.duplicate
-      iter = ita
-      iterHeader = itb
-    }
-
-    if (!iter.hasNext) {
-      resultRowSet
-    } else {
-      // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
-      val maxRows = maxRowsL.toInt
-      var curRow = 0
-      while (curRow < maxRows && iter.hasNext) {
-        val sparkRow = iter.next()
-        val row = ArrayBuffer[Any]()
-        var curCol = 0
-        while (curCol < sparkRow.length) {
-          if (sparkRow.isNullAt(curCol)) {
-            row += null
-          } else {
-            addNonNullColumnValue(sparkRow, row, curCol)
-          }
-          curCol += 1
+      iter = if (sqlContext.getConf(SQLConf.THRIFTSERVER_INCREMENTAL_COLLECT.key).toBoolean) {
+        resultList = None
+        result.toLocalIterator.asScala
+      } else {
+        if (resultList.isEmpty) {
+          resultList = Some(result.collect())
         }
-        resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
-        curRow += 1
+        resultList.get.iterator
       }
-      resultRowSet
+
+      if (!iter.hasNext) {
+        resultRowSet
+      } else {
+        // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
+        val maxRows = maxRowsL.toInt
+        var curRow = 0
+        while (curRow < maxRows && iter.hasNext) {
+          val sparkRow = iter.next()
+          val row = ArrayBuffer[Any]()
+          var curCol = 0
+          while (curCol < sparkRow.length) {
+            if (sparkRow.isNullAt(curCol)) {
+              row += null
+            } else {
+              addNonNullColumnValue(sparkRow, row, curCol)
+            }
+            curCol += 1
+          }
+          resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
+          curRow += 1
+        }
+        resultRowSet
+      }
     }
   }
 
@@ -232,17 +238,14 @@ private[hive] class SparkExecuteStatementOperation(
       }
       HiveThriftServer2.listener.onStatementParsed(statementId, result.queryExecution.toString())
       iter = {
-        val useIncrementalCollect =
-          sqlContext.getConf("spark.sql.thriftServer.incrementalCollect", "false").toBoolean
-        if (useIncrementalCollect) {
+        if (sqlContext.getConf(SQLConf.THRIFTSERVER_INCREMENTAL_COLLECT.key).toBoolean) {
+          resultList = None
           result.toLocalIterator.asScala
         } else {
-          result.collect().iterator
+          resultList = Some(result.collect())
+          resultList.get.iterator
         }
       }
-      val (itra, itrb) = iter.duplicate
-      iterHeader = itra
-      iter = itrb
       dataTypes = result.queryExecution.analyzed.output.map(_.dataType).toArray
     } catch {
       case e: HiveSQLException =>
