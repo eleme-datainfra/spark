@@ -415,9 +415,9 @@ case class DataSource(
 
   /** Writes the given [[DataFrame]] out to this [[DataSource]]. */
   def write(
-             mode: SaveMode,
-             data: DataFrame,
-             isForWriteOnly: Boolean = false): Option[BaseRelation] = {
+      mode: SaveMode,
+      data: DataFrame,
+      isForWriteOnly: Boolean = false): Option[BaseRelation] = {
     if (data.schema.map(_.dataType).exists(_.isInstanceOf[CalendarIntervalType])) {
       throw new AnalysisException("Cannot save interval data type into external storage.")
     }
