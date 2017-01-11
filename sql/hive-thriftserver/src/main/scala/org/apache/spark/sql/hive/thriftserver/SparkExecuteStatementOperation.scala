@@ -51,9 +51,14 @@ private[hive] class SparkExecuteStatementOperation(
   with Logging {
 
   private var result: DataFrame = _
+
+  // We cache the returned rows to get iterators again in case the user wants to use FETCH_FIRST.
+  // This is only used when `spark.sql.thriftServer.incrementalCollect` is set to `false`.
+  // In case of `true`, this will be `None` and FETCH_FIRST will trigger re-execution.
+  private var resultList: Option[Array[SparkRow]] = _
+
   private var iter: Iterator[SparkRow] = _
   private var dataTypes: Array[DataType] = _
-  private var resultList: Option[Array[SparkRow]] = _
   var statementId: String = _
 
   private lazy val resultSchema: TableSchema = {
@@ -121,30 +126,30 @@ private[hive] class SparkExecuteStatementOperation(
         }
         resultList.get.iterator
       }
+    }
 
-      if (!iter.hasNext) {
-        resultRowSet
-      } else {
-        // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
-        val maxRows = maxRowsL.toInt
-        var curRow = 0
-        while (curRow < maxRows && iter.hasNext) {
-          val sparkRow = iter.next()
-          val row = ArrayBuffer[Any]()
-          var curCol = 0
-          while (curCol < sparkRow.length) {
-            if (sparkRow.isNullAt(curCol)) {
-              row += null
-            } else {
-              addNonNullColumnValue(sparkRow, row, curCol)
-            }
-            curCol += 1
+    if (!iter.hasNext) {
+      resultRowSet
+    } else {
+      // maxRowsL here typically maps to java.sql.Statement.getFetchSize, which is an int
+      val maxRows = maxRowsL.toInt
+      var curRow = 0
+      while (curRow < maxRows && iter.hasNext) {
+        val sparkRow = iter.next()
+        val row = ArrayBuffer[Any]()
+        var curCol = 0
+        while (curCol < sparkRow.length) {
+          if (sparkRow.isNullAt(curCol)) {
+            row += null
+          } else {
+            addNonNullColumnValue(sparkRow, row, curCol)
           }
-          resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
-          curRow += 1
+          curCol += 1
         }
-        resultRowSet
+        resultRowSet.addRow(row.toArray.asInstanceOf[Array[Object]])
+        curRow += 1
       }
+      resultRowSet
     }
   }
 
