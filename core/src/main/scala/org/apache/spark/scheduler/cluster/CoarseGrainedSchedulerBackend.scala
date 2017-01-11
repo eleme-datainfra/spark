@@ -575,8 +575,14 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
       // take into account executors that are pending to be added or removed.
       val adjustTotalExecutors =
         if (!replace) {
-          doRequestTotalExecutors(
-            numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+          if (!Utils.isDynamicAllocationEnabled(conf)) {
+            logDebug(s"Sync with master, $numExistingExecutors existing , " +
+              s"$numPendingExecutors pending, ${executorsPendingToRemove.size} removing")
+            doRequestTotalExecutors(
+              numExistingExecutors + numPendingExecutors - executorsPendingToRemove.size)
+          } else {
+            Future.successful(true)
+          }
         } else {
           numPendingExecutors += knownExecutors.size
           Future.successful(true)

@@ -32,6 +32,7 @@ import org.apache.hive.service.cli._
 import org.apache.hive.service.cli.operation.ExecuteStatementOperation
 import org.apache.hive.service.cli.session.HiveSession
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, Row => SparkRow, SQLContext}
 import org.apache.spark.sql.execution.command.SetCommand
@@ -209,7 +210,11 @@ private[hive] class SparkExecuteStatementOperation(
   }
 
   private def execute(): Unit = {
-    statementId = UUID.randomUUID().toString
+    if (confOverlay != null && confOverlay.containsKey(SparkContext.SPARK_JOB_GROUP_ID)) {
+      statementId = confOverlay.get(SparkContext.SPARK_JOB_GROUP_ID)
+    } else {
+      statementId = UUID.randomUUID().toString
+    }
     logInfo(s"Running query '$statement' with $statementId")
     setState(OperationState.RUNNING)
     // Always use the latest class loader provided by executionHive's state.

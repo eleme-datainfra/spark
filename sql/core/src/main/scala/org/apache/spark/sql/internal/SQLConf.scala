@@ -360,6 +360,11 @@ object SQLConf {
     .booleanConf
     .createWithDefault(true)
 
+  val WRITE_REFRESH_SCHEMA = SQLConfigBuilder("spark.sql.sources.write.refreshSchema.enabled")
+    .doc("When true, after write to datasource we will fresh schema by reading all files")
+    .booleanConf
+    .createWithDefault(false)
+
   val CROSS_JOINS_ENABLED = SQLConfigBuilder("spark.sql.crossJoin.enabled")
     .doc("When false, we will throw an error if a query contains a cartesian product without " +
         "explicit CROSS JOIN syntax.")
@@ -793,6 +798,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf with Logging {
     getConf(SQLConf.PARALLEL_PARTITION_DISCOVERY_PARALLELISM)
 
   def bucketingEnabled: Boolean = getConf(SQLConf.BUCKETING_ENABLED)
+
+  def freshSchemaAfterWrite: Boolean = getConf(SQLConf.WRITE_REFRESH_SCHEMA)
 
   def dataFrameSelfJoinAutoResolveAmbiguity: Boolean =
     getConf(DATAFRAME_SELF_JOIN_AUTO_RESOLVE_AMBIGUITY)
