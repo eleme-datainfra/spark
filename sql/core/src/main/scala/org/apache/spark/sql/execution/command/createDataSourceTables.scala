@@ -224,7 +224,9 @@ case class CreateDataSourceTableAsSelectCommand(
       catalogTable = Some(table))
 
     val result = try {
-      dataSource.write(mode, df)
+      dataSource.write(mode, df).getOrElse {
+        throw new AnalysisException(s"Expected a BaseRelation but found None")
+      }
     } catch {
       case ex: AnalysisException =>
         logError(s"Failed to write to table $tableName in $mode mode", ex)
