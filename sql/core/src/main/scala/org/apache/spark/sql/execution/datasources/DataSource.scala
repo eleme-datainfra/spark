@@ -416,14 +416,15 @@ case class DataSource(
   /** Writes the given [[DataFrame]] out to this [[DataSource]]. */
   def write(
       mode: SaveMode,
-      data: DataFrame): BaseRelation = {
+      data: DataFrame,
+      isForWriteOnly: Boolean = false): Option[BaseRelation] = {
     if (data.schema.map(_.dataType).exists(_.isInstanceOf[CalendarIntervalType])) {
       throw new AnalysisException("Cannot save interval data type into external storage.")
     }
 
     providingClass.newInstance() match {
       case dataSource: CreatableRelationProvider =>
-        dataSource.createRelation(sparkSession.sqlContext, mode, caseInsensitiveOptions, data)
+        Some(dataSource.createRelation(sparkSession.sqlContext, mode, caseInsensitiveOptions, data))
       case format: FileFormat =>
         // Don't glob path for the write path.  The contracts here are:
         //  1. Only one output path can be specified on the write path;
@@ -491,7 +492,11 @@ case class DataSource(
             catalogTable = catalogTable)
         sparkSession.sessionState.executePlan(plan).toRdd
         // Replace the schema with that of the DataFrame we just wrote out to avoid re-inferring it.
-        copy(userSpecifiedSchema = Some(data.schema.asNullable)).resolveRelation()
+        if (isForWriteOnly && !sparkSession.sessionState.conf.freshSchemaAfterWrite) {
+          None
+        } else {
+          Some(copy(userSpecifiedSchema = Some(data.schema.asNullable)).resolveRelation())
+        }
 
       case _ =>
         sys.error(s"${providingClass.getCanonicalName} does not allow create table as select.")
