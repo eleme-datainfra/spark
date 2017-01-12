@@ -408,4 +408,25 @@ class JobProgressListenerSuite extends SparkFunSuite with LocalSparkContext with
     val newTaskInfo = TaskUIData.dropInternalAndSQLAccumulables(taskInfo)
     assert(newTaskInfo.accumulables === Seq(userAccum))
   }
+
+  test("SPARK-19146 drop more elements when stageData.taskData.size > retainedTasks") {
+    val conf = new SparkConf()
+    conf.set("spark.ui.retainedTasks", "100")
+    val listener = new JobProgressListener(conf)
+    val taskMetrics = TaskMetrics.empty
+    taskMetrics.mergeShuffleReadMetrics()
+
+    val task = new ShuffleMapTask(0)
+    val taskType = Utils.getFormattedClassName(task)
+
+    for (t <- 1 to 101) {
+      val taskInfo = new TaskInfo(t, 0, 1, 0L, "exe-1", "host1", TaskLocality.NODE_LOCAL, false)
+      taskInfo.finishTime = 1
+      listener.onTaskEnd(
+        SparkListenerTaskEnd(task.stageId, 0, taskType, Success, taskInfo, taskMetrics))
+    }
+
+    // 101 - (101 - 100 * 0.9) = 90
+    assert(listener.stageIdToData((task.stageId, task.stageAttemptId)).taskData.size === 90)
+  }
 }

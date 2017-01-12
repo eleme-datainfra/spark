@@ -48,6 +48,7 @@ private[ui] class ExecutorsPage(
     threadDumpEnabled: Boolean)
   extends WebUIPage("") {
   private val listener = parent.listener
+  private val isAlive = parent.sc.isDefined
 
   def render(request: HttpServletRequest): Seq[Node] = {
     val content =
@@ -56,7 +57,8 @@ private[ui] class ExecutorsPage(
           <div id="active-executors"></div> ++
           <script src={UIUtils.prependBaseUri("/static/utils.js")}></script> ++
           <script src={UIUtils.prependBaseUri("/static/executorspage.js")}></script> ++
-          <script>setThreadDumpEnabled({threadDumpEnabled})</script>
+          <script>setThreadDumpEnabled({threadDumpEnabled})</script> ++
+          <script>setMetricsEnabled({isAlive})</script>
         }
       </div>;
 

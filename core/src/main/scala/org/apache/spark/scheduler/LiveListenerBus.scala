@@ -121,7 +121,7 @@ private[spark] class LiveListenerBus(val sparkContext: SparkContext) extends Spa
   def post(event: SparkListenerEvent): Unit = {
     if (stopped.get) {
       // Drop further events to make `listenerThread` exit ASAP
-      logError(s"$name has already stopped! Dropping event $event")
+      logInfo(s"$name has already stopped! Dropping event $event")
       return
     }
     val eventAdded = eventQueue.offer(event)
@@ -143,7 +143,7 @@ private[spark] class LiveListenerBus(val sparkContext: SparkContext) extends Spa
         if (droppedEventsCounter.compareAndSet(droppedEvents, 0)) {
           val prevLastReportTimestamp = lastReportTimestamp
           lastReportTimestamp = System.currentTimeMillis()
-          logWarning(s"Dropped $droppedEvents SparkListenerEvents since " +
+          logInfo(s"Dropped $droppedEvents SparkListenerEvents since " +
             new java.util.Date(prevLastReportTimestamp))
         }
       }

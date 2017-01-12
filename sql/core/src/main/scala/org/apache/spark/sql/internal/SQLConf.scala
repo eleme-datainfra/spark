@@ -309,6 +309,13 @@ object SQLConf {
     .stringConf
     .createOptional
 
+  val THRIFTSERVER_INCREMENTAL_COLLECT =
+    SQLConfigBuilder("spark.sql.thriftServer.incrementalCollect")
+      .doc("When true, enable incremental collection for execution in Thrift Server.")
+      .booleanConf
+      .createWithDefault(false)
+
+
   val THRIFTSERVER_UI_STATEMENT_LIMIT =
     SQLConfigBuilder("spark.sql.thriftserver.ui.retainedStatements")
       .doc("The number of SQL statements kept in the JDBC/ODBC web UI history.")
@@ -352,6 +359,11 @@ object SQLConf {
     .doc("When false, we will treat bucketed table as normal table")
     .booleanConf
     .createWithDefault(true)
+
+  val WRITE_REFRESH_SCHEMA = SQLConfigBuilder("spark.sql.sources.write.refreshSchema.enabled")
+    .doc("When true, after write to datasource we will fresh schema by reading all files")
+    .booleanConf
+    .createWithDefault(false)
 
   val CROSS_JOINS_ENABLED = SQLConfigBuilder("spark.sql.crossJoin.enabled")
     .doc("When false, we will throw an error if a query contains a cartesian product without " +
@@ -786,6 +798,8 @@ private[sql] class SQLConf extends Serializable with CatalystConf with Logging {
     getConf(SQLConf.PARALLEL_PARTITION_DISCOVERY_PARALLELISM)
 
   def bucketingEnabled: Boolean = getConf(SQLConf.BUCKETING_ENABLED)
+
+  def freshSchemaAfterWrite: Boolean = getConf(SQLConf.WRITE_REFRESH_SCHEMA)
 
   def dataFrameSelfJoinAutoResolveAmbiguity: Boolean =
     getConf(DATAFRAME_SELF_JOIN_AUTO_RESOLVE_AMBIGUITY)
