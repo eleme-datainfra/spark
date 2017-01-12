@@ -1071,6 +1071,15 @@ class DatasetSuite extends QueryTest with SharedSQLContext {
     assert(sizeInBytes > 0)
   }
 
+  test("SPARK-18717: code generation works for both scala.collection.Map" +
+    " and scala.collection.imutable.Map") {
+    val ds = Seq(WithImmutableMap("hi", Map(42L -> "foo"))).toDS
+    checkDataset(ds.map(t => t), WithImmutableMap("hi", Map(42L -> "foo")))
+
+    val ds2 = Seq(WithMap("hi", Map(42L -> "foo"))).toDS
+    checkDataset(ds2.map(t => t), WithMap("hi", Map(42L -> "foo")))
+  }
+
   test("SPARK-18746: add implicit encoder for BigDecimal, date, timestamp") {
     // For this implicit encoder, 18 is the default scale
     assert(spark.range(1).map { x => new java.math.BigDecimal(1) }.head ==
@@ -1086,6 +1095,10 @@ class DatasetSuite extends QueryTest with SharedSQLContext {
       new java.sql.Timestamp(100000))
   }
 }
+
+case class WithImmutableMap(id: String, map_test: scala.collection.immutable.Map[Long, String])
+
+case class WithMap(id: String, map_test: scala.collection.Map[Long, String])
 
 case class Generic[T](id: T, value: Double)
 
