@@ -77,7 +77,7 @@ case class KafkaSource(
     initialPartitionOffsets
 
     val offset = KafkaSourceOffset(fetchLatestOffsets(maxOffsetFetchAttempts))
-    debug(s"GetOffset: ${offset.partitionToOffsets.toSeq.map(_.toString).sorted}")
+    logDebug(s"GetOffset: ${offset.partitionToOffsets.toSeq.map(_.toString).sorted}")
     Some(offset)
   }
 
@@ -141,7 +141,7 @@ case class KafkaSource(
       if (retries <= 0) {
         throw new SparkException(err)
       } else {
-        error(err)
+        logError(err)
         Thread.sleep(kc.config.refreshLeaderBackoffMs)
         fetchLatestOffsets(retries - 1)
       }
