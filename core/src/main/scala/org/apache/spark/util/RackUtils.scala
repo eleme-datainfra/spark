@@ -31,7 +31,7 @@ object RackUtils {
   }
 
   def resolve(sparkConf: SparkConf, hostname: String): String = {
-    if (sparkConf.get("spark.rack.disabled", false)) {
+    if (sparkConf.getBoolean("spark.rack.disabled", false)) {
       return "/default-rack"
     }
     if (host2Rack.containsKey(hostname)) {
