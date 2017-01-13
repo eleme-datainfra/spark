@@ -92,6 +92,13 @@ private[spark] class MetricsSystem private (
     metricsServlet.map(_.getHandlers(conf)).getOrElse(Array())
   }
 
+  /**
+    * Get MetricRegistry.
+    */
+  def getMetricRegistry: MetricRegistry = {
+    registry
+  }
+
   metricsConfig.initialize()
 
   def start() {
