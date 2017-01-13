@@ -64,7 +64,7 @@ case class KafkaSource(
       val kafkaSourceOffset = KafkaSourceOffset(KafkaCluster.checkErrors(offsets))
 
       metadataLog.add(0, kafkaSourceOffset)
-      info(s"Initial offsets: $kafkaSourceOffset")
+      logInfo(s"Initial offsets: $kafkaSourceOffset")
       kafkaSourceOffset
     }.partitionToOffsets
   }
@@ -90,7 +90,7 @@ case class KafkaSource(
     // Make sure initialPartitionOffsets is initialized
     initialPartitionOffsets
 
-    info(s"GetBatch called with start = $start, end = $end")
+    logInfo(s"GetBatch called with start = $start, end = $end")
     val untilPartitionOffsets = KafkaSourceOffset.getPartitionOffsets(end)
     val fromPartitionOffsets = start match {
       case Some(prevBatchEndOffset) =>
@@ -120,7 +120,8 @@ case class KafkaSource(
       DefaultDecoder,
       Row](sc, kafkaParams, offsetRanges, leaders, messageHandler)
 
-    info("GetBatch generating RDD of offset range: " + offsetRanges.sortBy(_.topic).mkString(","))
+    logInfo("GetBatch generating RDD of offset range: " +
+      offsetRanges.sortBy(_.topic).mkString(","))
     sqlContext.createDataFrame(rdd, schema)
   }
 

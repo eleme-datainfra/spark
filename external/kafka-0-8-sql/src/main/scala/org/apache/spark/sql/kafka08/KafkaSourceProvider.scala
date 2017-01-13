@@ -183,14 +183,14 @@ private[kafka08] class KafkaSourceProvider extends StreamSourceProvider
 
     def set(key: String, value: String): this.type = {
       map.put(key, value)
-      info(s"$module: Set $key to $value, earlier value: ${kafkaParams.get(key).getOrElse("")}")
+      logInfo(s"$module: Set $key to $value, earlier value: ${kafkaParams.get(key).getOrElse("")}")
       this
     }
 
     def setIfUnset(key: String, value: String): ConfigUpdater = {
       if (!map.containsKey(key)) {
         map.put(key, value)
-        info(s"$module: Set $key to $value")
+        logInfo(s"$module: Set $key to $value")
       }
       this
     }
