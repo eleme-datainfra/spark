@@ -23,10 +23,10 @@ import scala.collection.JavaConverters._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.yarn.api.records.{ContainerId, Resource}
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
-import org.apache.hadoop.yarn.util.RackResolver
 
-import org.apache.spark.SparkConf
 import org.apache.spark.internal.config._
+import org.apache.spark.util.RackUtils
+import org.apache.spark.SparkConf
 
 private[yarn] case class ContainerLocalityPreferences(nodes: Array[String], racks: Array[String])
 
@@ -138,13 +138,7 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
         // Only filter out the ratio which is larger than 0, which means the current host can
         // still be allocated with new container request.
         val hosts = preferredLocalityRatio.filter(_._2 > 0).keys.toArray
-        val racks = hosts.map { h =>
-          if (sparkConf.getBoolean("spark.rack.disabled", false)) {
-            "/default-rack"
-          } else {
-            RackResolver.resolve(yarnConf, h).getNetworkLocation
-          }
-        }.toSet
+        val racks = hosts.map { h => RackUtils.resolve(sparkConf, h) }.toSet
         containerLocalityPreferences += ContainerLocalityPreferences(hosts, racks.toArray)
 
         // Minus 1 each time when the host is used. When the current ratio is 0,
@@ -154,14 +148,6 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
     }
 
     containerLocalityPreferences.toArray
-  }
-
-  /**
-   * Calculate the number of executors need to satisfy the given number of pending tasks.
-   */
-  private def numExecutorsPending(numTasksPending: Int): Int = {
-    val coresPerExecutor = resource.getVirtualCores
-    (numTasksPending * sparkConf.get(CPUS_PER_TASK) + coresPerExecutor - 1) / coresPerExecutor
   }
 
   /**
@@ -197,6 +183,14 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
       // required container number is 0.
       (host, math.max(0, (expectedCount - existedCount).ceil.toInt))
     }
+  }
+
+  /**
+   * Calculate the number of executors need to satisfy the given number of pending tasks.
+   */
+  private def numExecutorsPending(numTasksPending: Int): Int = {
+    val coresPerExecutor = resource.getVirtualCores
+    (numTasksPending * sparkConf.get(CPUS_PER_TASK) + coresPerExecutor - 1) / coresPerExecutor
   }
 
   /**

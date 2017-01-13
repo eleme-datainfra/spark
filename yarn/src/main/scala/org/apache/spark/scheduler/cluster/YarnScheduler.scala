@@ -22,7 +22,7 @@ import org.apache.log4j.{Level, Logger}
 
 import org.apache.spark._
 import org.apache.spark.scheduler.TaskSchedulerImpl
-import org.apache.spark.util.Utils
+import org.apache.spark.util.RackUtils
 
 private[spark] class YarnScheduler(sc: SparkContext) extends TaskSchedulerImpl(sc) {
 
@@ -33,11 +33,6 @@ private[spark] class YarnScheduler(sc: SparkContext) extends TaskSchedulerImpl(s
 
   // By default, rack is unknown
   override def getRackForHost(hostPort: String): Option[String] = {
-    val host = Utils.parseHostPort(hostPort)._1
-    if (sc.getConf.getBoolean("spark.rack.disabled", false)) {
-      None
-    } else {
-      Option(RackResolver.resolve(sc.hadoopConfiguration, host).getNetworkLocation)
-    }
+    RackUtils.getRackForHost(sc.conf, hostPort)
   }
 }
