@@ -17,16 +17,17 @@
 
 package org.apache.spark
 
-import org.apache.spark.sql.kafka08.{KafkaSourceOffset, KafkaSource}
-
 import scala.util.Random
 
 import kafka.common.TopicAndPartition
+import org.scalatest.time.SpanSugar._
+
 import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.kafka08.{KafkaSource, KafkaSourceOffset}
 import org.apache.spark.sql.streaming.StreamTest
 import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.streaming.kafka.KafkaCluster.LeaderOffset
-import org.scalatest.time.SpanSugar._
+
 
 abstract class KafkaSourceTest extends StreamTest with SharedSQLContext {
 
