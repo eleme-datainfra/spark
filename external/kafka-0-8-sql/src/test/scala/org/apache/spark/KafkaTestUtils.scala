@@ -20,7 +20,7 @@ package org.apache.spark
 import java.io.File
 import java.lang.{Integer => JInt}
 import java.net.InetSocketAddress
-import java.util.{Properties, Map => JMap}
+import java.util.{Map => JMap, Properties}
 
 import scala.collection.JavaConverters._
 import scala.language.postfixOps
@@ -32,11 +32,13 @@ import kafka.serializer.StringEncoder
 import kafka.server.{KafkaConfig, KafkaServer}
 import kafka.utils.{ZKStringSerializer, ZkUtils}
 import org.apache.commons.lang3.RandomUtils
-import org.apache.spark.util.Utils
 import org.apache.zookeeper.server.{NIOServerCnxnFactory, ZooKeeperServer}
 import org.I0Itec.zkclient.ZkClient
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
+
+import org.apache.spark.internal.Logging
+import org.apache.spark.util.Utils
 
 /**
  * This is a helper class for Kafka test suites. This has the functionality to set up
