@@ -18,6 +18,7 @@
 package org.apache.spark.sql.kafka08
 
 import kafka.common.TopicAndPartition
+import org.json4s.jackson.Serialization
 
 import org.apache.spark.sql.execution.streaming.Offset
 import org.apache.spark.streaming.kafka.KafkaCluster.LeaderOffset
@@ -31,6 +32,8 @@ case class KafkaSourceOffset(partitionToOffsets: Map[TopicAndPartition, LeaderOf
   override def toString(): String = {
     partitionToOffsets.toSeq.sortBy(_._1.toString).mkString("[", ", ", "]")
   }
+
+  override val json = Serialization.write(partitionToOffsets)
 }
 
 /** Companion object of the [[KafkaSourceOffset]] */
