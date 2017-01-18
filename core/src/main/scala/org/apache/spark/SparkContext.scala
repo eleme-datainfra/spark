@@ -481,13 +481,13 @@ class SparkContext(config: SparkConf) extends Logging {
     // adjust yarn mode
 
     /**
-      * Add 'physical memory used' and 'physical core used' metrics
-      *
-      * 1) We set Memory Request Resource which not `getRuntime().maxMemory`
-      *     from configuration according to YARN mode or Standalone mode.
-      * 2) We set CPU core Request Resource from configuration `conf.getInt("spark.executor.cores")`.
-      *      And core-physical-used from `active task number of executor threadpool`
-      */
+     * Add 'physical memory used' and 'physical core used' metrics
+     *
+     * 1) We set Memory Request Resource which not `getRuntime().maxMemory`
+     *     from configuration according to YARN mode or Standalone mode.
+     * 2) We set CPU core Request Resource from configuration `conf.getInt("spark.executor.cores")`.
+     *      And core-physical-used from `active task number of executor threadpool`
+     */
     val totalMemory = if (SparkHadoopUtil.get.isYarnMode()) {
       val memoryOverheadFactor = _conf.getDouble("spark.yarn.executor.memoryOverhead.factor", 0.2)
       val memoryOverhead: Int = _conf.getInt("spark.yarn.executor.memoryOverhead",

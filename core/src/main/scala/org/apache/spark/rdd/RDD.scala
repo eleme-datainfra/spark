@@ -125,9 +125,9 @@ abstract class RDD[T: ClassTag](
   protected def getPartitions: Array[Partition]
 
   /**
-    * Implemented by subclasses to return the set of partitions in this RDD. This method will only
-    * be called once, so it is safe to implement a time-consuming computation in it.
-    */
+   * Implemented by subclasses to return the set of partitions in this RDD. This method will only
+   * be called once, so it is safe to implement a time-consuming computation in it.
+   */
   def setPartitions(partitions: Array[Partition]): Unit = {
     partitions_ = partitions
   }

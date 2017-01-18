@@ -93,8 +93,8 @@ private[spark] class MetricsSystem private (
   }
 
   /**
-    * Get MetricRegistry.
-    */
+   * Get MetricRegistry.
+   */
   def getMetricRegistry: MetricRegistry = {
     registry
   }
