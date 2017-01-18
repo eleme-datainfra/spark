@@ -254,8 +254,8 @@ private[spark] trait SparkListenerInterface {
   def onOtherEvent(event: SparkListenerEvent): Unit
 
   /**
-    * Called when other events like timeseries metric events are posted.
-    */
+   * Called when other events like timeseries metric events are posted.
+   */
   def onTimeSeriesMetricEvent(event: TimeSeriesMetricEvent): Unit
 }
 

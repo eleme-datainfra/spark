@@ -40,9 +40,6 @@ import scala.util.Try
 import scala.util.control.{ControlThrowable, NonFatal}
 
 import _root_.io.netty.channel.unix.Errors.NativeIoException
-
-import com.codahale.metrics.jvm.MemoryUsageGaugeSet
-import com.codahale.metrics.MetricRegistry
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.io.{ByteStreams, Files => GFiles}
 import com.google.common.net.InetAddresses
