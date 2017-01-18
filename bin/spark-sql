@@ -22,4 +22,4 @@ if [ -z "${SPARK_HOME}" ]; then
 fi
 
 export _SPARK_CMD_USAGE="Usage: ./bin/spark-sql [options] [cli option]"
-exec "${SPARK_HOME}"/bin/spark-submit --class org.apache.spark.sql.hive.thriftserver.SparkSQLCLIDriver "$@"
+exec "${SPARK_HOME}"/bin/spark-submit --class org.apache.spark.sql.hive.thriftserver.SparkSQLCLIDriver --driver-memory 3g --executor-memory 6g --conf "spark.yarn.executor.memoryOverhead=1024" --conf "spark.dynamicAllocation.cachedExecutorIdleTimeout=300s" --conf "spark.yarn.executor.vcores=3" "$@"
