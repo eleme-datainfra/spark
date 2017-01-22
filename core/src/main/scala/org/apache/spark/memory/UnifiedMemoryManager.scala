@@ -183,6 +183,9 @@ private[spark] class UnifiedMemoryManager private[memory] (
           executionPool.memoryFree
         }
       val memoryBorrowedFromExecution = Math.min(maxBorrowMemory, numBytes)
+      logDebug(s"MaxMemory is ${maxMemory}, StoragePool is ${storagePool.poolSize}, " +
+        s"ExecutionPool is ${executionPool.poolSize} and ${executionPool.memoryFree} free, " +
+        s"need to borrow ${memoryBorrowedFromExecution} memory from execution pool")
       executionPool.decrementPoolSize(memoryBorrowedFromExecution)
       storagePool.incrementPoolSize(memoryBorrowedFromExecution)
     }

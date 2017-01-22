@@ -22,6 +22,7 @@ import javax.annotation.concurrent.GuardedBy
 import org.apache.spark.internal.Logging
 import org.apache.spark.storage.BlockId
 import org.apache.spark.storage.memory.MemoryStore
+import org.apache.spark.util.Utils
 
 /**
  * Performs bookkeeping for managing an adjustable-size pool of memory that is used for storage
@@ -69,6 +70,8 @@ private[memory] class StorageMemoryPool(
    * @return whether all N bytes were successfully granted.
    */
   def acquireMemory(blockId: BlockId, numBytes: Long): Boolean = lock.synchronized {
+    logDebug(s"Acquire memory ${numBytes} for block ${blockId.toString}, " +
+      s"${Utils.bytesToString(memoryUsed)} used, ${Utils.bytesToString(memoryFree)} free")
     val numBytesToFree = math.max(0, numBytes - memoryFree)
     acquireMemory(blockId, numBytes, numBytesToFree)
   }
