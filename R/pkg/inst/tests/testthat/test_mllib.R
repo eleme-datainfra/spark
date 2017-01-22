@@ -74,6 +74,14 @@ test_that("spark.glm and predict", {
   data = iris, family = poisson(link = identity)), iris))
   expect_true(all(abs(rVals - vals) < 1e-6), rVals - vals)
 
+  # Gamma family
+  x <- runif(100, -1, 1)
+  y <- rgamma(100, rate = 10 / exp(0.5 + 1.2 * x), shape = 10)
+  df <- as.DataFrame(as.data.frame(list(x = x, y = y)))
+  model <- glm(y ~ x, family = Gamma, df)
+  out <- capture.output(print(summary(model)))
+  expect_true(any(grepl("Dispersion parameter for gamma family", out)))
+
   # Test stats::predict is working
   x <- rnorm(15)
   y <- x + rnorm(15)
@@ -852,7 +860,7 @@ test_that("spark.lda with libsvm", {
   weights <- stats$topicTopTermsWeights
   vocabulary <- stats$vocabulary
 
-  expect_false(isDistributed)
+  expect_true(isDistributed)
   expect_true(logLikelihood <= 0 & is.finite(logLikelihood))
   expect_true(logPerplexity >= 0 & is.finite(logPerplexity))
   expect_equal(vocabSize, 11)
@@ -866,7 +874,7 @@ test_that("spark.lda with libsvm", {
   model2 <- read.ml(modelPath)
   stats2 <- summary(model2)
 
-  expect_false(stats2$isDistributed)
+  expect_true(stats2$isDistributed)
   expect_equal(logLikelihood, stats2$logLikelihood)
   expect_equal(logPerplexity, stats2$logPerplexity)
   expect_equal(vocabSize, stats2$vocabSize)
