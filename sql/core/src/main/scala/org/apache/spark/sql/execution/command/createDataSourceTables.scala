@@ -18,13 +18,11 @@
 package org.apache.spark.sql.execution.command
 
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
 import org.apache.spark.sql.catalyst.catalog._
-import org.apache.spark.sql.catalyst.plans.QueryPlan
+import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation}
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.sources.BaseRelation
 
 /**
  * A command used to create a data source table.
