@@ -19,12 +19,16 @@ package org.apache.spark.scheduler
 
 import java.io.{DataInputStream, DataOutputStream}
 import java.nio.ByteBuffer
+import java.security.PrivilegedExceptionAction
 import java.util.Properties
 
 import scala.collection.mutable
 import scala.collection.mutable.HashMap
 
+import org.apache.hadoop.security.UserGroupInformation
+
 import org.apache.spark._
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.memory.{MemoryMode, TaskMemoryManager}
 import org.apache.spark.metrics.MetricsSystem
@@ -54,6 +58,7 @@ import org.apache.spark.util._
  * @param appAttemptId attempt id of the app this task belongs to
  */
 private[spark] abstract class Task[T](
+    val user: String,
     val stageId: Int,
     val stageAttemptId: Int,
     val partitionId: Int,

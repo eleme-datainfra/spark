@@ -578,6 +578,9 @@ class DAGScheduler(
       // Return immediately if the job is running 0 tasks
       return new JobWaiter[U](this, jobId, 0, resultHandler)
     }
+    if (properties != null) {
+      properties.setProperty("user", Utils.getCurrentUserName())
+    }
 
     assert(partitions.size > 0)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
@@ -653,6 +656,7 @@ class DAGScheduler(
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     val partitions = (0 until rdd.partitions.length).toArray
     val jobId = nextJobId.getAndIncrement()
+    properties.setProperty("user", Utils.getCurrentUserName())
     eventProcessLoop.post(JobSubmitted(
       jobId, rdd, func2, partitions, callSite, listener, SerializationUtils.clone(properties)))
     listener.awaitResult()    // Will throw an exception if the job fails
@@ -1008,13 +1012,14 @@ class DAGScheduler(
         return
     }
 
+    val user = if (properties == null) "" else properties.getProperty("user")
     val tasks: Seq[Task[_]] = try {
       stage match {
         case stage: ShuffleMapStage =>
           partitionsToCompute.map { id =>
             val locs = taskIdToLocations(id)
             val part = stage.rdd.partitions(id)
-            new ShuffleMapTask(stage.id, stage.latestInfo.attemptId,
+            new ShuffleMapTask(user, stage.id, stage.latestInfo.attemptId,
               taskBinary, part, locs, stage.latestInfo.taskMetrics, properties, Option(jobId),
               Option(sc.applicationId), sc.applicationAttemptId)
           }
@@ -1024,7 +1029,7 @@ class DAGScheduler(
             val p: Int = stage.partitions(id)
             val part = stage.rdd.partitions(p)
             val locs = taskIdToLocations(id)
-            new ResultTask(stage.id, stage.latestInfo.attemptId,
+            new ResultTask(user, stage.id, stage.latestInfo.attemptId,
               taskBinary, part, locs, id, properties, stage.latestInfo.taskMetrics,
               Option(jobId), Option(sc.applicationId), sc.applicationAttemptId)
           }

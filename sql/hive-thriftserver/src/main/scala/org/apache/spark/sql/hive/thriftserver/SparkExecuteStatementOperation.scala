@@ -28,11 +28,13 @@ import scala.util.control.NonFatal
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema
 import org.apache.hadoop.hive.shims.Utils
+import org.apache.hadoop.security.UserGroupInformation
 import org.apache.hive.service.cli._
 import org.apache.hive.service.cli.operation.ExecuteStatementOperation
 import org.apache.hive.service.cli.session.HiveSession
 
 import org.apache.spark.SparkContext
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, Row => SparkRow, SQLContext}
 import org.apache.spark.sql.execution.command.SetCommand
@@ -162,7 +164,15 @@ private[hive] class SparkExecuteStatementOperation(
     if (!runInBackground) {
       execute()
     } else {
-      val sparkServiceUGI = Utils.getUGI()
+      val sparkServiceUGI =
+        if (sqlContext.sparkContext.conf.getBoolean("spark.proxyuser.enabled", false)) {
+          val proxyUser = UserGroupInformation.createRemoteUser(parentSession.getUserName)
+          val currentUser = UserGroupInformation.getCurrentUser()
+          SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
+          proxyUser
+        } else {
+          Utils.getUGI()
+        }
 
       // Runnable impl to call runInternal asynchronously,
       // from a different thread

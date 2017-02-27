@@ -50,6 +50,7 @@ import org.apache.spark.rdd.RDD
  * @param appAttemptId attempt id of the app this task belongs to
   */
 private[spark] class ResultTask[T, U](
+    user: String,
     stageId: Int,
     stageAttemptId: Int,
     taskBinary: Broadcast[Array[Byte]],
@@ -61,7 +62,7 @@ private[spark] class ResultTask[T, U](
     jobId: Option[Int] = None,
     appId: Option[String] = None,
     appAttemptId: Option[String] = None)
-  extends Task[U](stageId, stageAttemptId, partition.index, metrics, localProperties, jobId,
+  extends Task[U](user, stageId, stageAttemptId, partition.index, metrics, localProperties, jobId,
     appId, appAttemptId)
   with Serializable {
 
