@@ -21,9 +21,12 @@ import java.io.{File, NotSerializableException}
 import java.lang.management.ManagementFactory
 import java.net.URL
 import java.nio.ByteBuffer
+import java.security.PrivilegedExceptionAction
 import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
+
+import org.apache.hadoop.security.UserGroupInformation
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.collection.JavaConverters._
@@ -197,7 +200,8 @@ private[spark] class Executor(
    * Function to kill the running tasks in an executor.
    * This can be called by executor back-ends to kill the
    * tasks instead of taking the JVM down.
-   * @param interruptThread whether to interrupt the task thread
+    *
+    * @param interruptThread whether to interrupt the task thread
    */
   def killAllTasks(interruptThread: Boolean) : Unit = {
     runningTasks.keys().asScala.foreach(t => killTask(t, interruptThread = interruptThread))
@@ -327,10 +331,24 @@ private[spark] class Executor(
         } else 0L
         var threwException = true
         val value = try {
-          val res = task.run(
-            taskAttemptId = taskId,
-            attemptNumber = attemptNumber,
-            metricsSystem = env.metricsSystem)
+          val res = if (conf.getBoolean("spark.proxyuser.enabled", false) && !task.user.isEmpty) {
+            val proxyUser = UserGroupInformation.createRemoteUser(task.user)
+            val currentUser = UserGroupInformation.getCurrentUser()
+            SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
+            proxyUser.doAs(new PrivilegedExceptionAction[Any] {
+              def run: Any = {
+                task.run(
+                  taskAttemptId = taskId,
+                  attemptNumber = attemptNumber,
+                  metricsSystem = env.metricsSystem)
+              }
+            })
+          } else {
+            task.run(
+              taskAttemptId = taskId,
+              attemptNumber = attemptNumber,
+              metricsSystem = env.metricsSystem)
+          }
           threwException = false
           res
         } finally {
