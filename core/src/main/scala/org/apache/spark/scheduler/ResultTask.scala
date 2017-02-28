@@ -62,7 +62,7 @@ private[spark] class ResultTask[T, U](
     jobId: Option[Int] = None,
     appId: Option[String] = None,
     appAttemptId: Option[String] = None)
-  extends Task[U]("", stageId, stageAttemptId, partition.index, metrics, localProperties, jobId,
+  extends Task[U](user, stageId, stageAttemptId, partition.index, metrics, localProperties, jobId,
     appId, appAttemptId)
   with Serializable {
 
