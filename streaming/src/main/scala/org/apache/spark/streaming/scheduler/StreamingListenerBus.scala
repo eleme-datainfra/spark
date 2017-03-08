@@ -40,7 +40,7 @@ private[streaming] class StreamingListenerBus(sparkListenerBus: LiveListenerBus)
   override def onOtherEvent(event: SparkListenerEvent): Unit = {
     event match {
       case WrappedStreamingListenerEvent(e) =>
-        postToAll(e)
+        postToAllSync(e)
       case _ =>
     }
   }
@@ -73,16 +73,18 @@ private[streaming] class StreamingListenerBus(sparkListenerBus: LiveListenerBus)
    * Register this one with the Spark listener bus so that it can receive Streaming events and
    * forward them to StreamingListeners.
    */
-  def start(): Unit = {
+  override def start(): Unit = {
     sparkListenerBus.addListener(this) // for getting callbacks on spark events
+    super.start()
   }
 
   /**
    * Unregister this one with the Spark listener bus and all StreamingListeners won't receive any
    * events after that.
    */
-  def stop(): Unit = {
+  override def stop(): Unit = {
     sparkListenerBus.removeListener(this)
+    super.stop()
   }
 
   /**
