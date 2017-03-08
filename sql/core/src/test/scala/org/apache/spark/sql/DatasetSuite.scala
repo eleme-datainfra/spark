@@ -1085,7 +1085,7 @@ class DatasetSuite extends QueryTest with SharedSQLContext {
       new java.sql.Date(2016, 12, 12))
 
     assert(spark.range(1).map { x => new java.sql.Timestamp(100000) }.head ==
-      new java.sql.Timestamp(100000))
+
   }
 }
 
