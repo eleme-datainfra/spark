@@ -69,7 +69,7 @@ class StreamingQueryListenerBus(sparkListenerBus: LiveListenerBus)
         activeQueryRunIds.synchronized { activeQueryRunIds += s.runId }
         sparkListenerBus.post(s)
         // post to local listeners to trigger callbacks
-        postToAll(s)
+        postToAllSync(s)
       case _ =>
         sparkListenerBus.post(event)
     }
@@ -83,7 +83,7 @@ class StreamingQueryListenerBus(sparkListenerBus: LiveListenerBus)
         // we need to ignore QueryStartedEvent if this method is called within SparkListenerBus
         // thread
         if (!LiveListenerBus.withinListenerThread.value || !e.isInstanceOf[QueryStartedEvent]) {
-          postToAll(e)
+          postToAllSync(e)
         }
       case _ =>
     }
