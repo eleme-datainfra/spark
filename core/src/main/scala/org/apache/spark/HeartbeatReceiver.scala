@@ -111,7 +111,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
 
   private val killExecutorThread = ThreadUtils.newDaemonSingleThreadExecutor("kill-executor-thread")
 
-  val reportMetrics = sc.conf.get("spark.executor.metrics.sendToDriver", "").split(",").toSet
+  val reportMetrics = if (sc.conf.contains("spark.executor.metrics.sendToDriver")) {
+      sc.conf.get("spark.executor.metrics.sendToDriver", "").split(",")
+    } else {
+      Array.empty[String]
+    }
 
   private val statMap: concurrent.Map[String, StatCounter] =
     new ConcurrentHashMap[String, StatCounter]().asScala
@@ -153,7 +157,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         }
       }
 
-      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asSca la
+      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
         .map(g => Metric(g._1, g._2.getValue.toString)).toArray
       handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
     }
