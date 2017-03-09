@@ -72,8 +72,8 @@ private[spark] class Executor(
 
   private val conf = env.conf
 
-  private val reportMetrics = if (sc.conf.contains("spark.executor.metrics.sendToDriver")) {
-    sc.conf.get("spark.executor.metrics.sendToDriver", "").split(",")
+  private val reportMetrics = if (conf.contains("spark.executor.metrics.sendToDriver")) {
+    conf.get("spark.executor.metrics.sendToDriver", "").split(",")
   } else {
     Array.empty[String]
   }
