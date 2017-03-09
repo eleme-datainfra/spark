@@ -54,7 +54,7 @@ private class ListenerEventExecutor(listenerName: String, queueCapacity: Int) ex
     * guarantee that we do not process any event before starting the event executor.
     */
   private val isStarted = new AtomicBoolean(false)
-  private val lock = new ReentrantLock();
+  private val lock = new ReentrantLock()
   /** Condition variable which is signaled once the event executor is started */
   private val startCondition: Condition = lock.newCondition
 
@@ -93,17 +93,14 @@ private class ListenerEventExecutor(listenerName: String, queueCapacity: Int) ex
       case e: RejectedExecutionException =>
         droppedEventsCounter.incrementAndGet()
         if (System.currentTimeMillis() - lastReportTimestamp >= 60 * 1000) {
+          lastReportTimestamp = System.currentTimeMillis()
           val droppedEvents = droppedEventsCounter.get
           // There may be multiple threads trying to decrease droppedEventsCounter.
           // Use "compareAndSet" to make sure only one thread can win.
           // And if another thread is increasing droppedEventsCounter, "compareAndSet" will fail and
           // then that thread will update it.
           if (droppedEventsCounter.compareAndSet(droppedEvents, 0)) {
-            val prevLastReportTimestamp = lastReportTimestamp
-            lastReportTimestamp = System.currentTimeMillis()
-            logError(s"Dropping $droppedEvents SparkListenerEvent since " +
-              new java.util.Date(prevLastReportTimestamp) +
-              " because no remaining room in event queue. This likely means" +
+            logWarning(s"Dropping $droppedEvents SparkListenerEvent. This likely means" +
               s" $listenerName event processor is too slow and cannot keep up " +
               "with the rate at which tasks are being started by the scheduler.")
           }
@@ -118,6 +115,11 @@ private class ListenerEventExecutor(listenerName: String, queueCapacity: Int) ex
   }
 
   def stop(): Unit = {
+    var time = 0
+    while (!isEmpty && time < 10000) {
+      Thread.sleep(10)
+      time += 10
+    }
     executorService.shutdownNow()
   }
 }
@@ -193,8 +195,13 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
       val listener = item._1
       val listenerEventProcessor = item._2
       listenerEventProcessor.submit(new Runnable {
-        override def run(): Unit = Utils.tryLogNonFatalError {
-          doPostEvent(listener, event)
+        override def run(): Unit = {
+          try {
+            doPostEvent(listener, event)
+          } catch {
+            case NonFatal(t) =>
+              logDebug(t.getMessage)
+          }
         }
       })
     }
@@ -214,7 +221,7 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
         doPostEvent(listener, event)
       } catch {
         case NonFatal(e) =>
-          logError(s"Listener ${Utils.getFormattedClassName(listener)} threw an exception", e)
+          logWarning(s"Listener ${Utils.getFormattedClassName(listener)} threw an exception", e)
       }
     }
   }

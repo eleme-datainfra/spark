@@ -153,7 +153,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
         }
       }
 
-      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asScala
+      timeSeriesMetrics = sc.env.metricsSystem.getMetricRegistry.getGauges(filter).asSca la
         .map(g => Metric(g._1, g._2.getValue.toString)).toArray
       handleTimeSeriesMetrics(SparkContext.DRIVER_IDENTIFIER, timeSeriesMetrics)
     }
@@ -188,7 +188,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
               context.reply(response)
             }
           })
-          if (sc.isEventLogEnabled && !reportMetrics.isEmpty) {
+          if (sc.isEventLogEnabled && !reportMetrics.isEmpty && !timeSeriesMetrics.isEmpty) {
             metricStatThread.submit(new Runnable {
               override def run(): Unit = {
                 handleTimeSeriesMetrics(executorId, timeSeriesMetrics)
@@ -237,9 +237,11 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
    */
   def removeExecutor(executorId: String): Option[Future[Boolean]] = {
     reportMetrics.foreach { m =>
-      val key = s"${sc.applicationId}.${executorId}.${m}"
-      statMap.remove(key).foreach { stat =>
-        sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(executorId, m, stat))
+      if (!m.isEmpty) {
+        val key = s"${sc.applicationId}.${executorId}.${m}"
+        statMap.remove(key).foreach { stat =>
+          sc.listenerBus.postToAll(TimeSeriesMetricEvent(executorId, m, stat))
+        }
       }
     }
     Option(self).map(_.ask[Boolean](ExecutorRemoved(executorId)))
@@ -264,7 +266,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     if (jobEnd.jobResult.isInstanceOf[JobFailed]) {
       statMap.foreach { s =>
         val regex(_, execId, name) = s._1
-        sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+        sc.listenerBus.postToAll(TimeSeriesMetricEvent(execId, name, s._2))
       }
       statMap.clear()
     }
@@ -274,7 +276,7 @@ private[spark] class HeartbeatReceiver(sc: SparkContext, clock: Clock)
     val regex = """(application_[0-9]+_[0-9]+)\.([A-Za-z0-9]+)\.(.*)""".r
     statMap.foreach { s =>
       val regex(_, execId, name) = s._1
-      sc.listenerBus.doPostEvent(sc.eventLogger.get, TimeSeriesMetricEvent(execId, name, s._2))
+      sc.listenerBus.postToAll(TimeSeriesMetricEvent(execId, name, s._2))
     }
     statMap.clear()
   }
