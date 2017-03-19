@@ -909,7 +909,7 @@ private[spark] object Utils extends Logging {
   def deleteRecursively(file: File) {
     if (file != null) {
       try {
-        if (file.isDirectory && !isSymlink(file)) {
+        if (file.exists() && file.isDirectory && !isSymlink(file)) {
           var savedIOException: IOException = null
           for (child <- listFilesSafely(file)) {
             try {

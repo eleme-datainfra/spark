@@ -66,8 +66,11 @@ private[spark] class Executor(
 
   private val conf = env.conf
 
-  private val reportMetrics = conf.get("spark.executor.metrics.sendToDriver", "")
-    .split(",").toSet
+  private val reportMetrics = if (conf.contains("spark.executor.metrics.sendToDriver")) {
+      conf.get("spark.executor.metrics.sendToDriver", "").split(",")
+    } else {
+      Array.empty[String]
+    }
 
   // No ip or host:port - just hostname
   Utils.checkHost(executorHostname, "Expected executed slave to be a hostname")
