@@ -43,6 +43,7 @@ class SparkILoop(in0: Option[BufferedReader], out: JPrintWriter)
           }
         @transient val sc = {
           val _sc = spark.sparkContext
+          println("Spark context available as 'sc'.")
           println("Spark session available as 'spark'.")
           _sc
         }
