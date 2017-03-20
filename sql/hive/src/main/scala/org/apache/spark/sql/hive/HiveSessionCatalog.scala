@@ -162,6 +162,8 @@ private[sql] class HiveSessionCatalog(
     }
   }
 
+  override def loadRe
+
   override def lookupFunction(name: FunctionIdentifier, children: Seq[Expression]): Expression = {
     try {
       lookupFunction0(name, children)
