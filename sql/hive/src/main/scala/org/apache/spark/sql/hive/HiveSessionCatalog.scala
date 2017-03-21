@@ -18,16 +18,19 @@
 package org.apache.spark.sql.hive
 
 import java.io.File
+import java.net.URI
 
 import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.ql.exec.{UDAF, UDF}
 import org.apache.hadoop.hive.ql.exec.{FunctionRegistry => HiveFunctionRegistry}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
 import org.apache.hadoop.hive.ql.udf.generic.{AbstractGenericUDAFResolver, GenericUDF, GenericUDTF}
+import org.apache.hadoop.util.Shell
 
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
@@ -177,10 +180,21 @@ private[sql] class HiveSessionCatalog(
         case ArchiveResource =>
           ResourceType.ARCHIVE
       }
-      val sessionState = SessionState.get()
-      val localPath = sessionState.add_resource(resourceType, resource.uri)
-      ShutdownHookManager.registerShutdownDeleteDir(new File(localPath).getParentFile)
-      functionResourceLoader.loadResource(FunctionResource(resource.resourceType, localPath))
+      val uri = if (!Shell.WINDOWS) {
+        new URI(resource.uri)
+      }
+      else {
+        new Path(resource.uri).toUri
+      }
+      val scheme = if (uri.getScheme == null) null else uri.getScheme.toLowerCase
+      if (scheme == null || scheme == "file") {
+        functionResourceLoader.loadResource(resource)
+      } else {
+        val sessionState = SessionState.get()
+        val localPath = sessionState.add_resource(resourceType, resource.uri)
+        ShutdownHookManager.registerShutdownDeleteDir(new File(localPath).getParentFile)
+        functionResourceLoader.loadResource(FunctionResource(resource.resourceType, localPath))
+      }
     }
   }
 
