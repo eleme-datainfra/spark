@@ -650,7 +650,7 @@ class SparkContext(config: SparkConf) extends Logging {
       }
     } catch {
       case e: Exception =>
-        logError(s"Exception getting metrics from executor $executorId", e)
+        logDebug(s"Exception getting metrics from executor $executorId", e)
         None
     }
   }
