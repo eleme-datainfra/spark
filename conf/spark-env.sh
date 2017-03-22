@@ -52,8 +52,8 @@ export PYSPARK_PYTHON=/usr/local/bin/python
 
 # for native lib 
 export HADOOP_CONF_DIR=${HADOOP_HOME}/etc/hadoop/
-export JAVA_LIBRARY_PATH=$JAVA_LIBRARY_PATH:/usr/local/hadoop/hadoop-2.7.2/lib/native:./:/usr/lib64:/usr/local/lib
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/hadoop/hadoop-2.7.2/lib/native:./:/usr/lib64:/usr/local/lib
+export JAVA_LIBRARY_PATH=$JAVA_LIBRARY_PATH:/usr/local/hadoop-2.7.2/lib/native:./:/usr/lib64:/usr/local/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/hadoop-2.7.2/lib/native:./:/usr/lib64:/usr/local/lib
 
 
 export SPARK_DAEMON_MEMORY=10g
