@@ -36,23 +36,26 @@ private class ListenerEventExecutor(listenerName: String, queueCapacity: Int) ex
     .build()
   /** Holds the events to be processed by this listener. */
   private val eventQueue = new LinkedBlockingQueue[Runnable](queueCapacity)
+
   /**
-    * A single threaded executor service guarantees ordered processing
-    * of the events per listener.
-    */
+   * A single threaded executor service guarantees ordered processing
+   * of the events per listener.
+   */
   private val executorService: ThreadPoolExecutor =
     new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, eventQueue, threadFactory)
+
   /** A counter for dropped events. It will be reset every time we log it. */
   private val droppedEventsCounter = new AtomicLong(0L)
   /** When `droppedEventsCounter` was logged last time in milliseconds. */
   private var lastReportTimestamp = 0L
   /** Indicates if we are in the middle of processing some event */
   private val processingEvent = new AtomicBoolean(false)
+
   /**
-    * Indicates if the event executor is started. The executor thread will be
-    * blocked on the condition variable until the event executor is started to
-    * guarantee that we do not process any event before starting the event executor.
-    */
+   * Indicates if the event executor is started. The executor thread will be
+   * blocked on the condition variable until the event executor is started to
+   * guarantee that we do not process any event before starting the event executor.
+   */
   private val isStarted = new AtomicBoolean(false)
   private val lock = new ReentrantLock()
   /** Condition variable which is signaled once the event executor is started */
@@ -131,7 +134,7 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
 
   // Cap the capacity of the event queue so we get an explicit error (rather than
   // an OOM exception) if it's perpetually being added to more quickly than it's being drained.
-  protected def eventQueueSize = 10000
+  protected def eventQueueSize = 100000
   private val listenerAndEventExecutors = new CopyOnWriteArrayList[(L, ListenerEventExecutor)]()
 
   // Indicate if `start()` is called
@@ -167,9 +170,9 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
   }
 
   /**
-    * For testing only. Returns whether there is any event pending to be processed by
-    * any of the existing listener
-    */
+   * For testing only. Returns whether there is any event pending to be processed by
+   * any of the existing listener
+   */
   def isListenerBusEmpty: Boolean = {
     val iter = listenerAndEventExecutors.iterator()
     while (iter.hasNext) {
@@ -208,10 +211,10 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
   }
 
   /**
-    * Post the event to all registered listeners.
-    * This guarantees processing the event in the same thread for all
-    * events.
-    */
+   * Post the event to all registered listeners.
+   * This guarantees processing the event in the same thread for all
+   * events.
+   */
   final def postToAllSync(event: E): Unit = {
     val iter = listenerAndEventExecutors.iterator()
     while (iter.hasNext) {
@@ -242,13 +245,13 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
   }
 
   /**
-    * Start sending events to attached listeners.
-    *
-    * This first sends out all buffered events posted before this listener bus has started, then
-    * listens for any additional events asynchronously while the listener bus is still running.
-    * This should only be called once.
-    *
-    */
+   * Start sending events to attached listeners.
+   *
+   * This first sends out all buffered events posted before this listener bus has started, then
+   * listens for any additional events asynchronously while the listener bus is still running.
+   * This should only be called once.
+   *
+   */
   def start(): Unit = synchronized {
     if (!started.compareAndSet(false, true)) {
       throw new IllegalStateException(s" already started!")
@@ -260,9 +263,9 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
   }
 
   /**
-    * Stop the listener bus. It will wait until the queued events have been processed, but drop the
-    * new events after stopping.
-    */
+   * Stop the listener bus. It will wait until the queued events have been processed, but drop the
+   * new events after stopping.
+   */
   def stop(): Unit = synchronized {
     if (!started.get()) {
       throw new IllegalStateException(s"Attempted to stop hat has not yet started!")

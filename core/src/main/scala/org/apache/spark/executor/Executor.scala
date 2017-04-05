@@ -26,14 +26,13 @@ import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import javax.annotation.concurrent.GuardedBy
 
-import org.apache.hadoop.security.UserGroupInformation
-
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import com.codahale
 import com.codahale.metrics.MetricFilter
+import org.apache.hadoop.security.UserGroupInformation
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
