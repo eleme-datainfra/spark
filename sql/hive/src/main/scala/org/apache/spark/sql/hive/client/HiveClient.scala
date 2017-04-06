@@ -32,6 +32,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression
  */
 private[hive] trait HiveClient {
 
+  def auth(command: String, currentDatabase: String): Unit
+
   /** Returns the Hive Version of this client. */
   def version: HiveVersion
 

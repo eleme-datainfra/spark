@@ -18,6 +18,7 @@
 package org.apache.spark.sql.hive.client
 
 import java.io.{File, PrintStream}
+import java.util.{ArrayList => JArrayList}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -27,12 +28,18 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.{TableType => HiveTableType}
-import org.apache.hadoop.hive.metastore.api.{Database => HiveDatabase, FieldSchema}
-import org.apache.hadoop.hive.metastore.api.{SerDeInfo, StorageDescriptor}
-import org.apache.hadoop.hive.ql.Driver
+import org.apache.hadoop.hive.metastore.api.{Database => HiveDatabase}
+import org.apache.hadoop.hive.metastore.api.FieldSchema
+import org.apache.hadoop.hive.metastore.api.SerDeInfo
+import org.apache.hadoop.hive.metastore.api.StorageDescriptor
+import org.apache.hadoop.hive.ql.hooks.{Entity, ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.processors._
+import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAuthzContext, HiveOperationType, HivePrivilegeObject}
+import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.{HivePrivilegeObjectType, HivePrivObjectActionType}
+import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.security.UserGroupInformation
 
 import org.apache.spark.{SparkConf, SparkException}
@@ -46,7 +53,6 @@ import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.parser.{CatalystSqlParser, ParseException}
 import org.apache.spark.sql.execution.QueryExecutionException
-import org.apache.spark.sql.hive.HiveUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.util.{CircularBuffer, Utils}
 
@@ -181,13 +187,21 @@ private[hive] class HiveClientImpl(
           }
           hiveConf.set(k, v)
         }
-        val state = new SessionState(hiveConf)
+
+        val userName = originalState.getUserName
+
+        val state = version match {
+           case hive.v12 => new SessionState(hiveConf)
+           case _ => new SessionState(hiveConf, userName)
+        }
+
         if (clientLoader.cachedHive != null) {
           Hive.set(clientLoader.cachedHive.asInstanceOf[Hive])
         }
         SessionState.start(state)
         state.out = new PrintStream(outputBuffer, true, "UTF-8")
         state.err = new PrintStream(outputBuffer, true, "UTF-8")
+        state.setIsHiveServerQuery(true)
         state
       }
     } finally {
@@ -884,4 +898,99 @@ private[hive] class HiveClientImpl(
         parameters =
           if (hp.getParameters() != null) hp.getParameters().asScala.toMap else Map.empty)
   }
+
+  def getHivePrivObjects(privObjects:
+      java.util.HashSet[_ <: Entity],
+      hiveOperationType: HiveOperationType,
+      isInput: Boolean): JArrayList[HivePrivilegeObject] = {
+    val hivePrivobjs = new JArrayList[HivePrivilegeObject]()
+    if (privObjects == null) {
+      return hivePrivobjs
+    }
+    privObjects.asScala.foreach { entiy =>
+      var flag = true
+      val privObjType = AuthorizationUtils.getHivePrivilegeObjectType(entiy.getType())
+      if (entiy.isInstanceOf[ReadEntity] && !entiy.asInstanceOf[ReadEntity].isDirect()) {
+        flag = false
+      }
+      if (entiy.isInstanceOf[WriteEntity] && entiy.asInstanceOf[WriteEntity].isTempURI()) {
+        flag = false
+      }
+      if (flag) {
+        var dbName: String = null
+        var objName: String = null
+        entiy.getType() match {
+          case Entity.Type.DATABASE =>
+            dbName = if (entiy.getDatabase() == null) null else entiy.getDatabase().getName()
+          case Entity.Type.TABLE =>
+            dbName = if (entiy.getTable() == null) null else entiy.getTable().getDbName()
+            objName = if (entiy.getTable() == null) null else entiy.getTable().getTableName()
+          case Entity.Type.DFS_DIR =>
+          case Entity.Type.LOCAL_DIR =>
+            objName = entiy.getD().toString()
+          case Entity.Type.DUMMYPARTITION =>
+          case Entity.Type.PARTITION =>
+          case _ =>
+            throw new AssertionError("Unexpected object type")
+        }
+        val actionType = AuthorizationUtils.getActionType(entiy)
+        val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
+          objName, actionType)
+        hivePrivobjs.add(hPrivObject)
+
+        if (privObjType == HivePrivilegeObjectType.TABLE_OR_VIEW && isInput) {
+          val hPrivObject2 = new HivePrivilegeObject(HivePrivilegeObjectType.DATABASE,
+            dbName, objName, actionType)
+          hivePrivobjs.add(hPrivObject2)
+        }
+      }
+    }
+    hivePrivobjs
+  }
+
+  def auth(command: String, currentDatabase: String): Unit = {
+    import org.apache.hadoop.hive.ql.parse.VariableSubstitution
+    import org.apache.hadoop.hive.ql.parse.ParseDriver
+    import org.apache.hadoop.hive.ql.Context
+    import org.apache.hadoop.hive.ql.parse.ParseUtils
+    import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
+    if (command.trim().toLowerCase().startsWith("set ")) {
+      return
+    }
+    val preState = SessionState.get()
+    preState.setCurrentDatabase(currentDatabase)
+    val ss = new SessionState(conf)
+    ss.setCurrentDatabase(currentDatabase)
+    SessionState.start(ss)
+    SessionState.get().initTxnMgr(preState.getConf)
+    val hiveCommand = new VariableSubstitution().substitute(conf, command)
+    val ctx = new Context(preState.getConf)
+    ctx.setTryCount(10)
+    ctx.setCmd(hiveCommand)
+    ctx.setHDFSCleanup(true)
+    val pd = new ParseDriver()
+    var tree = pd.parse(hiveCommand, ctx)
+    tree = ParseUtils.findRootNonNullToken(tree)
+    val sem = SemanticAnalyzerFactory.get(preState.getConf, tree)
+
+    sem.analyze(tree, ctx)
+    logInfo("Semantic Analysis Completed")
+    // validate the plan
+    sem.validate()
+    val inputs = sem.getInputs
+    val outputs = sem.getOutputs
+
+    val hiveOperatetion = ss.getHiveOperation
+    logInfo("hiveOperatetion:" + hiveOperatetion)
+
+    val hiveOp = HiveOperationType.valueOf(hiveOperatetion.name())
+    val inputsHObjs = getHivePrivObjects(inputs, hiveOp, true)
+    val outputHObjs = getHivePrivObjects(outputs, hiveOp, false)
+    val authzContextBuilder = new HiveAuthzContext.Builder()
+    authzContextBuilder.setUserIpAddress(SessionState.get().getUserIpAddress)
+    authzContextBuilder.setCommandString(command)
+    ss.getAuthorizerV2().checkPrivileges(hiveOp, inputsHObjs,
+      outputHObjs, authzContextBuilder.build())
+  }
+
 }

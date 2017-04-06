@@ -579,6 +579,7 @@ class DAGScheduler(
       return new JobWaiter[U](this, jobId, 0, resultHandler)
     }
     if (properties != null) {
+      logInfo("SubmitJob  set user=" + Utils.getCurrentUserName())
       properties.setProperty("user", Utils.getCurrentUserName())
     }
 

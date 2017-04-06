@@ -161,8 +161,7 @@ object SparkSubmit {
 
     def doRunMain(): Unit = {
       if (args.proxyUser != null) {
-        val proxyUser = UserGroupInformation.createProxyUser(args.proxyUser,
-          UserGroupInformation.getCurrentUser())
+        val proxyUser = UserGroupInformation.createRemoteUser(args.proxyUser)
         try {
           proxyUser.doAs(new PrivilegedExceptionAction[Unit]() {
             override def run(): Unit = {

@@ -194,4 +194,7 @@ private[sql] class SessionState(sparkSession: SparkSession) {
   def analyze(tableIdent: TableIdentifier, noscan: Boolean = true): Unit = {
     AnalyzeTableCommand(tableIdent, noscan).run(sparkSession)
   }
+
+  protected[sql] def auth(command: String): Unit = Nil
+
 }
