@@ -30,12 +30,24 @@ trait TriggerExecutor {
 }
 
 /**
+ * A trigger executor that runs a single batch only, then terminates.
+ */
+case class OneTimeExecutor() extends TriggerExecutor {
+
+  /**
+   * Execute a single batch using `batchRunner`.
+   */
+  override def execute(batchRunner: () => Boolean): Unit = batchRunner()
+}
+
+/**
  * A trigger executor that runs a batch every `intervalMs` milliseconds.
  */
 case class ProcessingTimeExecutor(processingTime: ProcessingTime, clock: Clock = new SystemClock())
   extends TriggerExecutor with Logging {
 
   private val intervalMs = processingTime.intervalMs
+  require(intervalMs >= 0)
 
   override def execute(triggerHandler: () => Boolean): Unit = {
     while (true) {
@@ -50,7 +62,7 @@ case class ProcessingTimeExecutor(processingTime: ProcessingTime, clock: Clock =
         if (terminated) {
           return
         }
-        clock.waitTillTime(nextBatchTime(nextTriggerTimeMs))
+        clock.waitTillTime(nextTriggerTimeMs)
       } else {
         if (terminated) {
           return
@@ -59,7 +71,7 @@ case class ProcessingTimeExecutor(processingTime: ProcessingTime, clock: Clock =
     }
   }
 
-  /** Called when a batch falls behind. */
+  /** Called when a batch falls behind */
   def notifyBatchFallingBehind(realElapsedTimeMs: Long): Unit = {
     logWarning("Current batch is falling behind. The trigger interval is " +
       s"${intervalMs} milliseconds, but spent ${realElapsedTimeMs} milliseconds")
