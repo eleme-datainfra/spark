@@ -29,6 +29,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.catalyst.analysis.Resolver
+import org.apache.spark.util.collection.unsafe.sort.UnsafeExternalSorter
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // This file defines the configuration options for Spark SQL.
@@ -645,6 +646,27 @@ object SQLConf {
       "returned.")
     .booleanConf
     .createWithDefault(false)
+  
+  val WINDOW_EXEC_BUFFER_SPILL_THRESHOLD =
+    SQLConfigBuilder("spark.sql.windowExec.buffer.spill.threshold")
+      .internal()
+      .doc("Threshold for number of rows buffered in window operator")
+      .intConf
+      .createWithDefault(4096)
+  
+  val SORT_MERGE_JOIN_EXEC_BUFFER_SPILL_THRESHOLD =
+    SQLConfigBuilder("spark.sql.sortMergeJoinExec.buffer.spill.threshold")
+      .internal()
+      .doc("Threshold for number of rows buffered in sort merge join operator")
+      .intConf
+      .createWithDefault(Int.MaxValue)
+  
+  val CARTESIAN_PRODUCT_EXEC_BUFFER_SPILL_THRESHOLD =
+    SQLConfigBuilder("spark.sql.cartesianProductExec.buffer.spill.threshold")
+      .internal()
+      .doc("Threshold for number of rows buffered in cartesian product operator")
+      .intConf
+      .createWithDefault(UnsafeExternalSorter.DEFAULT_NUM_ELEMENTS_FOR_SPILL_THRESHOLD.toInt)
 
   object Deprecated {
     val MAPRED_REDUCE_TASKS = "mapred.reduce.tasks"
@@ -849,6 +871,14 @@ class SQLConf extends Serializable with Logging {
   def groupByOrdinal: Boolean = getConf(GROUP_BY_ORDINAL)
 
   def crossJoinEnabled: Boolean = getConf(SQLConf.CROSS_JOINS_ENABLED)
+  
+  def windowExecBufferSpillThreshold: Int = getConf(WINDOW_EXEC_BUFFER_SPILL_THRESHOLD)
+
+  def sortMergeJoinExecBufferSpillThreshold: Int =
+    getConf(SORT_MERGE_JOIN_EXEC_BUFFER_SPILL_THRESHOLD)
+
+  def cartesianProductExecBufferSpillThreshold: Int =
+    getConf(CARTESIAN_PRODUCT_EXEC_BUFFER_SPILL_THRESHOLD)
 
   def ndvMaxError: Double = getConf(NDV_MAX_ERROR)
   /** ********************** SQLConf functionality methods ************ */
