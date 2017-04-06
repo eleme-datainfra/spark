@@ -34,11 +34,6 @@
   <url>http://spark.apache.org/</url>
   <dependencies>
     <dependency>
-      <groupId>com.hadoop.gplcompression</groupId>
-      <artifactId>hadoop-lzo</artifactId>
-      <version>0.4.19</version>
-    </dependency>
-    <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro-mapred</artifactId>
       <classifier>${avro.mapred.classifier}</classifier>
