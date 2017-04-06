@@ -983,8 +983,16 @@ object CodeGenerator extends Logging {
         cf.methodInfos.asScala.foreach { method =>
           method.getAttributes().foreach { a =>
             if (a.getClass.getName == codeAttr.getName) {
-              CodegenMetrics.METRIC_GENERATED_METHOD_BYTECODE_SIZE.update(
-                codeAttrField.get(a).asInstanceOf[Array[Byte]].length)
+              if (codeAttrField.getDeclaringClass.isAssignableFrom(a.getClass)) {
+                CodegenMetrics.METRIC_GENERATED_METHOD_BYTECODE_SIZE.update(
+                  codeAttrField.get(a).asInstanceOf[Array[Byte]].length)
+              } else {
+                logInfo("Get code from CodeAttribute by function getDeclaredField")
+                val code = a.getClass.getDeclaredField("code")
+                code.setAccessible(true)
+                CodegenMetrics.METRIC_GENERATED_METHOD_BYTECODE_SIZE.update(
+                  code.get(a).asInstanceOf[Array[Byte]].length)
+              }
             }
           }
         }
