@@ -187,8 +187,12 @@ private[hive] class HiveClientImpl(
           }
           hiveConf.set(k, v)
         }
-
-        val userName = originalState.getUserName
+  
+        var userName: String = null
+        if (originalState != null) {
+          userName = originalState.getUserName
+          logInfo("Current SessionState UserName is " + userName)
+        }
 
         val state = version match {
            case hive.v12 => new SessionState(hiveConf)
