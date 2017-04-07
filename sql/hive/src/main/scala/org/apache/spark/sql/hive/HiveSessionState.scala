@@ -54,13 +54,13 @@ private[hive] class HiveSessionState(sparkSession: SparkSession)
   }
 
   override protected[sql] def auth(command: String): Unit = {
-    metadataHive.withHiveState {
-      
-    }
     val threadClassLoader = Thread.currentThread.getContextClassLoader
     Thread.currentThread.setContextClassLoader(metadataHive.getClass.getClassLoader)
-    metadataHive.auth(command, catalog.getCurrentDatabase)
-    Thread.currentThread.setContextClassLoader(threadClassLoader)
+    try{
+       metadataHive.auth(command, catalog.getCurrentDatabase)
+    }finally{
+       Thread.currentThread.setContextClassLoader(threadClassLoader)
+    }   
   }
 
   /**
