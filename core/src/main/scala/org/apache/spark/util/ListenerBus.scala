@@ -134,7 +134,7 @@ private[spark] trait ListenerBus[L <: AnyRef, E] extends Logging {
 
   // Cap the capacity of the event queue so we get an explicit error (rather than
   // an OOM exception) if it's perpetually being added to more quickly than it's being drained.
-  protected def eventQueueSize = 100000
+  protected def eventQueueSize = 10000
   private val listenerAndEventExecutors = new CopyOnWriteArrayList[(L, ListenerEventExecutor)]()
 
   // Indicate if `start()` is called
