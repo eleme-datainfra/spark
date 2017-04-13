@@ -93,7 +93,12 @@ private[hive] class HiveClientImpl(
 
   // Circular buffer to hold what hive prints to STDOUT and ERR.  Only printed when failures occur.
   private val outputBuffer = new CircularBuffer()
-
+  
+  private val pattern = "CREATE\\s+GLOBAL\\s+TEMPORARY\\s+VIEW"
+  private val global_pattern = "\\s+global_temp.[0-9a-zA-Z_]+"
+  private val p = Pattern.compile(pattern,Pattern.CASE_INSENSITIVE)
+  private val global_pattern_p = Pattern.compile(global_pattern,Pattern.CASE_INSENSITIVE)
+  
   private val shim = version match {
     case hive.v12 => new Shim_v0_12()
     case hive.v13 => new Shim_v0_13()
@@ -937,15 +942,17 @@ private[hive] class HiveClientImpl(
           case _ =>
             throw new AssertionError("Unexpected object type")
         }
-        val actionType = AuthorizationUtils.getActionType(entiy)
-        val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
-          objName, actionType)
-        hivePrivobjs.add(hPrivObject)
+        if (!"global_temp".equals(dbname)) {
+          val actionType = AuthorizationUtils.getActionType(entiy)
+          val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
+            objName, actionType)
+          hivePrivobjs.add(hPrivObject)
 
-        if (privObjType == HivePrivilegeObjectType.TABLE_OR_VIEW && isInput) {
-          val hPrivObject2 = new HivePrivilegeObject(HivePrivilegeObjectType.DATABASE,
-            dbName, objName, actionType)
-          hivePrivobjs.add(hPrivObject2)
+          if (privObjType == HivePrivilegeObjectType.TABLE_OR_VIEW && isInput) {
+            val hPrivObject2 = new HivePrivilegeObject(HivePrivilegeObjectType.DATABASE,
+              dbName, objName, actionType)
+            hivePrivobjs.add(hPrivObject2)
+          }
         }
       }
     }
@@ -959,6 +966,12 @@ private[hive] class HiveClientImpl(
     import org.apache.hadoop.hive.ql.parse.ParseUtils
     import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
     if (command.trim().toLowerCase().startsWith("set ")) {
+      return
+    }
+    if (p.matcher(command).find()) {
+      return
+    }
+    if (global_pattern_p.matcher(command).find()) {
       return
     }
     val preState = SessionState.get()
