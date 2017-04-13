@@ -971,7 +971,6 @@ object CodeGenerator extends Logging {
       classesField.setAccessible(true)
       classesField.get(loader).asInstanceOf[JavaMap[String, Array[Byte]]].asScala
     }
-    // logInfo("***********before exec current thread classloder:" + Thread.currentThread().getContextClassLoader)
     // Then walk the classes to get at the method bytecode.
     val codeAttr = Utils.classForName("org.codehaus.janino.util.ClassFile$CodeAttribute")
     val codeAttrField = codeAttr.getDeclaredField("code")
@@ -983,9 +982,6 @@ object CodeGenerator extends Logging {
         cf.methodInfos.asScala.foreach { method =>
           method.getAttributes().foreach { a =>
             if (a.getClass.getName == codeAttr.getName) {
-              // logInfo("***************" + codeAttrField.getDeclaringClass().getClassLoader())
-              // logInfo("***************" + a.getClass().getClassLoader())
-              // logInfo("***************" + (codeAttrField.getDeclaringClass() == a.getClass()))
               if (codeAttrField.getDeclaringClass.isAssignableFrom(a.getClass)) {
                 CodegenMetrics.METRIC_GENERATED_METHOD_BYTECODE_SIZE.update(
                   codeAttrField.get(a).asInstanceOf[Array[Byte]].length)
