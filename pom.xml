@@ -272,6 +272,14 @@
             <enabled>false</enabled>
         </snapshots>
     </repository>
+    <repository>
+      <id>ele-bdi-release</id>
+      <url>http://maven.dev.elenet.me/nexus/content/repositories/ele-bdi-release/</url>
+      <name>Ele Repository</name>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
   </repositories>
   <pluginRepositories>
     <pluginRepository>
