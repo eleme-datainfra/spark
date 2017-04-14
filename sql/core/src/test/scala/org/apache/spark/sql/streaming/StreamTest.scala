@@ -208,21 +208,10 @@ trait StreamTest extends QueryTest with SharedSQLContext with Timeouts {
     }
   }
 
-  class StreamManualClock(time: Long = 0L) extends ManualClock(time) with Serializable {
-    private var waitStartTime: Option[Long] = None
-
-    override def waitTillTime(targetTime: Long): Long = synchronized {
-      try {
-        waitStartTime = Some(getTimeMillis())
-        super.waitTillTime(targetTime)
-      } finally {
-        waitStartTime = None
-      }
-    }
-
-    def isStreamWaitingAt(time: Long): Boolean = synchronized {
-      waitStartTime == Some(time)
-    }
+  /** Execute arbitrary code */
+  object Execute {
+    def apply(func: StreamExecution => Any): AssertOnQuery =
+      AssertOnQuery(query => { func(query); true })
   }
 
 
@@ -236,6 +225,8 @@ trait StreamTest extends QueryTest with SharedSQLContext with Timeouts {
   def testStream(
       _stream: Dataset[_],
       outputMode: OutputMode = OutputMode.Append)(actions: StreamAction*): Unit = synchronized {
+    import org.apache.spark.sql.streaming.util.StreamManualClock
+
     // `synchronized` is added to prevent the user from calling multiple `testStream`s concurrently
     // because this method assumes there is only one active query in its `StreamingQueryListener`
     // and it may not work correctly when multiple `testStream`s run concurrently.
