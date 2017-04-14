@@ -19,6 +19,7 @@ package org.apache.spark.sql.hive.client
 
 import java.io.{File, PrintStream}
 import java.util.{ArrayList => JArrayList}
+import java.util.regex.Pattern
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -36,7 +37,7 @@ import org.apache.hadoop.hive.ql.hooks.{Entity, ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.processors._
 import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAuthzContext, HiveOperationType, HivePrivilegeObject}
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.{HivePrivilegeObjectType, HivePrivObjectActionType}
+import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.Driver
@@ -96,8 +97,8 @@ private[hive] class HiveClientImpl(
   
   private val pattern = "CREATE\\s+GLOBAL\\s+TEMPORARY\\s+VIEW"
   private val global_pattern = "\\s+global_temp.[0-9a-zA-Z_]+"
-  private val p = Pattern.compile(pattern,Pattern.CASE_INSENSITIVE)
-  private val global_pattern_p = Pattern.compile(global_pattern,Pattern.CASE_INSENSITIVE)
+  private val p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
+  private val global_pattern_p = Pattern.compile(global_pattern, Pattern.CASE_INSENSITIVE)
   
   private val shim = version match {
     case hive.v12 => new Shim_v0_12()
@@ -942,7 +943,7 @@ private[hive] class HiveClientImpl(
           case _ =>
             throw new AssertionError("Unexpected object type")
         }
-        if (!"global_temp".equals(dbname)) {
+        if (!"global_temp".equals(dbName)) {
           val actionType = AuthorizationUtils.getActionType(entiy)
           val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
             objName, actionType)
