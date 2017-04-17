@@ -170,6 +170,9 @@ private[sql] class HiveSessionCatalog(
   }
 
   override def loadFunctionResources(resources: Seq[FunctionResource]): Unit = {
+    if (!sparkSession.sparkContext.conf.getBoolean("spark.sql.hive.loadFunctionResource", false)) {
+      return super.loadFunctionResources(resources)
+    }
     logDebug("loading hive permanent function resources")
     resources.foreach { resource =>
       val resourceType = resource.resourceType match {
