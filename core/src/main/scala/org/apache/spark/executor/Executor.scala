@@ -338,9 +338,11 @@ private[spark] class Executor(
         } else 0L
         var threwException = true
         val value = try {
-          val res = if (conf.getBoolean("spark.proxyuser.enabled", false) && !task.user.isEmpty) {
+          val res = if (conf.getBoolean("spark.proxyuser.enabled", false)
+              && task.user != null && !task.user.isEmpty) {
             val proxyUser = UserGroupInformation.createRemoteUser(task.user)
             val currentUser = UserGroupInformation.getCurrentUser()
+            logDebug(s"Execute task $taskId as user ${proxyUser.getShortUserName}")
             SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
             proxyUser.doAs(new PrivilegedExceptionAction[Any] {
               def run: Any = {
