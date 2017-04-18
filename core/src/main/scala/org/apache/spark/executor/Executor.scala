@@ -333,24 +333,26 @@ private[spark] class Executor(
         } else 0L
         var threwException = true
         val value = try {
-          val res = if (conf.getBoolean("spark.proxyuser.enabled", false) && !task.user.isEmpty) {
-            val proxyUser = UserGroupInformation.createRemoteUser(task.user)
-            val currentUser = UserGroupInformation.getCurrentUser()
-            SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
-            proxyUser.doAs(new PrivilegedExceptionAction[Any] {
-              def run: Any = {
-                task.run(
-                  taskAttemptId = taskId,
-                  attemptNumber = attemptNumber,
-                  metricsSystem = env.metricsSystem)
-              }
-            })
-          } else {
-            task.run(
-              taskAttemptId = taskId,
-              attemptNumber = attemptNumber,
-              metricsSystem = env.metricsSystem)
-          }
+          val res =
+            if (conf.getBoolean("spark.proxyuser.enabled", false)
+                && task.user != null && !task.user.isEmpty) {
+              val proxyUser = UserGroupInformation.createRemoteUser(task.user)
+              val currentUser = UserGroupInformation.getCurrentUser()
+              SparkHadoopUtil.get.transferCredentials(currentUser, proxyUser)
+              proxyUser.doAs(new PrivilegedExceptionAction[Any] {
+                def run: Any = {
+                  task.run(
+                    taskAttemptId = taskId,
+                    attemptNumber = attemptNumber,
+                    metricsSystem = env.metricsSystem)
+                }
+              })
+            } else {
+              task.run(
+                taskAttemptId = taskId,
+                attemptNumber = attemptNumber,
+                metricsSystem = env.metricsSystem)
+            }
           threwException = false
           res
         } finally {
