@@ -1064,8 +1064,12 @@ class SessionCatalog(
     val catalogFunction = try {
       externalCatalog.getFunction(currentDb, name.funcName)
     } catch {
-      case e: AnalysisException => failFunctionLookup(name.funcName)
-      case e: NoSuchPermanentFunctionException => failFunctionLookup(name.funcName)
+      case e: AnalysisException =>
+        logDebug(e.getMessage, e)
+        failFunctionLookup(name.funcName)
+      case e: NoSuchPermanentFunctionException =>
+        logDebug(e.getMessage, e)
+        failFunctionLookup(name.funcName)
     }
     loadFunctionResources(catalogFunction.resources)
     // Please note that qualifiedName is provided by the user. However,

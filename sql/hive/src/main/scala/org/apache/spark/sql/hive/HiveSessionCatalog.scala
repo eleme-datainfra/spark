@@ -205,7 +205,8 @@ private[sql] class HiveSessionCatalog(
     try {
       lookupFunction0(name, children)
     } catch {
-      case NonFatal(_) =>
+      case NonFatal(e) =>
+        logDebug(e.getMessage, e)
         // SPARK-16228 ExternalCatalog may recognize `double`-type only.
         val newChildren = children.map { child =>
           if (child.dataType.isInstanceOf[DecimalType]) Cast(child, DoubleType) else child
@@ -227,6 +228,7 @@ private[sql] class HiveSessionCatalog(
     Try(super.lookupFunction(funcName, children)) match {
       case Success(expr) => expr
       case Failure(error) =>
+        logDebug(error.getMessage, error)
         if (functionRegistry.functionExists(funcName.unquotedString)) {
           // If the function actually exists in functionRegistry, it means that there is an
           // error when we create the Expression using the given children.
