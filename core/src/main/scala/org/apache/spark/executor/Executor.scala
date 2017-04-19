@@ -33,7 +33,6 @@ import scala.util.control.NonFatal
 import com.codahale
 import com.codahale.metrics.MetricFilter
 import org.apache.hadoop.security.UserGroupInformation
-import org.apache.log4j.Level
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -76,10 +75,6 @@ private[spark] class Executor(
     conf.get("spark.executor.metrics.sendToDriver", "").split(",")
   } else {
     Array.empty[String]
-  }
-
-  if (conf.contains("spark.executor.logLevel")) {
-    Utils.setLogLevel(Level.toLevel(conf.get("spark.executor.logLevel")))
   }
 
   // No ip or host:port - just hostname
