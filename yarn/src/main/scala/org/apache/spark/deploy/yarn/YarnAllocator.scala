@@ -30,7 +30,6 @@ import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.conf.YarnConfiguration
-import org.apache.log4j.{Level, Logger}
 
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.yarn.YarnSparkHadoopUtil._
@@ -419,7 +418,7 @@ private[yarn] class YarnAllocator(
     // Match remaining by rack
     val remainingAfterRackMatches = new ArrayBuffer[Container]
     for (allocatedContainer <- remainingAfterHostMatches) {
-      val rack = resolver.resolve(conf, allocatedContainer.getNodeId.getHost)
+      val rack = RackUtils.resolve(sparkConf, allocatedContainer.getNodeId.getHost)
       matchContainerToRequest(allocatedContainer, rack, containersToUse,
         remainingAfterRackMatches)
     }

@@ -24,8 +24,9 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.yarn.api.records.{ContainerId, Resource}
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 
-import org.apache.spark.SparkConf
 import org.apache.spark.internal.config._
+import org.apache.spark.util.RackUtils
+import org.apache.spark.SparkConf
 
 private[yarn] case class ContainerLocalityPreferences(nodes: Array[String], racks: Array[String])
 
@@ -138,9 +139,7 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
         // Only filter out the ratio which is larger than 0, which means the current host can
         // still be allocated with new container request.
         val hosts = preferredLocalityRatio.filter(_._2 > 0).keys.toArray
-        val racks = hosts.map { h =>
-          resolver.resolve(yarnConf, h)
-        }.toSet
+        val racks = hosts.map { h => RackUtils.resolve(sparkConf, h) }.toSet
         containerLocalityPreferences += ContainerLocalityPreferences(hosts, racks.toArray)
 
         // Minus 1 each time when the host is used. When the current ratio is 0,
