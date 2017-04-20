@@ -14,17 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.spark.sql.hive.execution;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
-public class UDFToListInt extends UDF {
-  public List<Integer> evaluate(Object o) {
-    return new ArrayList<>(Arrays.asList(1, 2, 3));
+/**
+ * UDF that returns a nested list of maps that uses a string as its key and a list of ints as its
+ * values.
+ */
+public class UDFToListMapStringListInt extends UDF {
+  public List<Map<String, List<Integer>>> evaluate(Object o) {
+    final Map<String, List<Integer>> map = new HashMap<>();
+    map.put("a", Arrays.asList(1, 2));
+    map.put("b", Arrays.asList(3, 4));
+    return Collections.singletonList(map);
   }
 }
