@@ -917,34 +917,37 @@ private[hive] class HiveClientImpl(
     if (privObjects == null) {
       return hivePrivobjs
     }
-    privObjects.asScala.foreach { entiy =>
+    privObjects.asScala.foreach { entity =>
       var flag = true
-      val privObjType = AuthorizationUtils.getHivePrivilegeObjectType(entiy.getType())
-      if (entiy.isInstanceOf[ReadEntity] && !entiy.asInstanceOf[ReadEntity].isDirect()) {
+      val privObjType = AuthorizationUtils.getHivePrivilegeObjectType(entity.getType())
+      if (entity.isInstanceOf[ReadEntity] && !entity.asInstanceOf[ReadEntity].isDirect()) {
         flag = false
       }
-      if (entiy.isInstanceOf[WriteEntity] && entiy.asInstanceOf[WriteEntity].isTempURI()) {
+      if (entity.isInstanceOf[WriteEntity] && entity.asInstanceOf[WriteEntity].isTempURI()) {
         flag = false
       }
       if (flag) {
         var dbName: String = null
         var objName: String = null
-        entiy.getType() match {
+        entity.getType() match {
           case Entity.Type.DATABASE =>
-            dbName = if (entiy.getDatabase() == null) null else entiy.getDatabase().getName()
+            dbName = if (entity.getDatabase() == null) null else entity.getDatabase().getName()
           case Entity.Type.TABLE =>
-            dbName = if (entiy.getTable() == null) null else entiy.getTable().getDbName()
-            objName = if (entiy.getTable() == null) null else entiy.getTable().getTableName()
+            dbName = if (entity.getTable() == null) null else entity.getTable().getDbName()
+            objName = if (entity.getTable() == null) null else entity.getTable().getTableName()
           case Entity.Type.DFS_DIR =>
           case Entity.Type.LOCAL_DIR =>
-            objName = entiy.getD().toString()
+            objName = entity.getD().toString()
+          case Entity.Type.FUNCTION =>
+            if (entity.getDatabase != null) dbName = entity.getDatabase.getName
+            objName = entity.getFunctionName
           case Entity.Type.DUMMYPARTITION =>
           case Entity.Type.PARTITION =>
           case _ =>
             throw new AssertionError("Unexpected object type")
         }
         if (!"global_temp".equals(dbName)) {
-          val actionType = AuthorizationUtils.getActionType(entiy)
+          val actionType = AuthorizationUtils.getActionType(entity)
           val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
             objName, actionType)
           hivePrivobjs.add(hPrivObject)
