@@ -24,9 +24,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.yarn.api.records.{ContainerId, Resource}
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 
-import org.apache.spark.internal.config._
-import org.apache.spark.util.RackUtils
 import org.apache.spark.SparkConf
+import org.apache.spark.internal.config._
 
 private[yarn] case class ContainerLocalityPreferences(nodes: Array[String], racks: Array[String])
 
@@ -83,7 +82,8 @@ private[yarn] case class ContainerLocalityPreferences(nodes: Array[String], rack
 private[yarn] class LocalityPreferredContainerPlacementStrategy(
     val sparkConf: SparkConf,
     val yarnConf: Configuration,
-    val resource: Resource) {
+    val resource: Resource,
+    resolver: SparkRackResolver) {
 
   /**
    * Calculate each container's node locality and rack locality
@@ -138,7 +138,9 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
         // Only filter out the ratio which is larger than 0, which means the current host can
         // still be allocated with new container request.
         val hosts = preferredLocalityRatio.filter(_._2 > 0).keys.toArray
-        val racks = hosts.map { h => RackUtils.resolve(sparkConf, h) }.toSet
+        val racks = hosts.map { h =>
+          resolver.resolve(yarnConf, h)
+        }.toSet
         containerLocalityPreferences += ContainerLocalityPreferences(hosts, racks.toArray)
 
         // Minus 1 each time when the host is used. When the current ratio is 0,
@@ -148,6 +150,14 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
     }
 
     containerLocalityPreferences.toArray
+  }
+
+  /**
+   * Calculate the number of executors need to satisfy the given number of pending tasks.
+   */
+  private def numExecutorsPending(numTasksPending: Int): Int = {
+    val coresPerExecutor = resource.getVirtualCores
+    (numTasksPending * sparkConf.get(CPUS_PER_TASK) + coresPerExecutor - 1) / coresPerExecutor
   }
 
   /**
@@ -186,21 +196,12 @@ private[yarn] class LocalityPreferredContainerPlacementStrategy(
   }
 
   /**
-   * Calculate the number of executors need to satisfy the given number of pending tasks.
-   */
-  private def numExecutorsPending(numTasksPending: Int): Int = {
-    val coresPerExecutor = resource.getVirtualCores
-    (numTasksPending * sparkConf.get(CPUS_PER_TASK) + coresPerExecutor - 1) / coresPerExecutor
-  }
-
-  /**
    * According to the locality ratio and number of container requests, calculate the host to
    * possible number of containers for pending allocated containers.
    *
    * If current locality ratio of hosts is: Host1 : Host2 : Host3 = 20 : 20 : 10,
    * and pending container requests is 3, so the possible number of containers on
    * Host1 : Host2 : Host3 will be 1.2 : 1.2 : 0.6.
-   *
    * @param localityMatchedPendingAllocations A sequence of pending container request which
    *                                          matches the localities of current required tasks.
    * @return a Map with hostname as key and possible number of containers on this host as value

@@ -1087,11 +1087,17 @@ class DatasetSuite extends QueryTest with SharedSQLContext {
     assert(spark.range(1).map { x => new java.sql.Timestamp(100000) }.head ==
       new java.sql.Timestamp(100000))
   }
+
+  test("SPARK-20125: option of map") {
+    val ds = Seq(WithMapInOption(Some(Map(1 -> 1)))).toDS()
+    checkDataset(ds, WithMapInOption(Some(Map(1 -> 1))))
+  }
 }
 
 case class WithImmutableMap(id: String, map_test: scala.collection.immutable.Map[Long, String])
 
 case class WithMap(id: String, map_test: scala.collection.Map[Long, String])
+case class WithMapInOption(m: Option[scala.collection.Map[Int, Int]])
 
 case class Generic[T](id: T, value: Double)
 
