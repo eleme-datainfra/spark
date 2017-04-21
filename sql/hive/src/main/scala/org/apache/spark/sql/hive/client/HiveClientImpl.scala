@@ -40,7 +40,12 @@ import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAuthzContext
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.ql.Context
 import org.apache.hadoop.hive.ql.Driver
+import org.apache.hadoop.hive.ql.parse.ParseDriver
+import org.apache.hadoop.hive.ql.parse.ParseUtils
+import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
+import org.apache.hadoop.hive.ql.parse.VariableSubstitution
 import org.apache.hadoop.security.UserGroupInformation
 
 import org.apache.spark.{SparkConf, SparkException}
@@ -966,11 +971,6 @@ private[hive] class HiveClientImpl(
     if (!sparkConf.getBoolean("spark.hive.auth.enable", true)) {
       return
     }
-    import org.apache.hadoop.hive.ql.parse.VariableSubstitution
-    import org.apache.hadoop.hive.ql.parse.ParseDriver
-    import org.apache.hadoop.hive.ql.Context
-    import org.apache.hadoop.hive.ql.parse.ParseUtils
-    import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
     if (command.trim().toLowerCase().startsWith("set ")) {
       return
     }
@@ -980,21 +980,18 @@ private[hive] class HiveClientImpl(
     if (global_pattern_p.matcher(command).find()) {
       return
     }
-    val preState = SessionState.get()
-    preState.setCurrentDatabase(currentDatabase)
-    val ss = new SessionState(conf)
+    val ss = SessionState.get()
     ss.setCurrentDatabase(currentDatabase)
-    SessionState.start(ss)
-    SessionState.get().initTxnMgr(preState.getConf)
+    ss.initTxnMgr(ss.getConf)
     val hiveCommand = new VariableSubstitution().substitute(conf, command)
-    val ctx = new Context(preState.getConf)
+    val ctx = new Context(ss.getConf)
     ctx.setTryCount(10)
     ctx.setCmd(hiveCommand)
     ctx.setHDFSCleanup(true)
     val pd = new ParseDriver()
     var tree = pd.parse(hiveCommand, ctx)
     tree = ParseUtils.findRootNonNullToken(tree)
-    val sem = SemanticAnalyzerFactory.get(preState.getConf, tree)
+    val sem = SemanticAnalyzerFactory.get(ss.getConf, tree)
 
     sem.analyze(tree, ctx)
     logInfo("Semantic Analysis Completed")
@@ -1004,7 +1001,7 @@ private[hive] class HiveClientImpl(
     val outputs = sem.getOutputs
 
     val hiveOperatetion = ss.getHiveOperation
-    logInfo("hiveOperatetion:" + hiveOperatetion)
+    logInfo("HiveOperatetion:" + hiveOperatetion)
 
     val hiveOp = HiveOperationType.valueOf(hiveOperatetion.name())
     val inputsHObjs = getHivePrivObjects(inputs, hiveOp, true)
