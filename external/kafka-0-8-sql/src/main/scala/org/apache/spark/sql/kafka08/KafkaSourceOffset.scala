@@ -18,10 +18,8 @@
 package org.apache.spark.sql.kafka08
 
 import kafka.common.TopicAndPartition
-import org.json4s.NoTypeHints
-import org.json4s.jackson.Serialization
 
-import org.apache.spark.sql.execution.streaming.Offset
+import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.apache.spark.streaming.kafka.KafkaCluster.LeaderOffset
 
 /**
@@ -29,30 +27,33 @@ import org.apache.spark.streaming.kafka.KafkaCluster.LeaderOffset
  * their offsets.
  */
 case class KafkaSourceOffset(partitionToOffsets: Map[TopicAndPartition, LeaderOffset])
-  extends Offset {
+    extends Offset {
   override def toString(): String = {
     partitionToOffsets.toSeq.sortBy(_._1.toString).mkString("[", ", ", "]")
   }
 
-  override val json = KafkaSourceOffset.toJson(partitionToOffsets)
+  override val json = JsonUtils.toJson(partitionToOffsets)
 }
+
+case class KafkaSerializedOffset(partition: Int, host: String, port: String, offset: Long)
 
 /** Companion object of the [[KafkaSourceOffset]] */
 object KafkaSourceOffset {
 
-  private implicit val formats = Serialization.formats(NoTypeHints)
-
-  def toJson(partitionToOffsets: Map[TopicAndPartition, LeaderOffset]): String = {
-    Serialization.write(partitionToOffsets)
-  }
-
   def getPartitionOffsets(offset: Offset): Map[TopicAndPartition, LeaderOffset] = {
     offset match {
       case o: KafkaSourceOffset => o.partitionToOffsets
+      case so: SerializedOffset => KafkaSourceOffset(so).partitionToOffsets
       case _ =>
         throw new IllegalArgumentException(
           s"Invalid conversion from offset of ${offset.getClass} to KafkaSourceOffset")
     }
   }
+
+  /**
+   * Returns [[KafkaSourceOffset]] from a JSON [[SerializedOffset]]
+   */
+  def apply(offset: SerializedOffset): KafkaSourceOffset =
+    KafkaSourceOffset(JsonUtils.fromJson(offset.json))
 }
 
