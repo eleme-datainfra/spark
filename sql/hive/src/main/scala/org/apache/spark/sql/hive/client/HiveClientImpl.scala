@@ -964,6 +964,9 @@ private[hive] class HiveClientImpl(
   }
 
   def auth(command: String, currentDatabase: String): Unit = {
+    if (!sparkConf.getBoolean("spark.hive.auth.enable", true)) {
+      return
+    }
     import org.apache.hadoop.hive.ql.parse.VariableSubstitution
     import org.apache.hadoop.hive.ql.parse.ParseDriver
     import org.apache.hadoop.hive.ql.Context
