@@ -929,6 +929,7 @@ private[hive] class HiveClientImpl(
       if (flag) {
         var dbName: String = null
         var objName: String = null
+        var isFunction = false
         entity.getType() match {
           case Entity.Type.DATABASE =>
             dbName = if (entity.getDatabase() == null) null else entity.getDatabase().getName()
@@ -939,15 +940,15 @@ private[hive] class HiveClientImpl(
           case Entity.Type.LOCAL_DIR =>
             objName = entity.getD().toString()
           case Entity.Type.FUNCTION =>
+            isFunction = true
           case Entity.Type.DUMMYPARTITION =>
           case Entity.Type.PARTITION =>
           case _ =>
             throw new AssertionError("Unexpected object type")
         }
-        if (!"global_temp".equals(dbName)) {
+        if (!"global_temp".equals(dbName) && !isFunction) {
           val actionType = AuthorizationUtils.getActionType(entity)
-          val hPrivObject = new HivePrivilegeObject(privObjType, dbName,
-            objName, actionType)
+          val hPrivObject = new HivePrivilegeObject(privObjType, dbName, objName, actionType)
           hivePrivobjs.add(hPrivObject)
 
           if (privObjType == HivePrivilegeObjectType.TABLE_OR_VIEW && isInput) {
