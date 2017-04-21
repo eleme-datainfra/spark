@@ -939,8 +939,6 @@ private[hive] class HiveClientImpl(
           case Entity.Type.LOCAL_DIR =>
             objName = entity.getD().toString()
           case Entity.Type.FUNCTION =>
-            if (entity.getDatabase != null) dbName = entity.getDatabase.getName
-            objName = entity.getFunctionName
           case Entity.Type.DUMMYPARTITION =>
           case Entity.Type.PARTITION =>
           case _ =>
