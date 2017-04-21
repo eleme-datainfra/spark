@@ -54,9 +54,10 @@ private[hive] class HiveSessionState(sparkSession: SparkSession)
   }
 
   override protected[sql] def auth(command: String): Unit = {
-    metadataHive.withHiveState {
-      metadataHive.auth(command, catalog.getCurrentDatabase)
+    if (!sparkSession.sparkContext.conf.getBoolean("spark.hive.auth.enable", true)) {
+      return
     }
+    metadataHive.auth(command, catalog.getCurrentDatabase)
   }
 
   /**

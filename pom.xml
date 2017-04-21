@@ -22,7 +22,7 @@
 
   <groupId>org.apache.spark</groupId>
   <artifactId>spark-parent_2.11</artifactId>
-  <version>2.1.4</version>
+  <version>2.1-100</version>
   <packaging>pom</packaging>
   <name>Spark Project Parent POM</name>
   <url>http://spark.apache.org/</url>
@@ -140,7 +140,7 @@
     <curator.version>2.4.0</curator.version>
     <hive.group>org.spark-project.hive</hive.group>
     <!-- Version used in Maven Hive dependency -->
-    <hive.version>1.2.1.eleme-111-SNAPSHOT</hive.version>
+    <hive.version>1.2.1.eleme-116</hive.version>
     <!-- Version used for internal directory structure -->
     <hive.version.short>1.2.1</hive.version.short>
     <derby.version>10.12.1.1</derby.version>
@@ -275,6 +275,14 @@
     <repository>
       <id>ele-bdi-release</id>
       <url>http://maven.dev.elenet.me/nexus/content/repositories/ele-bdi-release/</url>
+      <name>Ele Repository</name>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>ele-bdi-snapshots</id>
+      <url>http://maven.dev.elenet.me/nexus/content/repositories/ele-bdi-snapshots/</url>
       <name>Ele Repository</name>
       <snapshots>
         <enabled>false</enabled>

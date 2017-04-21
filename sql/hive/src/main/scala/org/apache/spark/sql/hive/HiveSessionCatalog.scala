@@ -25,8 +25,7 @@ import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hive.ql.exec.{UDAF, UDF}
-import org.apache.hadoop.hive.ql.exec.{FunctionRegistry => HiveFunctionRegistry}
+import org.apache.hadoop.hive.ql.exec.{FunctionInfo, UDAF, UDF, FunctionRegistry => HiveFunctionRegistry}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
 import org.apache.hadoop.hive.ql.udf.generic.{AbstractGenericUDAFResolver, GenericUDF, GenericUDTF}
@@ -120,6 +119,19 @@ private[sql] class HiveSessionCatalog(
   override def makeFunctionBuilder(funcName: String, className: String): FunctionBuilder = {
     makeFunctionBuilder(funcName, Utils.classForName(className))
   }
+
+  override def createTempFunction(
+      name: String,
+      info: ExpressionInfo,
+      funcDefinition: FunctionBuilder,
+      ignoreIfExists: Boolean): Unit = {
+    super.createTempFunction(name, info, funcDefinition, ignoreIfExists)
+    if (sparkSession.sparkContext.conf.getBoolean("spark.hive.auth.enable", true)) {
+      val sql = s"CREATE TEMPORARY FUNCTION ${name} AS '${info.getClassName}'"
+      externalCatalog.client.runSqlHive(sql)
+    }
+  }
+
 
   /**
    * Construct a [[FunctionBuilder]] based on the provided class that represents a function.
