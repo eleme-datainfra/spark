@@ -317,7 +317,7 @@ case class Cast(child: Expression, dataType: DataType) extends UnaryExpression w
   private[this] def changePrecision(value: Decimal, decimalType: DecimalType): Decimal = {
     if (value.changePrecision(decimalType.precision, decimalType.scale)) value else null
   }
-  
+
   /**
    * Create new `Decimal` with precision and scale given in `decimalType` (if any),
    * returning null if it overflows or creating a new `value` and returning it if successful.

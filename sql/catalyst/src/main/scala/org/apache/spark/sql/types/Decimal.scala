@@ -226,13 +226,12 @@ final class Decimal extends Ordered[Decimal] with Serializable {
     case java.math.BigDecimal.ROUND_HALF_UP => changePrecision(precision, scale, ROUND_HALF_UP)
     case java.math.BigDecimal.ROUND_HALF_EVEN => changePrecision(precision, scale, ROUND_HALF_EVEN)
   }
-  
-  
+
   /**
-    * Create new `Decimal` with given precision and scale.
-    *
-    * @return `Some(decimal)` if successful or `None` if overflow would occur
-    */
+   * Create new `Decimal` with given precision and scale.
+   *
+   * @return `Some(decimal)` if successful or `None` if overflow would occur
+   */
   private[sql] def toPrecision(
       precision: Int,
       scale: Int,

@@ -131,12 +131,12 @@ protected[sql] abstract class AtomicType extends DataType {
 
 object AtomicType {
   /**
-    * Enables matching against AtomicType for expressions:
-    * {{{
-    *   case Cast(child @ AtomicType(), StringType) =>
-    *     ...
-    * }}}
-    */
+   * Enables matching against AtomicType for expressions:
+   * {{{
+   *   case Cast(child @ AtomicType(), StringType) =>
+   *     ...
+   * }}}
+   */
   def unapply(e: Expression): Boolean = e.dataType.isInstanceOf[AtomicType]
 }
 

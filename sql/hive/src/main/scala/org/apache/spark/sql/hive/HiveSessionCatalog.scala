@@ -25,7 +25,7 @@ import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hive.ql.exec.{FunctionInfo, UDAF, UDF, FunctionRegistry => HiveFunctionRegistry}
+import org.apache.hadoop.hive.ql.exec.{FunctionRegistry => HiveFunctionRegistry, UDAF, UDF}
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.session.SessionState.ResourceType
 import org.apache.hadoop.hive.ql.udf.generic.{AbstractGenericUDAFResolver, GenericUDF, GenericUDTF}

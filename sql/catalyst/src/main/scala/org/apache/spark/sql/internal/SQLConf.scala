@@ -646,21 +646,21 @@ object SQLConf {
       "returned.")
     .booleanConf
     .createWithDefault(false)
-  
+
   val WINDOW_EXEC_BUFFER_SPILL_THRESHOLD =
     SQLConfigBuilder("spark.sql.windowExec.buffer.spill.threshold")
       .internal()
       .doc("Threshold for number of rows buffered in window operator")
       .intConf
       .createWithDefault(4096)
-  
+
   val SORT_MERGE_JOIN_EXEC_BUFFER_SPILL_THRESHOLD =
     SQLConfigBuilder("spark.sql.sortMergeJoinExec.buffer.spill.threshold")
       .internal()
       .doc("Threshold for number of rows buffered in sort merge join operator")
       .intConf
       .createWithDefault(Int.MaxValue)
-  
+
   val CARTESIAN_PRODUCT_EXEC_BUFFER_SPILL_THRESHOLD =
     SQLConfigBuilder("spark.sql.cartesianProductExec.buffer.spill.threshold")
       .internal()
@@ -871,7 +871,7 @@ class SQLConf extends Serializable with Logging {
   def groupByOrdinal: Boolean = getConf(GROUP_BY_ORDINAL)
 
   def crossJoinEnabled: Boolean = getConf(SQLConf.CROSS_JOINS_ENABLED)
-  
+
   def windowExecBufferSpillThreshold: Int = getConf(WINDOW_EXEC_BUFFER_SPILL_THRESHOLD)
 
   def sortMergeJoinExecBufferSpillThreshold: Int =

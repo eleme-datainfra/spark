@@ -100,12 +100,12 @@ private[hive] class HiveClientImpl(
 
   // Circular buffer to hold what hive prints to STDOUT and ERR.  Only printed when failures occur.
   private val outputBuffer = new CircularBuffer()
-  
+
   private val pattern = "CREATE\\s+GLOBAL\\s+TEMPORARY\\s+VIEW"
   private val global_pattern = "\\s+global_temp.[0-9a-zA-Z_]+"
   private val p = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
   private val global_pattern_p = Pattern.compile(global_pattern, Pattern.CASE_INSENSITIVE)
-  
+
   private val shim = version match {
     case hive.v12 => new Shim_v0_12()
     case hive.v13 => new Shim_v0_13()
@@ -199,7 +199,7 @@ private[hive] class HiveClientImpl(
           }
           hiveConf.set(k, v)
         }
-  
+
         var userName: String = null
         if (originalState != null) {
           userName = originalState.getUserName
