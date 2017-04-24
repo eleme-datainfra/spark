@@ -40,7 +40,13 @@ import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAuthzContext
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
+import org.apache.hadoop.hive.ql.Context
 import org.apache.hadoop.hive.ql.Driver
+import org.apache.hadoop.hive.ql.exec.FunctionRegistry
+import org.apache.hadoop.hive.ql.parse.ParseDriver
+import org.apache.hadoop.hive.ql.parse.ParseUtils
+import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
+import org.apache.hadoop.hive.ql.parse.VariableSubstitution
 import org.apache.hadoop.security.UserGroupInformation
 
 import org.apache.spark.{SparkConf, SparkException}
@@ -963,14 +969,6 @@ private[hive] class HiveClientImpl(
   }
 
   def auth(command: String, currentDatabase: String): Unit = {
-    if (!sparkConf.getBoolean("spark.hive.auth.enable", true)) {
-      return
-    }
-    import org.apache.hadoop.hive.ql.parse.VariableSubstitution
-    import org.apache.hadoop.hive.ql.parse.ParseDriver
-    import org.apache.hadoop.hive.ql.Context
-    import org.apache.hadoop.hive.ql.parse.ParseUtils
-    import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
     if (command.trim().toLowerCase().startsWith("set ")) {
       return
     }
@@ -980,40 +978,45 @@ private[hive] class HiveClientImpl(
     if (global_pattern_p.matcher(command).find()) {
       return
     }
-    val preState = SessionState.get()
-    preState.setCurrentDatabase(currentDatabase)
-    val ss = new SessionState(conf)
-    ss.setCurrentDatabase(currentDatabase)
-    SessionState.start(ss)
-    SessionState.get().initTxnMgr(preState.getConf)
-    val hiveCommand = new VariableSubstitution().substitute(conf, command)
-    val ctx = new Context(preState.getConf)
-    ctx.setTryCount(10)
-    ctx.setCmd(hiveCommand)
-    ctx.setHDFSCleanup(true)
-    val pd = new ParseDriver()
-    var tree = pd.parse(hiveCommand, ctx)
-    tree = ParseUtils.findRootNonNullToken(tree)
-    val sem = SemanticAnalyzerFactory.get(preState.getConf, tree)
 
-    sem.analyze(tree, ctx)
-    logInfo("Semantic Analysis Completed")
-    // validate the plan
-    sem.validate()
-    val inputs = sem.getInputs
-    val outputs = sem.getOutputs
+    val original = Thread.currentThread().getContextClassLoader
+    try {
+      Thread.currentThread.setContextClassLoader(clientLoader.classLoader)
+      val originState = SessionState.get()
+      val ss = SessionState.start(originState)
+      ss.setCurrentDatabase(currentDatabase)
+      ss.initTxnMgr(ss.getConf)
 
-    val hiveOperatetion = ss.getHiveOperation
-    logInfo("hiveOperatetion:" + hiveOperatetion)
+      val hiveCommand = new VariableSubstitution().substitute(conf, command)
+      val ctx = new Context(ss.getConf)
+      ctx.setTryCount(10)
+      ctx.setCmd(hiveCommand)
+      ctx.setHDFSCleanup(true)
+      val pd = new ParseDriver()
+      var tree = pd.parse(hiveCommand, ctx)
+      tree = ParseUtils.findRootNonNullToken(tree)
+      val sem = SemanticAnalyzerFactory.get(ss.getConf, tree)
 
-    val hiveOp = HiveOperationType.valueOf(hiveOperatetion.name())
-    val inputsHObjs = getHivePrivObjects(inputs, hiveOp, true)
-    val outputHObjs = getHivePrivObjects(outputs, hiveOp, false)
-    val authzContextBuilder = new HiveAuthzContext.Builder()
-    authzContextBuilder.setUserIpAddress(SessionState.get().getUserIpAddress)
-    authzContextBuilder.setCommandString(command)
-    ss.getAuthorizerV2().checkPrivileges(hiveOp, inputsHObjs,
-      outputHObjs, authzContextBuilder.build())
+      sem.analyze(tree, ctx)
+      logInfo("Semantic Analysis Completed")
+      // validate the plan
+      sem.validate()
+      val inputs = sem.getInputs
+      val outputs = sem.getOutputs
+
+      val hiveOperatetion = ss.getHiveOperation
+      logInfo("HiveOperatetion:" + hiveOperatetion)
+
+      val hiveOp = HiveOperationType.valueOf(hiveOperatetion.name())
+      val inputsHObjs = getHivePrivObjects(inputs, hiveOp, true)
+      val outputHObjs = getHivePrivObjects(outputs, hiveOp, false)
+      val authzContextBuilder = new HiveAuthzContext.Builder()
+      authzContextBuilder.setUserIpAddress(SessionState.get().getUserIpAddress)
+      authzContextBuilder.setCommandString(command)
+      ss.getAuthorizerV2().checkPrivileges(hiveOp, inputsHObjs,
+        outputHObjs, authzContextBuilder.build())
+    } finally {
+      Thread.currentThread.setContextClassLoader(original)
+    }
   }
-
 }
