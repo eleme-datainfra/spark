@@ -1726,6 +1726,11 @@ class DataFrameSuite extends QueryTest with SharedSQLContext {
     dates.intersect(widenTypedRows).collect()
   }
 
+  test("SPARK-17913: compare long and string type column may return confusing result") {
+    val df = Seq(123L -> "123", 19157170390056973L -> "19157170390056971").toDF("i", "j")
+    checkAnswer(df.select($"i" === $"j"), Row(true) :: Row(false) :: Nil)
+  }
+
   test("SPARK-18070 binary operator should not consider nullability when comparing input types") {
     val rows = Seq(Row(Seq(1), Seq(1)))
     val schema = new StructType()

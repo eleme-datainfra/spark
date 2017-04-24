@@ -339,9 +339,9 @@ object TypeCoercion {
         p.makeCopy(Array(Literal.create(null, StringType), right))
 
       case p @ BinaryComparison(left @ StringType(), right) if right.dataType != StringType =>
-        p.makeCopy(Array(Cast(left, DoubleType), right))
+        p.makeCopy(Array(Cast(left, right.dataType), right))
       case p @ BinaryComparison(left, right @ StringType()) if left.dataType != StringType =>
-        p.makeCopy(Array(left, Cast(right, DoubleType)))
+        p.makeCopy(Array(left, Cast(right, left.dataType)))
 
       case i @ In(a @ DateType(), b) if b.forall(_.dataType == StringType) =>
         i.makeCopy(Array(Cast(a, StringType), b))
