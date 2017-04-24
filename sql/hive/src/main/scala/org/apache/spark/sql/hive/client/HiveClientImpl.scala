@@ -983,7 +983,13 @@ private[hive] class HiveClientImpl(
     try {
       Thread.currentThread.setContextClassLoader(clientLoader.classLoader)
       val originState = SessionState.get()
-      val ss = SessionState.start(originState)
+      val ss = if (originState != null) {
+        logDebug("Start SessionState from current SessionState")
+        SessionState.start(originState)
+      } else {
+        logDebug("Start a new SessionState")
+        SessionState.start(state.getConf)
+      }
       ss.setCurrentDatabase(currentDatabase)
       ss.initTxnMgr(ss.getConf)
 
