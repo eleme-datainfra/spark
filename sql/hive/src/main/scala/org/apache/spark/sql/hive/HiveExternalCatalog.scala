@@ -1063,8 +1063,13 @@ private[spark] class HiveExternalCatalog(conf: SparkConf, hadoopConf: Configurat
   }
 
   override def getFunction(db: String, funcName: String): CatalogFunction = withClient {
-    requireFunctionExists(db, funcName)
-    client.getFunction(db, funcName)
+    val database = if (conf.getBoolean("spark.sql.hive.function.useDefaultDb", true)) {
+        DEFAULT_DATABASE
+      } else {
+        db
+      }
+    requireFunctionExists(database, funcName)
+    client.getFunction(database, funcName)
   }
 
   override def functionExists(db: String, funcName: String): Boolean = withClient {
@@ -1080,6 +1085,8 @@ private[spark] class HiveExternalCatalog(conf: SparkConf, hadoopConf: Configurat
 }
 
 object HiveExternalCatalog {
+  val DEFAULT_DATABASE = "default"
+
   val SPARK_SQL_PREFIX = "spark.sql."
 
   val DATASOURCE_PREFIX = SPARK_SQL_PREFIX + "sources."
