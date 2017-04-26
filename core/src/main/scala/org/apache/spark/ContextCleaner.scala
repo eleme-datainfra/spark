@@ -214,7 +214,7 @@ private[spark] class ContextCleaner(sc: SparkContext) extends Logging {
       listeners.asScala.foreach(_.rddCleaned(rddId))
       logInfo("Cleaned RDD " + rddId)
     } catch {
-      case e: Exception => logError("Error cleaning RDD " + rddId, e)
+      case e: Exception => logInfo("Error cleaning RDD " + rddId, e)
     }
   }
 
@@ -227,7 +227,7 @@ private[spark] class ContextCleaner(sc: SparkContext) extends Logging {
       listeners.asScala.foreach(_.shuffleCleaned(shuffleId))
       logInfo("Cleaned shuffle " + shuffleId)
     } catch {
-      case e: Exception => logError("Error cleaning shuffle " + shuffleId, e)
+      case e: Exception => logInfo("Error cleaning shuffle " + shuffleId, e)
     }
   }
 
@@ -239,7 +239,7 @@ private[spark] class ContextCleaner(sc: SparkContext) extends Logging {
       listeners.asScala.foreach(_.broadcastCleaned(broadcastId))
       logDebug(s"Cleaned broadcast $broadcastId")
     } catch {
-      case e: Exception => logError("Error cleaning broadcast " + broadcastId, e)
+      case e: Exception => logInfo("Error cleaning broadcast " + broadcastId, e)
     }
   }
 
@@ -251,7 +251,7 @@ private[spark] class ContextCleaner(sc: SparkContext) extends Logging {
       listeners.asScala.foreach(_.accumCleaned(accId))
       logInfo("Cleaned accumulator " + accId)
     } catch {
-      case e: Exception => logError("Error cleaning accumulator " + accId, e)
+      case e: Exception => logInfo("Error cleaning accumulator " + accId, e)
     }
   }
 
@@ -267,7 +267,7 @@ private[spark] class ContextCleaner(sc: SparkContext) extends Logging {
       logInfo("Cleaned rdd checkpoint data " + rddId)
     }
     catch {
-      case e: Exception => logError("Error cleaning rdd checkpoint data " + rddId, e)
+      case e: Exception => logInfo("Error cleaning rdd checkpoint data " + rddId, e)
     }
   }
 
