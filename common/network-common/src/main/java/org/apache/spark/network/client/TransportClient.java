@@ -156,13 +156,17 @@ public class TransportClient implements Closeable {
           } else {
             String errorMsg = String.format("Failed to send request %s to %s: %s", streamChunkId,
               getRemoteAddress(channel), future.cause());
-            logger.error(errorMsg, future.cause());
+            if (logger.isInfoEnabled()) {
+              logger.info(errorMsg, future.cause());
+            }
             handler.removeFetchRequest(streamChunkId);
             channel.close();
             try {
               callback.onFailure(chunkIndex, new IOException(errorMsg, future.cause()));
             } catch (Exception e) {
-              logger.error("Uncaught exception in RPC response callback handler!", e);
+              if (logger.isInfoEnabled()) {
+                logger.info("Uncaught exception in RPC response callback handler!", e);
+              }
             }
           }
         }
@@ -199,12 +203,16 @@ public class TransportClient implements Closeable {
             } else {
               String errorMsg = String.format("Failed to send request for %s to %s: %s", streamId,
                 getRemoteAddress(channel), future.cause());
-              logger.error(errorMsg, future.cause());
+              if (logger.isInfoEnabled()) {
+                logger.info(errorMsg, future.cause());
+              }
               channel.close();
               try {
                 callback.onFailure(streamId, new IOException(errorMsg, future.cause()));
               } catch (Exception e) {
-                logger.error("Uncaught exception in RPC response callback handler!", e);
+                if (logger.isInfoEnabled()) {
+                  logger.info("Uncaught exception in RPC response callback handler!", e);
+                }
               }
             }
           }
@@ -242,13 +250,17 @@ public class TransportClient implements Closeable {
           } else {
             String errorMsg = String.format("Failed to send RPC %s to %s: %s", requestId,
               getRemoteAddress(channel), future.cause());
-            logger.error(errorMsg, future.cause());
+            if (logger.isInfoEnabled()) {
+              logger.info(errorMsg, future.cause());
+            }
             handler.removeRpcRequest(requestId);
             channel.close();
             try {
               callback.onFailure(new IOException(errorMsg, future.cause()));
             } catch (Exception e) {
-              logger.error("Uncaught exception in RPC response callback handler!", e);
+              if (logger.isInfoEnabled()) {
+                logger.info("Uncaught exception in RPC response callback handler!", e);
+              }
             }
           }
         }
