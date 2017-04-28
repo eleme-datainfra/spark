@@ -401,6 +401,11 @@ class MathFunctionsSuite extends QueryTest with SharedSQLContext {
       sql("select abs(0.0), abs(-3.14159265), abs(3.14159265)"),
       Row(BigDecimal("0.0"), BigDecimal("3.14159265"), BigDecimal("3.14159265"))
     )
+
+    checkAnswer(
+      sql("select abs('-1'), abs('-3.1415'), abs('notnumber')"),
+      Row(BigDecimal("1"), BigDecimal("3.1415"), null)
+    )
   }
 
   test("log2") {
