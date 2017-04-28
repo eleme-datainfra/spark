@@ -536,6 +536,8 @@ class SessionCatalog(
         // Instead, log it as an error message.
         if (tableExists(TableIdentifier(table, Option(db)))) {
           externalCatalog.dropTable(db, table, ignoreIfNotExists = true, purge = purge)
+        } else if (conf.dropTableIgnoreIfNotExists) {
+          logWarning(s"Table or view '$table' not found in database '$db'")
         } else if (!ignoreIfNotExists) {
           throw new NoSuchTableException(db = db, table = table)
         }

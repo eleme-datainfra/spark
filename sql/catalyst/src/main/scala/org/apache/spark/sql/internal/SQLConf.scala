@@ -274,6 +274,12 @@ object SQLConf {
       .booleanConf
       .createWithDefault(true)
 
+  val HIVE_DROP_TABBLE_IGNORE_ERROR =
+    SQLConfigBuilder("spark.sql.hive.dropTableIgnoreIfNotExists")
+      .doc("When true, ignore error when dropping table which do not exists.")
+      .booleanConf
+      .createWithDefault(true)
+
   val HIVE_FILESOURCE_PARTITION_FILE_CACHE_SIZE =
     SQLConfigBuilder("spark.sql.hive.filesourcePartitionFileCacheSize")
       .doc("When nonzero, enable caching of partition file metadata in memory. All tables share " +
@@ -881,6 +887,9 @@ class SQLConf extends Serializable with Logging {
     getConf(CARTESIAN_PRODUCT_EXEC_BUFFER_SPILL_THRESHOLD)
 
   def ndvMaxError: Double = getConf(NDV_MAX_ERROR)
+
+  def dropTableIgnoreIfNotExists: Boolean = getConf(HIVE_DROP_TABBLE_IGNORE_ERROR)
+
   /** ********************** SQLConf functionality methods ************ */
 
   /** Set Spark SQL configuration properties. */
