@@ -125,7 +125,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
       String remoteAddress = getRemoteAddress(channel);
       logger.info("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
-      // failOutstandingRequests(new IOException("Connection from " + remoteAddress + " closed"));
+      failOutstandingRequests(new IOException("Connection from " + remoteAddress + " closed"));
     }
   }
 
@@ -135,7 +135,7 @@ public class TransportResponseHandler extends MessageHandler<ResponseMessage> {
       String remoteAddress = getRemoteAddress(channel);
       logger.info("Still have {} requests outstanding when connection from {} is closed",
         numOutstandingRequests(), remoteAddress);
-      // failOutstandingRequests(cause);
+      failOutstandingRequests(cause);
     }
   }
 
