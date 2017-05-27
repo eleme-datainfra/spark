@@ -106,7 +106,7 @@ private[spark] class YarnClientSchedulerBackend(
         logError(s"Yarn application has already exited with state $state!")
         allowInterrupt = false
         sc.stop()
-        if (conf.getBoolean("spark.yarn.exitWhenYarnApplicationExit", true)) {
+        if (conf.getBoolean("spark.yarn.exitWhenYarnApplicationExit", false)) {
           System.exit(-1)
         }
       } catch {
