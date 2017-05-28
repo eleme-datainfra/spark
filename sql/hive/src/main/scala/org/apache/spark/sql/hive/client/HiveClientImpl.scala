@@ -972,6 +972,9 @@ private[hive] class HiveClientImpl(
     if (command.trim().toLowerCase().startsWith("set ")) {
       return
     }
+    if (command.trim.toLowerCase().startsWith("add ")) {
+      return
+    }
     if (p.matcher(command).find()) {
       return
     }
