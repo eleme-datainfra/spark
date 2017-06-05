@@ -120,19 +120,6 @@ private[sql] class HiveSessionCatalog(
     makeFunctionBuilder(funcName, Utils.classForName(className))
   }
 
-  override def createTempFunction(
-      name: String,
-      info: ExpressionInfo,
-      funcDefinition: FunctionBuilder,
-      ignoreIfExists: Boolean): Unit = {
-    super.createTempFunction(name, info, funcDefinition, ignoreIfExists)
-    if (sparkSession.sparkContext.conf.getBoolean("spark.hive.auth.enable", true)) {
-      val sql = s"CREATE TEMPORARY FUNCTION ${name} AS '${info.getClassName}'"
-      externalCatalog.client.runSqlHive(sql)
-    }
-  }
-
-
   /**
    * Construct a [[FunctionBuilder]] based on the provided class that represents a function.
    */
