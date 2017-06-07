@@ -561,7 +561,7 @@ class Analyzer(
       case p: Project if containsStar(p.projectList) =>
         p.copy(projectList = buildExpandedProjectList(p.projectList, p.child))
       case p: Project if p.projectList.exists(hasGroupingAttribute) =>
-        p.copy(projectList = replaceGroupingId(p.projectList, p.child))
+        p.copy(projectList = replaceGroupingId(p.projectList))
       // If the aggregate function argument contains Stars, expand it.
       case a: Aggregate if containsStar(a.aggregateExpressions) =>
         if (a.groupingExpressions.exists(_.isInstanceOf[UnresolvedOrdinal])) {
@@ -643,7 +643,7 @@ class Analyzer(
     def replaceGroupingId(exprs: Seq[NamedExpression]): Seq[NamedExpression] = {
       exprs.flatMap {
         case u: UnresolvedAttribute if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
-          AttributeReference(VirtualColumn.groupingIdName, IntegerType, false)()
+          AttributeReference(VirtualColumn.groupingIdName, IntegerType, false)() :: Nil
         case o => o :: Nil
       }.map(_.asInstanceOf[NamedExpression])
     }
