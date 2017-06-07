@@ -643,6 +643,7 @@ class Analyzer(
     def replaceGroupingId(exprs: Seq[NamedExpression]): Seq[NamedExpression] = {
       exprs.flatMap {
         case u: UnresolvedAttribute if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
+          AttributeReference(VirtualColumn.groupingIdName, IntegerType, false)()
         case o => o :: Nil
       }.map(_.asInstanceOf[NamedExpression])
     }
