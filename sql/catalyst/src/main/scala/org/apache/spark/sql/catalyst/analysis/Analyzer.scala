@@ -21,7 +21,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.{CatalystConf, ScalaReflection, SimpleCatalystConf}
+import org.apache.spark.sql.catalyst.{CatalystConf, FunctionIdentifier, ScalaReflection, SimpleCatalystConf}
 import org.apache.spark.sql.catalyst.catalog.{CatalogDatabase, InMemoryCatalog, SessionCatalog}
 import org.apache.spark.sql.catalyst.encoders.OuterScopes
 import org.apache.spark.sql.catalyst.expressions._
@@ -879,7 +879,7 @@ class Analyzer(
             }
           case u: UnresolvedAttribute if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
             withPosition(u) {
-              catalog.lookupFunction("grouping_id", Nil)
+              catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil)
             }
           case u @ UnresolvedFunction(funcId, children, isDistinct) =>
             withPosition(u) {
