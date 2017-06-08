@@ -879,7 +879,7 @@ class Analyzer(
             }
           case u: UnresolvedAttribute if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
             withPosition(u) {
-              catalog.lookupFunction("grouping_id", children)
+              catalog.lookupFunction("grouping_id", Nil)
             }
           case u @ UnresolvedFunction(funcId, children, isDistinct) =>
             withPosition(u) {
