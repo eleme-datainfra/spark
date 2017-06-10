@@ -598,6 +598,13 @@ class Analyzer(
       case q: LogicalPlan =>
         logTrace(s"Attempting to resolve ${q.simpleString}")
         q transformExpressionsUp  {
+          case u @ UnresolvedAlias(a: UnresolvedAttribute, _)
+            if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
+            withPosition(u) {
+              Alias(
+                catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
+                "grouping_id()")()
+            }
           case u @ UnresolvedAttribute(nameParts) =>
             // Leave unchanged if resolution fails.  Hopefully will be resolved next round.
             val result =
@@ -876,13 +883,6 @@ class Analyzer(
                   failAnalysis(s"$name is expected to be a generator. However, " +
                     s"its class is ${other.getClass.getCanonicalName}, which is not a generator.")
               }
-            }
-          case u @ UnresolvedAlias(a: UnresolvedAttribute, _)
-            if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
-            withPosition(u) {
-              Alias(
-                catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
-                "grouping_id()")()
             }
           case u @ UnresolvedFunction(funcId, children, isDistinct) =>
             withPosition(u) {
