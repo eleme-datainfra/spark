@@ -696,6 +696,12 @@ class Analyzer(
     try {
       expr transformUp {
         case GetColumnByOrdinal(ordinal, _) => plan.output(ordinal)
+        case u @ UnresolvedAttribute(_) if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
+          withPosition(u) {
+            Alias(
+              catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
+              "grouping_id()")(isGenerated = true)
+          }
         case u @ UnresolvedAttribute(nameParts) =>
           withPosition(u) { plan.resolve(nameParts, resolver).getOrElse(u) }
         case UnresolvedExtractValue(child, fieldName) if child.resolved =>
