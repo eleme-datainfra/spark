@@ -603,7 +603,7 @@ class Analyzer(
             withPosition(u) {
               Alias(
                 catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
-                "grouping_id()")()
+                "grouping_id()")(isGenerated = true)
             }
           case u @ UnresolvedAttribute(nameParts) =>
             // Leave unchanged if resolution fails.  Hopefully will be resolved next round.
