@@ -24,7 +24,7 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.{CatalystConf, FunctionIdentifier, ScalaReflection, SimpleCatalystConf}
 import org.apache.spark.sql.catalyst.catalog.{CatalogDatabase, InMemoryCatalog, SessionCatalog}
 import org.apache.spark.sql.catalyst.encoders.OuterScopes
-import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.{Expression, _}
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.expressions.objects.NewInstance
 import org.apache.spark.sql.catalyst.optimizer.BooleanSimplification
@@ -877,10 +877,12 @@ class Analyzer(
                     s"its class is ${other.getClass.getCanonicalName}, which is not a generator.")
               }
             }
-          case u @ UnresolvedAlias(a: UnresolvedAttribute, children)
-              if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
+          case u @ UnresolvedAlias(a: UnresolvedAttribute, _)
+            if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
             withPosition(u) {
-              Alias(catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil), "grouping_id()")
+              Alias(
+                catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
+                "grouping_id()")()
             }
           case u @ UnresolvedFunction(funcId, children, isDistinct) =>
             withPosition(u) {
