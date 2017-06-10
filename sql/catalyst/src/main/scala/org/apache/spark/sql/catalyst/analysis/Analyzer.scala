@@ -602,7 +602,7 @@ class Analyzer(
             withPosition(u) {
               Alias(
                 catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
-                "grouping_id()")(isGenerated = true)
+                VirtualColumn.hiveGroupingIdName)(isGenerated = true)
             }
           case u @ UnresolvedAttribute(nameParts) =>
             // Leave unchanged if resolution fails.  Hopefully will be resolved next round.
@@ -700,7 +700,7 @@ class Analyzer(
           withPosition(u) {
             Alias(
               catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
-              "grouping_id()")(isGenerated = true)
+              VirtualColumn.hiveGroupingIdName)(isGenerated = true)
           }
         case u @ UnresolvedAttribute(nameParts) =>
           withPosition(u) { plan.resolve(nameParts, resolver).getOrElse(u) }
