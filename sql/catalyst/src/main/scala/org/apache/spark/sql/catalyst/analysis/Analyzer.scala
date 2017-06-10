@@ -598,8 +598,7 @@ class Analyzer(
       case q: LogicalPlan =>
         logTrace(s"Attempting to resolve ${q.simpleString}")
         q transformExpressionsUp  {
-          case u @ UnresolvedAlias(a: UnresolvedAttribute, _)
-            if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
+          case u @ UnresolvedAttribute if resolver(u.name, VirtualColumn.hiveGroupingIdName) =>
             withPosition(u) {
               Alias(
                 catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil),
