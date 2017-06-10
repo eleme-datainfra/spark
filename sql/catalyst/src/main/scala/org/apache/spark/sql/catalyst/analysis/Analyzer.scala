@@ -877,7 +877,7 @@ class Analyzer(
                     s"its class is ${other.getClass.getCanonicalName}, which is not a generator.")
               }
             }
-          case u @ UnresolvedAlias(a: UnresolvedAttribute)
+          case u @ UnresolvedAlias(a: UnresolvedAttribute, _)
               if resolver(a.name, VirtualColumn.hiveGroupingIdName) =>
             withPosition(u) {
               Alias(catalog.lookupFunction(FunctionIdentifier("grouping_id"), Nil), "grouping_id()")
