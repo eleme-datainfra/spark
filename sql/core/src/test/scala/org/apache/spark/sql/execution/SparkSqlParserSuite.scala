@@ -250,4 +250,9 @@ class SparkSqlParserSuite extends PlanTest {
     assertEqual("ANALYZE TABLE t COMPUTE STATISTICS FOR COLUMNS key, value",
       AnalyzeColumnCommand(TableIdentifier("t"), Seq("key", "value")))
   }
+
+  test("reset") {
+    assertEqual("reset", ResetCommand(None))
+    assertEqual("reset spark.test.property", ResetCommand(Some("spark.test.property")))
+  }
 }

@@ -36,7 +36,7 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor
 import org.apache.hadoop.hive.ql.hooks.{Entity, ReadEntity, WriteEntity}
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.processors._
-import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAuthzContext, HiveOperationType, HivePrivilegeObject}
+import org.apache.hadoop.hive.ql.security.authorization.plugin.{HiveAccessControlException, HiveAuthzContext, HiveOperationType, HivePrivilegeObject}
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
@@ -1024,7 +1024,13 @@ private[hive] class HiveClientImpl(
       authzContextBuilder.setCommandString(command)
       ss.getAuthorizerV2().checkPrivileges(hiveOp, inputsHObjs,
         outputHObjs, authzContextBuilder.build())
-    } finally {
+    } catch {
+      case e: HiveAccessControlException =>
+        throw e
+      case e: Exception =>
+        logWarning("We crash during hive auth: " + e.getMessage)
+    }
+    finally {
       Thread.currentThread.setContextClassLoader(original)
     }
   }
