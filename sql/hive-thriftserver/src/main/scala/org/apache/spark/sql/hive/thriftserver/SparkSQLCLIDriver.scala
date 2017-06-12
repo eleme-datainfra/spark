@@ -353,7 +353,10 @@ private[hive] class SparkSQLCLIDriver extends CliDriver with Logging {
           if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CLI_PRINT_HEADER)) {
             // Print the column names.
             Option(driver.getSchema.getFieldSchemas).foreach { fields =>
-              out.println(fields.asScala.map(_.getName).mkString("\t"))
+              val colNames = fields.asScala.map(_.getName).mkString("\t")
+              if (!colNames.contains("Response code")) {
+                out.println(colNames)
+              }
             }
           }
 
