@@ -45,9 +45,6 @@ case class SetCommand(kv: Option[(String, Option[String])]) extends RunnableComm
     // Configures the deprecated "mapred.reduce.tasks" property.
     case Some((SQLConf.Deprecated.MAPRED_REDUCE_TASKS, Some(value))) =>
       val runFunc = (sparkSession: SparkSession) => {
-        logWarning(
-          s"Property ${SQLConf.Deprecated.MAPRED_REDUCE_TASKS} is deprecated, " +
-            s"automatically converted to ${SQLConf.SHUFFLE_PARTITIONS.key} instead.")
         if (value.toInt < 1) {
           val msg =
             s"Setting negative ${SQLConf.Deprecated.MAPRED_REDUCE_TASKS} for automatically " +
@@ -56,6 +53,33 @@ case class SetCommand(kv: Option[(String, Option[String])]) extends RunnableComm
         } else {
           sparkSession.conf.set(SQLConf.SHUFFLE_PARTITIONS.key, value)
           Seq(Row(SQLConf.SHUFFLE_PARTITIONS.key, value))
+        }
+      }
+      (keyValueOutput, runFunc)
+
+    case Some((SQLConf.Replaced.MAPREDUCE_JOB_REDUCES, Some(value))) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        if (value.toInt < 1) {
+          val msg =
+            s"Setting negative ${SQLConf.Replaced.MAPREDUCE_JOB_REDUCES} for automatically " +
+              "determining the number of reducers is not supported."
+          throw new IllegalArgumentException(msg)
+        } else {
+          sparkSession.conf.set(SQLConf.SHUFFLE_PARTITIONS.key, value)
+          Seq(Row(SQLConf.SHUFFLE_PARTITIONS.key, value))
+        }
+      }
+      (keyValueOutput, runFunc)
+
+    case Some((SQLConf.HiveVars.REDUCE_BYTES, Some(value))) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        if (value.toInt < 1) {
+          val msg =
+            s"Setting negative ${SQLConf.HiveVars.REDUCE_BYTES} is illegal."
+          throw new IllegalArgumentException(msg)
+        } else {
+          sparkSession.conf.set(SQLConf.SHUFFLE_TARGET_POSTSHUFFLE_INPUT_SIZE.key, value)
+          Seq(Row(SQLConf.SHUFFLE_TARGET_POSTSHUFFLE_INPUT_SIZE.key, value))
         }
       }
       (keyValueOutput, runFunc)
@@ -79,7 +103,7 @@ case class SetCommand(kv: Option[(String, Option[String])]) extends RunnableComm
     // Queries all key-value pairs that are set in the SQLConf of the sparkSession.
     case None =>
       val runFunc = (sparkSession: SparkSession) => {
-        sparkSession.conf.getAll.map { case (k, v) => Row(k, v) }.toSeq
+        sparkSession.conf.getAll.toSeq.sorted.map { case (k, v) => Row(k, v) }
       }
       (keyValueOutput, runFunc)
 
@@ -87,8 +111,9 @@ case class SetCommand(kv: Option[(String, Option[String])]) extends RunnableComm
     // SQLConf of the sparkSession.
     case Some(("-v", None)) =>
       val runFunc = (sparkSession: SparkSession) => {
-        sparkSession.sessionState.conf.getAllDefinedConfs.map { case (key, defaultValue, doc) =>
-          Row(key, defaultValue, doc)
+        sparkSession.sessionState.conf.getAllDefinedConfs.sorted.map {
+          case (key, defaultValue, doc) =>
+            Row(key, Option(defaultValue).getOrElse("<undefined>"), doc)
         }
       }
       val schema = StructType(
@@ -100,12 +125,25 @@ case class SetCommand(kv: Option[(String, Option[String])]) extends RunnableComm
     // Queries the deprecated "mapred.reduce.tasks" property.
     case Some((SQLConf.Deprecated.MAPRED_REDUCE_TASKS, None)) =>
       val runFunc = (sparkSession: SparkSession) => {
-        logWarning(
-          s"Property ${SQLConf.Deprecated.MAPRED_REDUCE_TASKS} is deprecated, " +
-            s"showing ${SQLConf.SHUFFLE_PARTITIONS.key} instead.")
         Seq(Row(
           SQLConf.SHUFFLE_PARTITIONS.key,
           sparkSession.sessionState.conf.numShufflePartitions.toString))
+      }
+      (keyValueOutput, runFunc)
+
+    case Some((SQLConf.Replaced.MAPREDUCE_JOB_REDUCES, None)) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        Seq(Row(
+          SQLConf.SHUFFLE_PARTITIONS.key,
+          sparkSession.sessionState.conf.numShufflePartitions.toString))
+      }
+      (keyValueOutput, runFunc)
+
+    case Some((SQLConf.HiveVars.REDUCE_BYTES, None)) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        Seq(Row(
+          SQLConf.SHUFFLE_TARGET_POSTSHUFFLE_INPUT_SIZE.key,
+          sparkSession.sessionState.conf.targetPostShuffleInputSize.toString))
       }
       (keyValueOutput, runFunc)
 
