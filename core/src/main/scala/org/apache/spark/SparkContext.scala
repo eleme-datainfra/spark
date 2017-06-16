@@ -79,6 +79,9 @@ class SparkContext(config: SparkConf) extends Logging {
   private val allowMultipleContexts: Boolean =
     config.getBoolean("spark.driver.allowMultipleContexts", false)
 
+  private val allowDriverExitWhenContextStop: Boolean =
+    config.getBoolean("spark.driver.allowExitWhenContextStop", false)
+
   // In order to prevent multiple SparkContexts from being active at the same time, mark this
   // context as having started construction.
   // NOTE: this must be placed at the beginning of the SparkContext constructor.
@@ -97,16 +100,21 @@ class SparkContext(config: SparkConf) extends Logging {
         } else {
           activeContext.creationSite.longForm
         }
-      throw new IllegalStateException(
-        s"""Cannot call methods on a stopped SparkContext.
-           |This stopped SparkContext was created at:
-           |
-           |${creationSite.longForm}
-           |
-           |The currently active SparkContext was created at:
-           |
-           |$activeCreationSite
-         """.stripMargin)
+      if (allowDriverExitWhenContextStop) {
+          logError("exit the driver process where sparkcontext is stop!!!")
+          System.exit(-1)
+      } else {
+          throw new IllegalStateException(
+            s"""Cannot call methods on a stopped SparkContext.
+                |This stopped SparkContext was created at:
+                |
+              |${creationSite.longForm}
+                |
+              |The currently active SparkContext was created at:
+                |
+              |$activeCreationSite
+            """.stripMargin)
+      }
     }
   }
 
