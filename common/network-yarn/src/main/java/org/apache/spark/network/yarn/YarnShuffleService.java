@@ -349,6 +349,8 @@ public class YarnShuffleService extends AuxiliaryService {
     }
     // db doesn't exist in recovery path go check local dirs for it
     String[] localDirs = _conf.getTrimmedStrings("yarn.nodemanager.local-dirs");
+    int goodDiskIndex = -1;
+    int index = 0;
     for (String dir : localDirs) {
       File f = new File(new Path(dir).toUri().getPath(), dbFileName);
       if (f.exists()) {
@@ -375,10 +377,26 @@ public class YarnShuffleService extends AuxiliaryService {
           }
           return newLoc;
         }
+      } else {
+        File temp = new File(new Path(dir).toUri().getPath(), "testGoodDisk");
+        try {
+          if (temp.createNewFile()) {
+            goodDiskIndex = index;
+            temp.delete();
+          }
+        } catch (Exception e) {
+          logger.error("can not touch a temp file " + temp.getAbsolutePath() + "!! " +
+            "mark disk " + dir + " is a bad disk!!!!");
+        }
+
       }
+      index++;
     }
-    if (_recoveryPath == null) {
-      _recoveryPath = new Path(localDirs[0]);
+
+    if (_recoveryPath == null && goodDiskIndex > -1) {
+      _recoveryPath = new Path(localDirs[goodDiskIndex]);
+    } else {
+      throw new RuntimeException("there has no good disk for RecoveryDb!!!!");
     }
 
     return new File(_recoveryPath.toUri().getPath(), dbFileName);
