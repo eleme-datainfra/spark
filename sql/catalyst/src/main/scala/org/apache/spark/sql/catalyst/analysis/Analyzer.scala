@@ -74,6 +74,9 @@ class Analyzer(
   val extendedResolutionRules: Seq[Rule[LogicalPlan]] = Nil
 
   lazy val batches: Seq[Batch] = Seq(
+    Batch("Hints", fixedPoint,
+      new SubstituteHints.SubstituteBroadcastHints(conf),
+      SubstituteHints.RemoveAllHints),
     Batch("Substitution", fixedPoint,
       CTESubstitution,
       WindowsSubstitution,
