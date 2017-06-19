@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.execution.command
 
+import java.util.Locale
+
 import scala.collection.{GenMap, GenSeq}
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -690,8 +692,12 @@ case class AlterTableSetLocationCommand(
 object DDLUtils {
   val HIVE_PROVIDER = "hive"
 
+  def isHiveTable(table: CatalogTable): Boolean = {
+    table.provider.isDefined && table.provider.get.toLowerCase(Locale.ROOT) == HIVE_PROVIDER
+  }
+
   def isDatasourceTable(table: CatalogTable): Boolean = {
-    table.provider.isDefined && table.provider.get != HIVE_PROVIDER
+    table.provider.isDefined && table.provider.get.toLowerCase(Locale.ROOT) != HIVE_PROVIDER
   }
 
   /**
