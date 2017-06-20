@@ -184,6 +184,24 @@ case class ResetCommand(key: Option[String]) extends RunnableCommand with Loggin
       runFunc
 
     // (In Hive, "UNSET key" clear a sepecific properties.)
+    case Some(SQLConf.Deprecated.MAPRED_REDUCE_TASKS) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        sparkSession.sessionState.conf.unsetConf(SQLConf.SHUFFLE_PARTITIONS.key)
+      }
+      runFunc
+
+    case Some(SQLConf.Replaced.MAPREDUCE_JOB_REDUCES) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        sparkSession.sessionState.conf.unsetConf(SQLConf.SHUFFLE_PARTITIONS.key)
+      }
+      runFunc
+
+    case Some(SQLConf.HiveVars.REDUCE_BYTES) =>
+      val runFunc = (sparkSession: SparkSession) => {
+        sparkSession.sessionState.conf.unsetConf(SQLConf.SHUFFLE_TARGET_POSTSHUFFLE_INPUT_SIZE.key)
+      }
+      runFunc
+
     case Some(key) =>
       val runFunc = (sparkSession: SparkSession) => {
         sparkSession.sessionState.conf.unsetConf(key)
