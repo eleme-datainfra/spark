@@ -165,7 +165,7 @@ class DataFrameFunctionsSuite extends QueryTest with SharedSQLContext {
       Row("902fbdd2b1df0c4f70b4a5d23525e932", "6ac1e56bc78f031059be7be854522c4c"))
 
     checkAnswer(
-      df.selectExpr("md5(a)", "md5(b)"),
+      df.selectExpr("spark_md5(a)", "spark_md5(b)"),
       Row("902fbdd2b1df0c4f70b4a5d23525e932", "6ac1e56bc78f031059be7be854522c4c"))
   }
 

@@ -364,7 +364,7 @@ object FunctionRegistry {
     // misc functions
     expression[AssertTrue]("assert_true"),
     expression[Crc32]("crc32"),
-    expression[Md5]("md5"),
+    expression[Md5]("spark_md5"),
     expression[Murmur3Hash]("hash"),
     expression[Sha1]("sha"),
     expression[Sha1]("sha1"),
