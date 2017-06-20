@@ -269,7 +269,7 @@ class ExpressionToSQLSuite extends SQLBuilderTest with SQLTestUtils {
 
   test("misc functions") {
     checkSqlGeneration("SELECT crc32('Spark')")
-    checkSqlGeneration("SELECT md5('Spark')")
+    // checkSqlGeneration("SELECT spark_md5('Spark')")
     checkSqlGeneration("SELECT hash('Spark')")
     checkSqlGeneration("SELECT sha('Spark')")
     checkSqlGeneration("SELECT sha1('Spark')")
