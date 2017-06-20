@@ -45,7 +45,7 @@ import org.apache.spark.sql.types._
  * @param isBroadcastable If true, output is small enough to be used in a broadcast join.
  */
 case class Statistics(
-    sizeInBytes: BigInt,
+    var sizeInBytes: BigInt,
     rowCount: Option[BigInt] = None,
     colStats: Map[String, ColumnStat] = Map.empty,
     isBroadcastable: Boolean = false) {

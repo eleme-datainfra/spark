@@ -17,13 +17,20 @@
 
 package org.apache.spark.sql.hive
 
+import java.io.IOException
+
+import scala.util.control.Breaks.{break, breakable}
+
+import org.apache.hadoop.fs.Path
+
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.planning._
 import org.apache.spark.sql.catalyst.plans._
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.{Filter, LogicalPlan, Statistics}
+import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.command.ExecutedCommandExec
+import org.apache.spark.sql.execution.command.{DDLUtils, ExecutedCommandExec}
 import org.apache.spark.sql.execution.datasources.CreateTable
 import org.apache.spark.sql.hive.execution._
 
@@ -99,6 +106,59 @@ private[hive] trait HiveStrategies {
           HiveTableScanExec(_, relation, pruningPredicates)(sparkSession)) :: Nil
       case _ =>
         Nil
+    }
+  }
+
+  case class DeterminePartitionedTableStats(sparkSession: SparkSession)
+    extends Rule[LogicalPlan] with PredicateHelper {
+
+    def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
+      case filter@Filter(condition, relation: MetastoreRelation)
+        if DDLUtils.isHiveTable(relation.catalogTable) &&
+          !relation.catalogTable.partitionColumnNames.isEmpty &&
+          sparkSession.sessionState.conf.fallBackToHdfsForStatsEnabled &&
+          sparkSession.sessionState.conf.metastorePartitionPruning =>
+        val predicates = splitConjunctivePredicates(condition)
+        val partitionSet = AttributeSet(relation.partitionKeys)
+        val pruningPredicates = predicates.filter { predicate =>
+          !predicate.references.isEmpty &&
+            predicate.references.subsetOf(partitionSet)
+        }
+        if (pruningPredicates.nonEmpty) {
+          val threshold = sparkSession.sessionState.conf.autoBroadcastJoinThreshold
+          val prunedPartitions = sparkSession.sharedState.externalCatalog.listPartitionsByFilter(
+            relation.catalogTable.database,
+            relation.catalogTable.identifier.table,
+            pruningPredicates)
+          var sizeInBytes = 0L
+          var hasError = false
+          val partitions = prunedPartitions.filter(p => p.storage.locationUri.isDefined)
+            .map(p => new Path(p.storage.locationUri.get))
+          val hadoopConf = sparkSession.sparkContext.hadoopConfiguration
+          breakable {
+            partitions.foreach { partition =>
+              try {
+                val fs = partition.getFileSystem(hadoopConf)
+                sizeInBytes += fs.getContentSummary(partition).getLength
+                if (sizeInBytes > threshold) {
+                  break()
+                }
+              } catch {
+                case e: IOException =>
+                  logWarning("Failed to get table size from hdfs.", e)
+                  hasError = true
+              }
+            }
+          }
+
+          if (hasError && sizeInBytes == 0) {
+            sizeInBytes = sparkSession.sessionState.conf.defaultSizeInBytes
+          }
+          relation.catalogTable.stats = Some(Statistics(sizeInBytes = BigInt(sizeInBytes)))
+          Filter(condition, relation)
+        } else {
+          filter
+        }
     }
   }
 }

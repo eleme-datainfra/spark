@@ -25,6 +25,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.reflectiveCalls
 
+import org.antlr.runtime.NoViableAltException
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
@@ -42,7 +43,6 @@ import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.hive.ql.Context
 import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.exec.FunctionRegistry
 import org.apache.hadoop.hive.ql.parse.ParseDriver
 import org.apache.hadoop.hive.ql.parse.ParseUtils
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzerFactory
@@ -975,6 +975,15 @@ private[hive] class HiveClientImpl(
     if (command.trim.toLowerCase().startsWith("add ")) {
       return
     }
+    if (command.trim.toLowerCase().startsWith("reset ")) {
+      return
+    }
+    if (command.trim.toLowerCase().startsWith("cache ")) {
+      return
+    }
+    if (command.trim.toLowerCase().startsWith("show create table ")) {
+      return
+    }
     if (p.matcher(command).find()) {
       return
     }
@@ -1027,10 +1036,11 @@ private[hive] class HiveClientImpl(
     } catch {
       case e: HiveAccessControlException =>
         throw e
-      case e: Exception =>
+      case e: NoViableAltException =>
         logWarning("We crash during hive auth: " + e.getMessage)
-    }
-    finally {
+      case e@ (_: Exception | _: Throwable | _: Error) =>
+        logWarning("We crash during hive auth: " + e.getMessage)
+    } finally {
       Thread.currentThread.setContextClassLoader(original)
     }
   }

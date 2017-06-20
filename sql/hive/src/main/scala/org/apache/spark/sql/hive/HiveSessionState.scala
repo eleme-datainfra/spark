@@ -19,11 +19,11 @@ package org.apache.spark.sql.hive
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.Analyzer
-import org.apache.spark.sql.execution.SparkPlanner
+import org.apache.spark.sql.catalyst.optimizer.Optimizer
+import org.apache.spark.sql.execution.{SparkOptimizer, SparkPlanner}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.hive.client.HiveClient
 import org.apache.spark.sql.internal.SessionState
-
 
 /**
  * A class that holds all session-specific state in a given [[SparkSession]] backed by Hive.
@@ -75,6 +75,11 @@ private[hive] class HiveSessionState(sparkSession: SparkSession)
 
       override val extendedCheckRules = Seq(PreWriteCheck(conf, catalog))
     }
+  }
+
+  override lazy val optimizer: Optimizer = new SparkOptimizer(catalog, conf, experimentalMethods) {
+    override def batches: Seq[Batch] = super.batches :+ Batch("Determine stats of partitionedTable",
+      Once, DeterminePartitionedTableStats(sparkSession))
   }
 
   /**
