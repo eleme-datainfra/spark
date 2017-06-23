@@ -24,10 +24,13 @@ import scala.util.control.Breaks.{break, breakable}
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{AttributeSet, PredicateHelper}
-import org.apache.spark.sql.catalyst.plans.logical.{Filter, LogicalPlan, Statistics}
+import org.apache.spark.sql.catalyst.expressions.{Alias, AttributeSet, PredicateHelper, Rand}
+import org.apache.spark.sql.catalyst.plans.logical
+import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.command.DDLUtils
+import org.apache.spark.sql.execution.datasources.CreateTable
+import org.apache.spark.sql.hive.execution.InsertIntoHiveTable
 
 case class DeterminePartitionedTableStats(sparkSession: SparkSession)
   extends Rule[LogicalPlan] with PredicateHelper {
@@ -79,5 +82,28 @@ case class DeterminePartitionedTableStats(sparkSession: SparkSession)
       } else {
         filter
       }
+  }
+}
+
+case class MergeSmallFiles(sparkSession: SparkSession) extends Rule[LogicalPlan] {
+
+  def apply(plan: LogicalPlan): LogicalPlan = {
+    if (!sparkSession.sessionState.conf.mergeHiveFiles) return plan
+    plan transformDown {
+      case InsertIntoTable(table: MetastoreRelation, partition,
+          child, overwrite, ifNotExists) if !child.isInstanceOf[Sort] &&
+          !child.children.exists(a => a.isInstanceOf[RepartitionByExpression] &&
+            !a.isInstanceOf[Repartition]) =>
+        val rand = Alias(new Rand(), "_nondeterministic")()
+        val newProjected = Project(child.output :+ rand, child)
+        val mergeFileStage = RepartitionByExpression(Seq(rand.toAttribute), newProjected, None)
+        val finalOutput = Project(child.output, mergeFileStage)
+        InsertIntoTable(table: MetastoreRelation, partition, finalOutput, overwrite, ifNotExists)
+      case CreateTable(tableDesc, mode, Some(query)) if tableDesc.provider.get == "hive" &&
+          !query.isInstanceOf[Sort] &&
+          !query.children.exists(a => a.isInstanceOf[RepartitionByExpression]
+            && !a.isInstanceOf[Repartition]) =>
+        CreateTable(tableDesc, mode, Some(RepartitionByExpression(Seq(new Rand()), query, None)))
+    }
   }
 }
