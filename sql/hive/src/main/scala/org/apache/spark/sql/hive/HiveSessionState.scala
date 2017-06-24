@@ -78,8 +78,10 @@ private[hive] class HiveSessionState(sparkSession: SparkSession)
   }
 
   override lazy val optimizer: Optimizer = new SparkOptimizer(catalog, conf, experimentalMethods) {
-    override def batches: Seq[Batch] = super.batches :+ Batch("Determine stats of partitionedTable",
-      Once, DeterminePartitionedTableStats(sparkSession))
+    override def batches: Seq[Batch] = super.batches :+
+      Batch("Determine stats of partitionedTable", Once,
+        DeterminePartitionedTableStats(sparkSession)) :+
+      Batch("Merge small files when insert into hive tables", Once, MergeSmallFiles(sparkSession))
   }
 
   /**
