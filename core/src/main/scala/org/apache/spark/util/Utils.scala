@@ -34,6 +34,8 @@ import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.Future
+import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.reflect.ClassTag
 import scala.util.Try
@@ -628,6 +630,8 @@ private[spark] object Utils extends Logging {
     val targetFile = new File(targetDir, filename)
     val uri = new URI(url)
     val fileOverwrite = conf.getBoolean("spark.files.overwrite", defaultValue = false)
+    val timeoutMs =
+      conf.getTimeAsSeconds("spark.files.fetchTimeout", "60s").toInt * 1000
     Option(uri.getScheme).getOrElse("file") match {
       case "spark" =>
         if (SparkEnv.get == null) {
@@ -636,7 +640,10 @@ private[spark] object Utils extends Logging {
         }
         val source = SparkEnv.get.rpcEnv.openChannel(url)
         val is = Channels.newInputStream(source)
-        downloadFile(url, is, targetFile, fileOverwrite)
+        val f = Future {
+          downloadFile(url, is, targetFile, fileOverwrite)
+        }
+        ThreadUtils.awaitResult(f, Duration(timeoutMs, TimeUnit.MILLISECONDS))
       case "http" | "https" | "ftp" =>
         var uc: URLConnection = null
         if (securityMgr.isAuthenticationEnabled()) {
@@ -649,9 +656,6 @@ private[spark] object Utils extends Logging {
           uc = new URL(url).openConnection()
         }
         Utils.setupSecureURLConnection(uc, securityMgr)
-
-        val timeoutMs =
-          conf.getTimeAsSeconds("spark.files.fetchTimeout", "60s").toInt * 1000
         uc.setConnectTimeout(timeoutMs)
         uc.setReadTimeout(timeoutMs)
         uc.connect()
