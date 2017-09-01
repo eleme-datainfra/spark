@@ -26,7 +26,7 @@ import org.apache.spark.util.ManualClock
 class StreamManualClock(time: Long = 0L) extends ManualClock(time) with Serializable {
   private var waitStartTime: Option[Long] = None
   private var waitTargetTime: Option[Long] = None
-  
+
   override def waitTillTime(targetTime: Long): Long = synchronized {
     try {
       waitStartTime = Some(getTimeMillis())
@@ -37,12 +37,7 @@ class StreamManualClock(time: Long = 0L) extends ManualClock(time) with Serializ
       waitTargetTime = None
     }
   }
-  
-  /** Is the streaming thread waiting for the clock to advance when it is at the given time */
-  def isStreamWaitingAt(time: Long): Boolean = synchronized {
-    waitStartTime == Some(time)
-  }
-  
+
   /** Is the streaming thread waiting for clock to advance to the given time */
   def isStreamWaitingFor(target: Long): Boolean = synchronized {
     waitTargetTime == Some(target)
