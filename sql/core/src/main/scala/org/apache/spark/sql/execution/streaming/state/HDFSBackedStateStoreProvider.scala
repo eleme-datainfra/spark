@@ -174,22 +174,13 @@ private[state] class HDFSBackedStateStoreProvider(
     /** Abort all the updates made on this store. This store will not be usable any more. */
     override def abort(): Unit = {
       verify(state == UPDATING || state == ABORTED, "Cannot abort after already committed")
-      try {
-        state = ABORTED
-        if (tempDeltaFileStream != null) {
-          tempDeltaFileStream.close()
-        }
-        if (tempDeltaFile != null) {
-          fs.delete(tempDeltaFile, true)
-        }
-      } catch {
-        case c: ClosedChannelException =>
-          // This can happen when underlying file output stream has been closed before the
-          // compression stream.
-          logDebug(s"Error aborting version $newVersion into $this", c)
 
-        case e: Exception =>
-          logWarning(s"Error aborting version $newVersion into $this", e)
+      state = ABORTED
+      if (tempDeltaFileStream != null) {
+        tempDeltaFileStream.close()
+      }
+      if (tempDeltaFile != null) {
+        fs.delete(tempDeltaFile, true)
       }
       logInfo(s"Aborted version $newVersion for $this")
     }
