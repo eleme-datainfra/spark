@@ -26,7 +26,6 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.mock.MockitoSugar
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.types.StructType
@@ -203,7 +202,7 @@ class StreamingQuerySuite extends StreamTest with BeforeAndAfter with Logging wi
 
   testQuietly("status, lastProgress, and recentProgress") {
     import StreamingQuerySuite._
-    clock = new StreamManualClock
+    clock = new org.apache.spark.sql.streaming.util.StreamManualClock
 
     /** Custom MemoryStream that waits for manual clock to reach a time */
     val inputData = new MemoryStream[Int](0, sqlContext) {
