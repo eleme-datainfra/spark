@@ -213,6 +213,24 @@ class SparkSession private(
     new SparkSession(sparkContext, Some(sharedState))
   }
 
+    /**
+     * Create an identical copy of this `SparkSession`, sharing the underlying `SparkContext`
+   * and shared state. All the state of this session (i.e. SQL configurations, temporary tables,
+   * registered functions) is copied over, and the cloned session is set up with the same shared
+   * state as this session. The cloned session is independent of this session, that is, any
+   * non-global change in either session is not reflected in the other.
+   *
+   * @note Other than the `SparkContext`, all shared state is initialized lazily.
+   * This method will force the initialization of the shared state to ensure that parent
+   * and child sessions are set up with the same shared state. If the underlying catalog
+   * implementation is Hive, this will initialize the metastore, which may take some time.
+   */
+      private[sql] def cloneSession(): SparkSession = {
+        val result = new SparkSession(sparkContext, Some(sharedState))
+        result.sessionState // force copy of SessionState
+        result
+  }
+
 
   /* --------------------------------- *
    |  Methods for creating DataFrames  |
