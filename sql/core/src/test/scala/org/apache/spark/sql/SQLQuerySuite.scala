@@ -2503,4 +2503,14 @@ class SQLQuerySuite extends QueryTest with SharedSQLContext {
       case ae: AnalysisException => assert(ae.plan == null && ae.getMessage == ae.getSimpleMessage)
     }
   }
+
+  test("SPARK-21774: should cast a string to double type when compare with a int") {
+    withTempView("src") {
+      Seq(("0", 1), ("-0.4", 2)).toDF("a", "b").createOrReplaceTempView("src")
+      checkAnswer(sql("SELECT a FROM src WHERE a=0"), Seq(Row("0")))
+      checkAnswer(sql("SELECT a FROM src WHERE a=0L"), Seq(Row("0")))
+      checkAnswer(sql("SELECT a FROM src WHERE a=0.0"), Seq(Row("0")))
+      checkAnswer(sql("SELECT a FROM src WHERE a=-0.4"), Seq(Row("-0.4")))
+    }
+  }
 }
