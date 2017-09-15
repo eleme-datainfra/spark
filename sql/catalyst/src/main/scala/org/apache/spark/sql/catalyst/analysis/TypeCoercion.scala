@@ -295,9 +295,41 @@ object TypeCoercion {
   }
 
   /**
+   * This function determines the target type of a comparison operator when one operand
+   * is a String and the other is not. It also handles when one op is a Date and the
+   * other is a Timestamp by making the target type to be String.
+   */
+  val findCommonTypeForBinaryComparison: (DataType, DataType) => Option[DataType] = {
+    // We should cast all relative timestamp/date/string comparison into string comparisons
+    // This behaves as a user would expect because timestamp strings sort lexicographically.
+    // i.e. TimeStamp(2013-01-01 00:00 ...) < "2014" = true
+    case (StringType, DateType) => Some(StringType)
+    case (DateType, StringType) => Some(StringType)
+    case (StringType, TimestampType) => Some(StringType)
+    case (TimestampType, StringType) => Some(StringType)
+    case (TimestampType, DateType) => Some(StringType)
+    case (DateType, TimestampType) => Some(StringType)
+    case (StringType, NullType) => Some(StringType)
+    case (NullType, StringType) => Some(StringType)
+    case (StringType, r: NumericType) => Some(DoubleType)
+    case (l: NumericType, StringType) => Some(DoubleType)
+    case (l: StringType, r: AtomicType) if r != StringType => Some(r)
+    case (l: AtomicType, r: StringType) if l != StringType => Some(l)
+    case (l, r) => None
+  }
+
+  /**
    * Promotes strings that appear in arithmetic expressions.
    */
   object PromoteStrings extends Rule[LogicalPlan] {
+    private def castExpr(expr: Expression, targetType: DataType): Expression = {
+      (expr.dataType, targetType) match {
+        case (NullType, dt) => Literal.create(null, targetType)
+        case (l, dt) if (l != dt) => Cast(expr, targetType)
+        case _ => expr
+      }
+    }
+
     def apply(plan: LogicalPlan): LogicalPlan = plan resolveExpressions {
       // Skip nodes who's children have not been resolved yet.
       case e if !e.childrenResolved => e
@@ -314,34 +346,10 @@ object TypeCoercion {
       case p @ Equality(left @ TimestampType(), right @ StringType()) =>
         p.makeCopy(Array(left, Cast(right, TimestampType)))
 
-      // We should cast all relative timestamp/date/string comparison into string comparisons
-      // This behaves as a user would expect because timestamp strings sort lexicographically.
-      // i.e. TimeStamp(2013-01-01 00:00 ...) < "2014" = true
-      case p @ BinaryComparison(left @ StringType(), right @ DateType()) =>
-        p.makeCopy(Array(left, Cast(right, StringType)))
-      case p @ BinaryComparison(left @ DateType(), right @ StringType()) =>
-        p.makeCopy(Array(Cast(left, StringType), right))
-      case p @ BinaryComparison(left @ StringType(), right @ TimestampType()) =>
-        p.makeCopy(Array(left, Cast(right, StringType)))
-      case p @ BinaryComparison(left @ TimestampType(), right @ StringType()) =>
-        p.makeCopy(Array(Cast(left, StringType), right))
-
-      // Comparisons between dates and timestamps.
-      case p @ BinaryComparison(left @ TimestampType(), right @ DateType()) =>
-        p.makeCopy(Array(Cast(left, StringType), Cast(right, StringType)))
-      case p @ BinaryComparison(left @ DateType(), right @ TimestampType()) =>
-        p.makeCopy(Array(Cast(left, StringType), Cast(right, StringType)))
-
-      // Checking NullType
-      case p @ BinaryComparison(left @ StringType(), right @ NullType()) =>
-        p.makeCopy(Array(left, Literal.create(null, StringType)))
-      case p @ BinaryComparison(left @ NullType(), right @ StringType()) =>
-        p.makeCopy(Array(Literal.create(null, StringType), right))
-
-      case p @ BinaryComparison(left @ StringType(), right) if right.dataType != StringType =>
-        p.makeCopy(Array(Cast(left, right.dataType), right))
-      case p @ BinaryComparison(left, right @ StringType()) if left.dataType != StringType =>
-        p.makeCopy(Array(left, Cast(right, left.dataType)))
+      case p @ BinaryComparison(left, right)
+        if findCommonTypeForBinaryComparison(left.dataType, right.dataType).isDefined =>
+        val commonType = findCommonTypeForBinaryComparison(left.dataType, right.dataType).get
+        p.makeCopy(Array(castExpr(left, commonType), castExpr(right, commonType)))
 
       case i @ In(a @ DateType(), b) if b.forall(_.dataType == StringType) =>
         i.makeCopy(Array(Cast(a, StringType), b))
@@ -356,6 +364,8 @@ object TypeCoercion {
       case Average(e @ StringType()) => Average(Cast(e, DoubleType))
       case StddevPop(e @ StringType()) => StddevPop(Cast(e, DoubleType))
       case StddevSamp(e @ StringType()) => StddevSamp(Cast(e, DoubleType))
+      case UnaryMinus(e @ StringType()) => UnaryMinus(Cast(e, DoubleType))
+      case UnaryPositive(e @ StringType()) => UnaryPositive(Cast(e, DoubleType))
       case VariancePop(e @ StringType()) => VariancePop(Cast(e, DoubleType))
       case VarianceSamp(e @ StringType()) => VarianceSamp(Cast(e, DoubleType))
       case Skewness(e @ StringType()) => Skewness(Cast(e, DoubleType))
