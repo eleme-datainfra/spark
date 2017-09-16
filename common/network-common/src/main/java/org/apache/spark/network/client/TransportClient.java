@@ -189,7 +189,7 @@ public class TransportClient implements Closeable {
     // written to the socket atomically, so that callbacks are called in the right order
     // when responses arrive.
     synchronized (this) {
-      handler.addStreamCallback(callback);
+      handler.addStreamCallback(streamId, callback);
       channel.writeAndFlush(new StreamRequest(streamId)).addListener(
         new ChannelFutureListener() {
           @Override
