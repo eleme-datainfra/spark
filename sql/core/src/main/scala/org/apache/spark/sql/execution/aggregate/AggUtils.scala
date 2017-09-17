@@ -66,14 +66,28 @@ object AggUtils {
         resultExpressions = resultExpressions,
         child = child)
     } else {
-      SortAggregateExec(
-        requiredChildDistributionExpressions = requiredChildDistributionExpressions,
-        groupingExpressions = groupingExpressions,
-        aggregateExpressions = aggregateExpressions,
-        aggregateAttributes = aggregateAttributes,
-        initialInputBufferOffset = initialInputBufferOffset,
-        resultExpressions = resultExpressions,
-        child = child)
+      val objectHashEnabled = child.sqlContext.conf.useObjectHashAggregation
+      val useObjectHash = ObjectHashAggregateExec.supportsAggregate(aggregateExpressions)
+
+      if (objectHashEnabled && useObjectHash) {
+        ObjectHashAggregateExec(
+          requiredChildDistributionExpressions = requiredChildDistributionExpressions,
+          groupingExpressions = groupingExpressions,
+          aggregateExpressions = aggregateExpressions,
+          aggregateAttributes = aggregateAttributes,
+          initialInputBufferOffset = initialInputBufferOffset,
+          resultExpressions = resultExpressions,
+          child = child)
+      } else {
+        SortAggregateExec(
+          requiredChildDistributionExpressions = requiredChildDistributionExpressions,
+          groupingExpressions = groupingExpressions,
+          aggregateExpressions = aggregateExpressions,
+          aggregateAttributes = aggregateAttributes,
+          initialInputBufferOffset = initialInputBufferOffset,
+          resultExpressions = resultExpressions,
+          child = child)
+      }
     }
   }
 
