@@ -225,8 +225,7 @@ case class Ceil(child: Expression) extends UnaryMathExpression(math.ceil, "CEIL"
   override def dataType: DataType = child.dataType match {
     case dt @ DecimalType.Fixed(_, 0) => dt
     case DecimalType.Fixed(precision, scale) =>
-      val boundedPrecision = if (precision < scale) 1 else precision - scale + 1
-      DecimalType.bounded(boundedPrecision, 0)
+      DecimalType.bounded(precision - scale + 1, 0)
     case _ => LongType
   }
 
@@ -341,8 +340,7 @@ case class Floor(child: Expression) extends UnaryMathExpression(math.floor, "FLO
   override def dataType: DataType = child.dataType match {
     case dt @ DecimalType.Fixed(_, 0) => dt
     case DecimalType.Fixed(precision, scale) =>
-      val boundedPrecision = if (precision < scale) 1 else precision - scale + 1
-      DecimalType.bounded(boundedPrecision, 0)
+      DecimalType.bounded(precision - scale + 1, 0)
     case _ => LongType
   }
 
@@ -1023,10 +1021,10 @@ abstract class RoundBase(child: Expression, scale: Expression,
 
   // not overriding since _scale is a constant int at runtime
   def nullSafeEval(input1: Any): Any = {
-    child.dataType match {
-      case _: DecimalType =>
+    dataType match {
+      case DecimalType.Fixed(_, s) =>
         val decimal = input1.asInstanceOf[Decimal]
-        decimal.toPrecision(decimal.precision, _scale, mode).orNull
+        if (decimal.changePrecision(decimal.precision, s, mode)) decimal else null
       case ByteType =>
         BigDecimal(input1.asInstanceOf[Byte]).setScale(_scale, mode).toByte
       case ShortType =>
@@ -1055,10 +1053,10 @@ abstract class RoundBase(child: Expression, scale: Expression,
   override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
     val ce = child.genCode(ctx)
 
-    val evaluationCode = child.dataType match {
-      case _: DecimalType =>
+    val evaluationCode = dataType match {
+      case DecimalType.Fixed(_, s) =>
         s"""
-        if (${ce.value}.changePrecision(${ce.value}.precision(), ${_scale},
+        if (${ce.value}.changePrecision(${ce.value}.precision(), ${s},
             java.math.BigDecimal.${modeStr})) {
           ${ev.value} = ${ce.value};
         } else {
