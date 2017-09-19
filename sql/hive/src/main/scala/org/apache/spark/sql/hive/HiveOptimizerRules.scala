@@ -88,7 +88,7 @@ case class DeterminePartitionedTableStats(sparkSession: SparkSession)
             }
           }
         }
-        sizeInBytes = sizeInBytes * i / partitions.size
+        sizeInBytes = (sizeInBytes * partitions.size * 1d / i).toLong
         if (hasError && sizeInBytes == 0) {
           sizeInBytes = sparkSession.sessionState.conf.defaultSizeInBytes
         }
